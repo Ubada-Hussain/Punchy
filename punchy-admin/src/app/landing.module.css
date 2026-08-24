@@ -1,0 +1,690 @@
+/* ─── Landing Page Styles ──────────────────────────────────────────────── */
+
+.page {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #1C1C1A;
+  background: #FAFAF8;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Nav ─────────────────────────────────────────────────────────────────── */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(250, 250, 248, 0.9);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid #E5E5E2;
+}
+
+.navInner {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.logoMark {
+  width: 34px;
+  height: 34px;
+  background: #FF6B35;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 800;
+  color: white;
+}
+
+.logoText {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1C1C1A;
+  letter-spacing: -0.5px;
+}
+
+.navLinks {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 16px;
+}
+
+.navLink {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6B6B66;
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 150ms, color 150ms;
+}
+
+.navLink:hover { background: #F0F0EE; color: #1C1C1A; }
+
+.navCta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.navLoginBtn {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6B6B66;
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  transition: background 150ms;
+}
+
+.navLoginBtn:hover { background: #F0F0EE; color: #1C1C1A; }
+
+.navSignupBtn {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background: #FF6B35;
+  padding: 7px 18px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 150ms;
+}
+
+.navSignupBtn:hover { background: #E5531A; }
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+.hero {
+  padding: 80px 24px 60px;
+  max-width: 1160px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+
+.heroInner { max-width: 520px; }
+
+.heroEyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  color: #FF6B35;
+  letter-spacing: 0.06em;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -2px;
+  color: #1C1C1A;
+  margin-bottom: 20px;
+}
+
+.heroHighlight {
+  color: #FF6B35;
+  position: relative;
+}
+
+.heroHighlight::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 0; right: 0;
+  height: 4px;
+  background: rgba(255, 107, 53, 0.25);
+  border-radius: 2px;
+}
+
+.heroSub {
+  font-size: 17px;
+  line-height: 1.7;
+  color: #6B6B66;
+  margin-bottom: 32px;
+}
+
+.heroCtas {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.heroPrimary {
+  display: inline-flex;
+  align-items: center;
+  background: #FF6B35;
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 14px 28px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: background 150ms, transform 150ms;
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+}
+
+.heroPrimary:hover { background: #E5531A; transform: translateY(-1px); }
+
+.heroSecondary {
+  display: inline-flex;
+  align-items: center;
+  background: white;
+  color: #1C1C1A;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px 28px;
+  border-radius: 10px;
+  border: 1.5px solid #D4D4D0;
+  text-decoration: none;
+  transition: border-color 150ms, background 150ms;
+}
+
+.heroSecondary:hover { border-color: #A3A3A0; background: #F5F5F3; }
+
+.heroMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #A3A3A0;
+}
+
+.dot { opacity: 0.4; }
+
+/* ── Demo Cards ───────────────────────────────────────────────────────────── */
+.heroCards {
+  position: relative;
+  height: 340px;
+}
+
+.demoCard {
+  position: absolute;
+  background: white;
+  border: 1.5px solid #E5E5E2;
+  border-radius: 20px;
+  padding: 24px;
+  width: 300px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.demoCard::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: var(--card-color);
+  border-radius: 20px 20px 0 0;
+}
+
+.demoCard:first-child {
+  top: 0;
+  right: 0;
+  z-index: 2;
+  transform: rotate(-1deg);
+}
+
+.demoCardBack {
+  top: 50px;
+  right: 60px;
+  z-index: 1;
+  transform: rotate(2deg);
+  opacity: 0.9;
+}
+
+.demoCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.demoCardLogo {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 107, 53, 0.08);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.demoCardName { font-size: 15px; font-weight: 700; color: #1C1C1A; }
+.demoCardCat  { font-size: 12px; color: #A3A3A0; margin-top: 2px; }
+
+.demoCardPunches {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.punch {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid #E5E5E2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  background: #FAFAF8;
+  transition: all 150ms;
+}
+
+.punchFilled {
+  border-color: var(--card-color);
+  background: rgba(255, 107, 53, 0.08);
+}
+
+.demoCardFooter {
+  font-size: 12px;
+  color: #6B6B66;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────────── */
+.section {
+  padding: 80px 24px;
+}
+
+.altSection {
+  padding: 80px 24px;
+  background: white;
+  border-top: 1px solid #E5E5E2;
+  border-bottom: 1px solid #E5E5E2;
+}
+
+.sectionInner {
+  max-width: 1160px;
+  margin: 0 auto;
+}
+
+.sectionEyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #FF6B35;
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: #1C1C1A;
+  margin-bottom: 48px;
+  line-height: 1.15;
+}
+
+/* ── Steps ────────────────────────────────────────────────────────────────── */
+.stepsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+}
+
+.step {
+  background: white;
+  border: 1px solid #E5E5E2;
+  border-radius: 20px;
+  padding: 32px;
+  position: relative;
+  transition: box-shadow 200ms, transform 200ms;
+}
+
+.step:hover {
+  box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.stepNum {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 107, 53, 0.1);
+  color: #FF6B35;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.stepIcon {
+  font-size: 36px;
+  margin-bottom: 16px;
+}
+
+.stepTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1C1C1A;
+  margin-bottom: 10px;
+}
+
+.stepDesc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #6B6B66;
+}
+
+/* ── Split Layout ─────────────────────────────────────────────────────────── */
+.splitLayout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: center;
+}
+
+.splitReverse .splitText { order: 2; }
+.splitReverse .splitVisual { order: 1; }
+
+.splitSub {
+  font-size: 16px;
+  line-height: 1.7;
+  color: #6B6B66;
+  margin-bottom: 28px;
+  max-width: 420px;
+}
+
+.featureList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.featureItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 15px;
+  color: #1C1C1A;
+  font-weight: 500;
+}
+
+.featureCheck {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(13, 148, 136, 0.1);
+  color: #0D9488;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Business Dashboard Preview ─────────────────────────────────────────── */
+.dashPreview {
+  background: white;
+  border: 1.5px solid #E5E5E2;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.10);
+}
+
+.dashBar {
+  background: #1C1C1A;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  margin-left: auto;
+}
+
+.dashStat {
+  display: flex;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #F0F0EE;
+  gap: 12px;
+}
+
+.dashStat:last-child { border-bottom: none; }
+
+.dashStatLabel {
+  font-size: 13px;
+  color: #6B6B66;
+  flex: 1;
+}
+
+.dashStatValue {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1C1C1A;
+  letter-spacing: -0.5px;
+}
+
+.dashStatTrend {
+  font-size: 12px;
+  font-weight: 600;
+  color: #16A34A;
+  white-space: nowrap;
+}
+
+/* ── Wallet Preview ───────────────────────────────────────────────────────── */
+.walletPreview {
+  background: #F5F5F3;
+  border-radius: 24px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+}
+
+.walletTitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1C1C1A;
+  margin-bottom: 4px;
+}
+
+.walletCard {
+  background: white;
+  border-radius: 14px;
+  padding: 16px;
+  border: 1.5px solid #E5E5E2;
+  transition: box-shadow 150ms;
+}
+
+.walletCard:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+
+.walletCardTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.walletEmoji {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  background: rgba(0,0,0,0.04);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.walletCardName { font-size: 14px; font-weight: 700; color: #1C1C1A; }
+.walletCardCount { font-size: 12px; color: #6B6B66; margin-top: 2px; }
+
+.walletReady {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  background: #16A34A;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.walletBar {
+  height: 6px;
+  background: #F0F0EE;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.walletProgress {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+/* ── App store links ────────────────────────────────────────────────────── */
+.appLinks {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 32px;
+}
+
+.storeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #1C1C1A;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: background 150ms;
+}
+
+.storeBtn:hover { background: #333; }
+
+/* ── CTA Section ─────────────────────────────────────────────────────────── */
+.ctaSection {
+  background: #FF6B35;
+  padding: 80px 24px;
+}
+
+.ctaInner {
+  max-width: 660px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.ctaTitle {
+  font-size: 40px;
+  font-weight: 800;
+  color: white;
+  letter-spacing: -1px;
+  margin-bottom: 16px;
+}
+
+.ctaSub {
+  font-size: 17px;
+  color: rgba(255,255,255,0.8);
+  line-height: 1.6;
+  margin-bottom: 36px;
+}
+
+.ctaBtns {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.ctaBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  color: #1C1C1A;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 14px 28px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: background 150ms, transform 150ms;
+}
+
+.ctaBtn:hover { background: #F5F5F3; transform: translateY(-1px); }
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.footer {
+  background: #1C1C1A;
+  padding: 32px 24px;
+}
+
+.footerInner {
+  max-width: 1160px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.footer .logoText { color: white; }
+.footer .logoMark { background: rgba(255,255,255,0.15); }
+
+.footerText {
+  font-size: 13px;
+  color: rgba(255,255,255,0.4);
+  margin-left: auto;
+}
+
+.footerAdmin {
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  text-decoration: none;
+  transition: color 150ms;
+  white-space: nowrap;
+}
+
+.footerAdmin:hover { color: rgba(255,255,255,0.9); }
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; gap: 40px; padding: 48px 24px 40px; }
+  .heroCards { height: 280px; order: -1; }
+  .heroTitle { font-size: 40px; }
+  .stepsGrid { grid-template-columns: 1fr; }
+  .splitLayout { grid-template-columns: 1fr; gap: 40px; }
+  .splitReverse .splitText { order: 0; }
+  .splitReverse .splitVisual { order: 0; }
+  .ctaTitle { font-size: 30px; }
+  .sectionTitle { font-size: 30px; }
+  .navLinks { display: none; }
+  .footerInner { flex-direction: column; text-align: center; gap: 12px; }
+  .footerText { margin-left: 0; }
+}

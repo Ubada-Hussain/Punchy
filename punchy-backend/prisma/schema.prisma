@@ -1,0 +1,222 @@
+// ─── Prisma Schema — Punchy Platform ───────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Role {
+  CUSTOMER
+  BUSINESS
+  ADMIN
+}
+
+enum BusinessStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+enum PunchMethodType {
+  QR
+  NFC
+}
+
+enum NotificationTarget {
+  ALL
+  BUSINESSES
+  CUSTOMERS
+  USER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+// Placeholder for future monetisation — no schema rework needed when introduced
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+// ─── User ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  role         Role     @default(CUSTOMER)
+  isBlocked    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  businessProfile   BusinessProfile?
+  customerCards     CustomerCard[]
+  refreshTokens     RefreshToken[]
+  sentNotifications Notification[]  @relation("NotificationCreator")
+  supportTickets    SupportTicket[] @relation("TicketAuthor")
+  resolvedTickets   SupportTicket[] @relation("TicketResolver")
+  activityLogs      ActivityLog[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// ─── Business ────────────────────────────────────────────────────────────────
+
+model BusinessProfile {
+  id               String           @id @default(uuid())
+  userId           String           @unique
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  logo             String?
+  category         String
+  description      String?
+  website          String?
+  status           BusinessStatus   @default(PENDING)
+  subscriptionTier SubscriptionTier @default(FREE)
+  locations        Json             @default("[]")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  loyaltyCards LoyaltyCard[]
+}
+
+// ─── Loyalty Card ────────────────────────────────────────────────────────────
+
+model LoyaltyCard {
+  id                String          @id @default(uuid())
+  businessId        String
+  business          BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title             String
+  punchesRequired   Int             @default(10)
+  rewardDescription String
+  visualStyle       Json            @default("{}")
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  punchMethods  PunchMethod[]
+  customerCards CustomerCard[]
+}
+
+// ─── Punch Method ─────────────────────────────────────────────────────────────
+
+model PunchMethod {
+  id         String          @id @default(uuid())
+  cardId     String
+  card       LoyaltyCard     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  type       PunchMethodType
+  identifier String          @unique
+  label      String?
+  isActive   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+
+  punchTransactions PunchTransaction[]
+}
+
+// ─── Customer Card (join + state) ────────────────────────────────────────────
+
+model CustomerCard {
+  id          String      @id @default(uuid())
+  customerId  String
+  customer    User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  cardId      String
+  card        LoyaltyCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  punchCount  Int         @default(0)
+  isCompleted Boolean     @default(false)
+  joinedAt    DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  punchTransactions PunchTransaction[]
+  redemptions       Redemption[]
+
+  @@unique([customerId, cardId])
+}
+
+// ─── Punch Transaction ────────────────────────────────────────────────────────
+
+model PunchTransaction {
+  id             String          @id @default(uuid())
+  customerCardId String
+  customerCard   CustomerCard    @relation(fields: [customerCardId], references: [id], onDelete: Cascade)
+  punchMethodId  String
+  punchMethod    PunchMethod     @relation(fields: [punchMethodId], references: [id])
+  method         PunchMethodType
+  timestamp      DateTime        @default(now())
+}
+
+// ─── Redemption ───────────────────────────────────────────────────────────────
+
+model Redemption {
+  id             String       @id @default(uuid())
+  customerCardId String
+  customerCard   CustomerCard @relation(fields: [customerCardId], references: [id], onDelete: Cascade)
+  redeemedAt     DateTime     @default(now())
+  verifiedBy     String?
+}
+
+// ─── Notification ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id          String             @id @default(uuid())
+  targetType  NotificationTarget
+  targetId    String?
+  title       String
+  body        String
+  sentAt      DateTime?
+  scheduledAt DateTime?
+  createdBy   String
+  creator     User               @relation("NotificationCreator", fields: [createdBy], references: [id])
+  createdAt   DateTime           @default(now())
+}
+
+// ─── Support Ticket ───────────────────────────────────────────────────────────
+
+model SupportTicket {
+  id         String       @id @default(uuid())
+  authorId   String
+  author     User         @relation("TicketAuthor", fields: [authorId], references: [id])
+  subject    String
+  body       String
+  status     TicketStatus @default(OPEN)
+  resolvedBy String?
+  resolver   User?        @relation("TicketResolver", fields: [resolvedBy], references: [id])
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+  updatedAt  DateTime     @updatedAt
+}
+
+// ─── Admin Config ─────────────────────────────────────────────────────────────
+
+model AdminConfig {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+// ─── Activity Log ─────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+}
