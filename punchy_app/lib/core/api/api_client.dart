@@ -3,8 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiClient {
-  // Use 10.0.2.2 for Android emulator to localhost, or localhost for web/iOS sim
-  static const String baseUrl = 'http://10.0.2.2:4000/api'; 
+  // Use 10.0.2.2 for Android emulator, or localhost for web/desktop.
+  static const String baseUrl = 'http://localhost:4000';  
 
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();

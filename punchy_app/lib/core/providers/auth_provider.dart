@@ -35,12 +35,45 @@ class AuthProvider extends ChangeNotifier {
         'password': password,
       });
       
-      _token = response['token'];
+      _token = response['accessToken'];
       _user = response['user'];
       
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', _token!);
       
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> loginWithClerk({
+    required String email,
+    String? name,
+    String? provider,
+    String? role,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await _api.post('/auth/clerk', {
+        'email': email,
+        'name': name,
+        'provider': provider ?? 'clerk',
+        'role': role ?? 'CUSTOMER',
+      });
+
+      _token = response['accessToken'];
+      _user = response['user'];
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', _token!);
+
       _isLoading = false;
       notifyListeners();
       return true;
