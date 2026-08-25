@@ -54,4 +54,86 @@ router.post('/cards/:id/redeem', requireAuth, requireRole('CUSTOMER'), async (re
   res.json({ message: 'Reward redeemed! Enjoy! 🎉', redemption });
 });
 
+// GET /customer/explore — browse available businesses & loyalty cards
+router.get('/explore', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { category, search } = req.query;
+  const where: Record<string, unknown> = {
+    status: 'APPROVED',
+  };
+
+  if (category && category !== 'All') {
+    where.category = { contains: String(category), mode: 'insensitive' };
+  }
+  if (search) {
+    where.OR = [
+      { name: { contains: String(search), mode: 'insensitive' } },
+      { category: { contains: String(search), mode: 'insensitive' } },
+      { description: { contains: String(search), mode: 'insensitive' } },
+    ];
+  }
+
+  const businesses = await prisma.businessProfile.findMany({
+    where,
+    include: {
+      loyaltyCards: {
+        where: { isActive: true },
+        include: {
+          punchMethods: { where: { isActive: true } },
+          _count: { select: { customerCards: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  res.json(businesses);
+});
+
+// POST /customer/cards/join — join card without scan
+router.post('/cards/join', requireAuth, requireRole('CUSTOMER'), async (req: Request, res: Response): Promise<void> => {
+  const { cardId } = req.body;
+  if (!cardId) {
+    res.status(400).json({ error: 'cardId is required' });
+    return;
+  }
+
+  const card = await prisma.loyaltyCard.findUnique({
+    where: { id: String(cardId) },
+    include: { business: true },
+  });
+
+  if (!card || !card.isActive) {
+    res.status(404).json({ error: 'Card not found or inactive' });
+    return;
+  }
+
+  const customerId = req.user!.userId;
+  const existing = await prisma.customerCard.findUnique({
+    where: { customerId_cardId: { customerId, cardId: card.id } },
+  });
+
+  if (existing) {
+    res.json({ message: 'Card is already in your wallet', customerCard: existing });
+    return;
+  }
+
+  const created = await prisma.customerCard.create({
+    data: {
+      customerId,
+      cardId: card.id,
+      punchCount: 0,
+    },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId: customerId,
+      action: 'CARD_JOINED_FROM_EXPLORE',
+      metadata: { cardId: card.id, cardTitle: card.title, businessName: card.business.name },
+    },
+  });
+
+  res.status(201).json({ message: 'Card added to your wallet! 🎉', customerCard: created });
+});
+
 export default router;

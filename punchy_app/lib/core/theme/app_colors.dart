@@ -14,7 +14,9 @@ class AppColors {
   static const Color coral = Color(0xFFFF6B57);
   static const Color coralDark = Color(0xFFE4503D);
   static const Color gold = Color(0xFFFFC145);
+  static const Color goldDark = Color(0xFFC78C1A);
   static const Color purple = Color(0xFF7C6FF0);
+  static const Color purpleDark = Color(0xFF5346BD);
   static const Color darkNav = Color(0xFF0C1210);
 
   // Gradients

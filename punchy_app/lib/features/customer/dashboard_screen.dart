@@ -184,27 +184,30 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                     ),
                     const SizedBox(height: 14),
 
-                    // Search Bar
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        border: Border.all(color: AppColors.line, width: 1.5),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.search_rounded, color: AppColors.inkFaint, size: 18),
-                          const SizedBox(width: 9),
-                          Text(
-                            'Find a business',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              color: AppColors.inkFaint,
-                              fontWeight: FontWeight.w600,
+                    // Search Bar -> Navigates to Explore
+                    GestureDetector(
+                      onTap: () => context.push('/explore'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          border: Border.all(color: AppColors.line, width: 1.5),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.search_rounded, color: AppColors.inkFaint, size: 18),
+                            const SizedBox(width: 9),
+                            Text(
+                              'Find a business or card...',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                color: AppColors.inkFaint,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 18),
@@ -398,7 +401,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildNavItem(0, Icons.home_rounded, 'Home'),
-          _buildNavItem(1, Icons.credit_card_rounded, 'Cards'),
+          _buildNavItem(1, Icons.explore_rounded, 'Explore', onTap: () => context.push('/explore')),
           // Center Coral Scan FAB
           GestureDetector(
             onTap: () => context.push('/scanner'),
@@ -425,7 +428,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
               ),
             ),
           ),
-          _buildNavItem(2, Icons.notifications_none_rounded, 'Alerts'),
+          _buildNavItem(2, Icons.notifications_none_rounded, 'Alerts', onTap: () => context.push('/system-states')),
           _buildNavItem(3, Icons.person_outline_rounded, 'Profile', onTap: () => context.push('/profile')),
         ],
       ),
