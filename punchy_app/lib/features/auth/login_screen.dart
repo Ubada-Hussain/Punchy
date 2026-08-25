@@ -28,7 +28,14 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (success && mounted) {
-        context.go('/');
+        final role = auth.user?['role'];
+        if (role == 'BUSINESS') {
+          context.go('/business');
+        } else if (role == 'ADMIN') {
+          context.go('/admin');
+        } else {
+          context.go('/');
+        }
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -36,7 +43,9 @@ class _LoginScreenState extends State<LoginScreen> {
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Text(
-              'Login failed. Please check your credentials.',
+              auth.errorMessage != null && auth.errorMessage!.contains('Invalid credentials')
+                  ? 'Invalid email or password.'
+                  : 'Login failed. Please check your credentials.',
               style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
             ),
           ),
@@ -129,8 +138,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: Icon(Icons.mail_outline_rounded, color: AppColors.inkFaint, size: 18),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.trim().isEmpty) {
                         return 'Please enter your email';
+                      }
+                      if (!value.contains('@') || !value.contains('.')) {
+                        return 'Please enter a valid email address (e.g. name@example.com)';
                       }
                       return null;
                     },
@@ -275,7 +287,59 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 20),
+
+                  // Quick Demo Logins
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.line),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '⚡ Quick Demo Accounts',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.inkSoft,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildDemoChip(
+                                'Customer',
+                                'demo-customer@punchy.app',
+                                'Customer1234!',
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildDemoChip(
+                                'Business',
+                                'demo-business@punchy.app',
+                                'Business1234!',
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildDemoChip(
+                                'Admin',
+                                'admin@punchy.app',
+                                'Admin1234!',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
 
                   // Sign Up Link
                   Row(
@@ -300,6 +364,35 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDemoChip(String role, String email, String password) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _emailController.text = email;
+          _passwordController.text = password;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+        decoration: BoxDecoration(
+          color: AppColors.bg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Center(
+          child: Text(
+            role,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.tealDark,
             ),
           ),
         ),

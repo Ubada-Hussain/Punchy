@@ -21,8 +21,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.user;
-    final email = user?['email'] ?? 'ayesha@email.com';
+    final email = user?['email'] ?? 'customer@punchy.app';
+    final name = user?['name'] ?? (email.contains('@') ? email.split('@')[0] : 'User');
     final role = user?['role'] ?? 'CUSTOMER';
+
+    String initials = 'P';
+    if (name.trim().isNotEmpty) {
+      final parts = name.trim().split(RegExp(r'\s+'));
+      if (parts.length > 1) {
+        initials = '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+      } else {
+        initials = name.substring(0, name.length >= 2 ? 2 : 1).toUpperCase();
+      }
+    }
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -99,10 +110,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ],
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Text(
-                            'AK',
-                            style: TextStyle(
+                            initials,
+                            style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w800,
                               color: Colors.white,
@@ -115,7 +126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Ayesha Khan',
+                            name,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,

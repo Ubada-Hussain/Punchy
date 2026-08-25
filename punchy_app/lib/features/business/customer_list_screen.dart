@@ -38,55 +38,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       }
     } catch (_) {}
 
-    // Sample fallback data if backend is empty
     if (mounted) {
       setState(() {
-        _customers = [
-          {
-            'customerCardId': 'cc1',
-            'customerId': 'u1',
-            'email': 'ayesha@email.com',
-            'cardTitle': 'Coffee Lovers Card',
-            'punchCount': 8,
-            'punchesRequired': 10,
-            'isCompleted': false,
-            'joinedAt': DateTime.now().subtract(const Duration(days: 12)).toIso8601String(),
-            'lastActivity': 'Today, 10:24 AM',
-          },
-          {
-            'customerCardId': 'cc2',
-            'customerId': 'u2',
-            'email': 'bilal.hassan@gmail.com',
-            'cardTitle': 'Coffee Lovers Card',
-            'punchCount': 10,
-            'punchesRequired': 10,
-            'isCompleted': true,
-            'joinedAt': DateTime.now().subtract(const Duration(days: 20)).toIso8601String(),
-            'lastActivity': 'Today, 8:45 AM',
-          },
-          {
-            'customerCardId': 'cc3',
-            'customerId': 'u3',
-            'email': 'zainab.r@outlook.com',
-            'cardTitle': 'Coffee Lovers Card',
-            'punchCount': 3,
-            'punchesRequired': 10,
-            'isCompleted': false,
-            'joinedAt': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
-            'lastActivity': 'Yesterday, 4:15 PM',
-          },
-          {
-            'customerCardId': 'cc4',
-            'customerId': 'u4',
-            'email': 'hamza.k@gmail.com',
-            'cardTitle': 'Coffee Lovers Card',
-            'punchCount': 6,
-            'punchesRequired': 10,
-            'isCompleted': false,
-            'joinedAt': DateTime.now().subtract(const Duration(days: 15)).toIso8601String(),
-            'lastActivity': 'Aug 22, 2:10 PM',
-          },
-        ];
+        _customers = [];
         _isLoading = false;
       });
     }

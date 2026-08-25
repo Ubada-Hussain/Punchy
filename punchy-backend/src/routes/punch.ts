@@ -5,7 +5,7 @@ import { requireAuth, requireRole } from '../middleware/auth';
 
 const router = Router();
 
-const PunchSchema = z.object({ identifier: z.string().uuid() });
+const PunchSchema = z.object({ identifier: z.string().min(1) });
 
 /**
  * POST /punch

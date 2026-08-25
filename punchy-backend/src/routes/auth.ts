@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuid } from 'uuid';
 import prisma from '../lib/prisma';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../lib/jwt';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -11,6 +12,7 @@ const RegisterSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   role: z.enum(['BUSINESS', 'CUSTOMER']),
+  name: z.string().optional(),
   phone: z.string().optional(),
 });
 
@@ -19,22 +21,39 @@ const LoginSchema = z.object({
   password: z.string(),
 });
 
+const ProfileUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  phone: z.string().optional(),
+});
+
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 router.post('/register', async (req: Request, res: Response): Promise<void> => {
   const parsed = RegisterSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
-  const { email, password, role, phone } = parsed.data;
+  const { email, password, role, name, phone } = parsed.data;
   if (await prisma.user.findUnique({ where: { email } })) {
     res.status(409).json({ error: 'Email already registered' }); return;
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
-    data: { email, passwordHash, role, phone },
-    select: { id: true, email: true, role: true, createdAt: true },
+    data: { email, passwordHash, role, name: name || email.split('@')[0], phone },
+    select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true },
   });
+
+  // If new business, automatically create default business profile
+  if (user.role === 'BUSINESS') {
+    await prisma.businessProfile.create({
+      data: {
+        userId: user.id,
+        name: name || 'My Business',
+        category: 'Cafe & Retail',
+        status: 'APPROVED',
+      },
+    });
+  }
 
   const tokenPayload = { userId: user.id, email: user.email, role: user.role };
   const accessToken = signAccessToken(tokenPayload);
@@ -64,7 +83,71 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
   });
 
-  res.json({ user: { id: user.id, email: user.email, role: user.role }, accessToken, refreshToken });
+  res.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name || user.email.split('@')[0],
+      role: user.role,
+      phone: user.phone,
+      createdAt: user.createdAt,
+    },
+    accessToken,
+    refreshToken,
+  });
+});
+
+router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      phone: true,
+      createdAt: true,
+      businessProfile: true,
+      _count: {
+        select: { customerCards: true },
+      },
+    },
+  });
+
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  res.json({ user });
+});
+
+router.put('/profile', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const parsed = ProfileUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const { name, phone } = parsed.data;
+  const updatedUser = await prisma.user.update({
+    where: { id: req.user!.userId },
+    data: {
+      ...(name ? { name } : {}),
+      ...(phone !== undefined ? { phone } : {}),
+    },
+    select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true },
+  });
+
+  // Also update business profile name if business role
+  if (name && updatedUser.role === 'BUSINESS') {
+    await prisma.businessProfile.updateMany({
+      where: { userId: updatedUser.id },
+      data: { name },
+    });
+  }
+
+  res.json({ message: 'Profile updated successfully', user: updatedUser });
 });
 
 router.post('/refresh', async (req: Request, res: Response): Promise<void> => {

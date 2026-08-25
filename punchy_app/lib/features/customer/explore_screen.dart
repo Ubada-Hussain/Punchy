@@ -53,71 +53,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
       }
     } catch (_) {}
 
-    // Fallback sample businesses if offline or backend empty
     if (mounted) {
       setState(() {
-        _businesses = [
-          {
-            'id': 'b1',
-            'name': 'Brew & Co. Artisanal Coffee',
-            'category': 'Cafe & Bakery',
-            'description': 'Handcrafted single-origin coffee & fresh organic pastries.',
-            'loyaltyCards': [
-              {
-                'id': 'c1',
-                'title': 'Coffee Lovers Card',
-                'punchesRequired': 10,
-                'rewardDescription': '1 Free Specialty Beverage',
-                'visualStyle': {'theme': 'teal'},
-              }
-            ]
-          },
-          {
-            'id': 'b2',
-            'name': 'Glow Beauty & Hair Studio',
-            'category': 'Salon & Spa',
-            'description': 'Premium styling, hair treatments, and luxury facial care.',
-            'loyaltyCards': [
-              {
-                'id': 'c2',
-                'title': 'Glow VIP Card',
-                'punchesRequired': 5,
-                'rewardDescription': 'Free Hair Treatment or Blowdry',
-                'visualStyle': {'theme': 'coral'},
-              }
-            ]
-          },
-          {
-            'id': 'b3',
-            'name': 'FitZone Elite Training Gym',
-            'category': 'Fitness & Wellness',
-            'description': 'State-of-the-art gym, sauna, and crossfit classes.',
-            'loyaltyCards': [
-              {
-                'id': 'c3',
-                'title': 'Workout Streak Pass',
-                'punchesRequired': 8,
-                'rewardDescription': 'Free 1-Month VIP Upgrade',
-                'visualStyle': {'theme': 'purple'},
-              }
-            ]
-          },
-          {
-            'id': 'b4',
-            'name': 'Slice House Artisan Pizza',
-            'category': 'Dining & Fast Food',
-            'description': 'Woodfired Neapolitan pizza and Italian gelatos.',
-            'loyaltyCards': [
-              {
-                'id': 'c4',
-                'title': 'Pizza Pass',
-                'punchesRequired': 6,
-                'rewardDescription': '1 Large Pizza with 2 toppings',
-                'visualStyle': {'theme': 'gold'},
-              }
-            ]
-          },
-        ];
+        _businesses = [];
         _isLoading = false;
       });
     }
@@ -125,29 +63,43 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   Future<void> _addCardToWallet(String cardId, String businessName) async {
     try {
-      await _api.post('/customer/cards/join', {'cardId': cardId});
-    } catch (_) {}
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.ink,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: AppColors.teal, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Added card from $businessName to your wallet! 🎉',
-                  style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+      final res = await _api.post('/customer/cards/join', {'cardId': cardId});
+      final msg = res?['message'] ?? 'Added card from $businessName to your wallet! 🎉';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.ink,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: AppColors.teal, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    msg,
+                    style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.ink,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Text(
+              'Could not add card to wallet. Please check connection.',
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+        );
+      }
     }
   }
 

@@ -39,17 +39,26 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     } catch (_) {}
   }
 
-  Future<void> _mockPunch(String method) async {
-    final cardId = _card['cardId'] ?? _card['card']?['id'];
-    final customerCardId = _card['id'];
-    if (customerCardId == null) return;
+  Future<void> _recordPunch(String method) async {
+    final cardInfo = _card['card'] ?? {};
+    final punchMethods = (cardInfo['punchMethods'] as List?) ?? [];
+    
+    // Find matching method or first available identifier
+    String? identifier;
+    for (final pm in punchMethods) {
+      if (pm['type'] == method && pm['identifier'] != null) {
+        identifier = pm['identifier'].toString();
+        break;
+      }
+    }
+    if (identifier == null && punchMethods.isNotEmpty) {
+      identifier = punchMethods.first['identifier']?.toString();
+    }
+    identifier ??= 'qr-${_card['cardId'] ?? _card['id']}';
 
     try {
-      await _api.post('/punch', {
-        'identifier': method == 'QR' ? 'qr-demo-001' : 'nfc-demo-001',
-        'type': method,
-        'cardId': cardId,
-      });
+      final res = await _api.post('/punch', {'identifier': identifier});
+      final msg = res?['message'] ?? 'Punch recorded! +1 🌟';
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -58,7 +67,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Text(
-              'Punch Added via $method! +1 🌟',
+              msg,
               style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
             ),
           ),
@@ -66,18 +75,6 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
         _fetchFullDetails();
       }
     } catch (e) {
-      // Offline fallback state update
-      setState(() {
-        final cur = (_card['punchCount'] as int? ?? 6);
-        final max = (_card['card']?['punchesRequired'] as int? ?? 10);
-        final next = (cur + 1).clamp(0, max);
-        _card['punchCount'] = next;
-        _card['isCompleted'] = next >= max;
-        _transactions.insert(0, {
-          'method': method,
-          'timestamp': 'Just now',
-        });
-      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -85,7 +82,45 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Text(
-              'Punch added successfully! +1 🌟',
+              e is ApiException ? e.message : 'Could not record punch.',
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _redeemReward() async {
+    final customerCardId = _card['id'];
+    if (customerCardId == null) return;
+
+    try {
+      final res = await _api.post('/customer/cards/$customerCardId/redeem', {});
+      final msg = res?['message'] ?? 'Reward redeemed! Enjoy! 🎉';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.ink,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Text(
+              msg,
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+        );
+        _fetchFullDetails();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.ink,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Text(
+              'Could not redeem reward. Please check with the merchant.',
               style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
             ),
           ),
@@ -315,6 +350,44 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                   ),
                   const SizedBox(height: 14),
 
+                  // Redeem Button (if completed) or Action Buttons
+                  if (isCompleted)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: GestureDetector(
+                        onTap: _redeemReward,
+                        child: Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.gradCoral,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.coral.withValues(alpha: 0.45),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.celebration_rounded, color: Colors.white, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                '🎁 Redeem Free Reward Now',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
                   // Action Buttons Row
                   Row(
                     children: [
@@ -355,7 +428,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => _mockPunch('NFC'),
+                          onTap: () => _recordPunch('NFC'),
                           child: Container(
                             height: 48,
                             decoration: BoxDecoration(
@@ -403,15 +476,43 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: AppColors.line),
                     ),
-                    child: Column(
-                      children: [
-                        _buildActivityRow('Punch added', 'Today, 10:24 AM', '+1', Icons.check_rounded),
-                        const Divider(height: 1, color: AppColors.line),
-                        _buildActivityRow('Punch added', 'Aug 21, 5:10 PM', '+1', Icons.check_rounded),
-                        const Divider(height: 1, color: AppColors.line),
-                        _buildActivityRow('Card started', 'Aug 10, 9:02 AM', '🎉', Icons.card_giftcard_rounded),
-                      ],
-                    ),
+                    child: _transactions.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            child: Center(
+                              child: Text(
+                                'No punches recorded yet.\nScan QR or Tap NFC to collect your first stamp!',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  color: AppColors.inkSoft,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Column(
+                            children: _transactions.asMap().entries.map((entry) {
+                              final idx = entry.key;
+                              final tx = entry.value;
+                              final method = tx['method'] ?? 'QR';
+                              final ts = tx['timestamp'] != null
+                                  ? tx['timestamp'].toString().substring(0, tx['timestamp'].toString().length >= 16 ? 16 : tx['timestamp'].toString().length).replaceAll('T', ' ')
+                                  : 'Just now';
+                              return Column(
+                                children: [
+                                  _buildActivityRow(
+                                    'Punch via $method',
+                                    ts,
+                                    '+1',
+                                    method == 'NFC' ? Icons.nfc_rounded : Icons.check_rounded,
+                                  ),
+                                  if (idx < _transactions.length - 1)
+                                    const Divider(height: 1, color: AppColors.line),
+                                ],
+                              );
+                            }).toList(),
+                          ),
                   ),
                 ],
               ),

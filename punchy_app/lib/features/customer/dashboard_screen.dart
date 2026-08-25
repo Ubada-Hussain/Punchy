@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../core/api/api_client.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
 import 'card_detail_screen.dart';
 
@@ -28,74 +30,29 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
     setState(() => _isLoading = true);
     try {
       final res = await _api.get('/customer/cards');
-      if (res != null && res is List && res.isNotEmpty) {
-        setState(() {
-          _cards = res;
-          _isLoading = false;
-        });
+      if (res != null && res is List) {
+        if (mounted) {
+          setState(() {
+            _cards = res;
+            _isLoading = false;
+          });
+        }
         return;
       }
     } catch (_) {}
 
-    // Mock fallback matching punchy-app-ui.html exactly
-    setState(() {
-      _cards = [
-        {
-          'id': 'card-1',
-          'punchCount': 6,
-          'isCompleted': false,
-          'card': {
-            'id': 'c1',
-            'title': 'Brew & Co.',
-            'punchesRequired': 10,
-            'rewardDescription': '1 Free Coffee',
-            'visualStyle': {'theme': 'teal', 'icon': '☕'},
-            'business': {'name': 'Brew & Co.', 'logo': '☕', 'category': '☕ Café'}
-          },
-          'punchTransactions': [
-            {'method': 'QR', 'timestamp': 'Today, 10:24 AM'},
-            {'method': 'QR', 'timestamp': 'Aug 21, 5:10 PM'},
-          ]
-        },
-        {
-          'id': 'card-2',
-          'punchCount': 2,
-          'isCompleted': false,
-          'card': {
-            'id': 'c2',
-            'title': 'Glow Salon',
-            'punchesRequired': 5,
-            'rewardDescription': 'Free Hair Treatment',
-            'visualStyle': {'theme': 'coral', 'icon': '💇'},
-            'business': {'name': 'Glow Salon', 'logo': '💇', 'category': '💇 Salon'}
-          },
-          'punchTransactions': [
-            {'method': 'NFC', 'timestamp': 'Aug 18, 3:15 PM'},
-          ]
-        },
-        {
-          'id': 'card-3',
-          'punchCount': 8,
-          'isCompleted': true,
-          'card': {
-            'id': 'c3',
-            'title': 'FitZone Gym',
-            'punchesRequired': 8,
-            'rewardDescription': '1 Free Protein Shake',
-            'visualStyle': {'theme': 'purple', 'icon': '🏋️'},
-            'business': {'name': 'FitZone Gym', 'logo': '🏋️', 'category': '🏋️ Fitness'}
-          },
-          'punchTransactions': [
-            {'method': 'QR', 'timestamp': 'Yesterday, 6:00 PM'},
-          ]
-        }
-      ];
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _cards = [];
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final userName = auth.user?['name'] ?? (auth.user?['email']?.split('@')[0] ?? 'there');
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -118,7 +75,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Hi Ayesha 👋',
+                              'Hi $userName 👋',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
