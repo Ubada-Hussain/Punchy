@@ -7,9 +7,16 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_screen.dart';
 import 'features/customer/dashboard_screen.dart';
+import 'features/customer/explore_screen.dart';
 import 'features/customer/scanner_screen.dart';
 import 'features/business/business_dashboard_screen.dart';
 import 'features/business/create_card_screen.dart';
+import 'features/business/business_setup_screen.dart';
+import 'features/business/customer_list_screen.dart';
+import 'features/admin/admin_dashboard_screen.dart';
+import 'features/admin/admin_businesses_screen.dart';
+import 'features/admin/admin_customers_screen.dart';
+import 'features/admin/admin_announcements_screen.dart';
 import 'features/shared/profile_screen.dart';
 import 'features/system_states/offline_screen.dart';
 import 'features/system_states/server_error_screen.dart';
@@ -48,6 +55,9 @@ class PunchyApp extends StatelessWidget {
         final isPublic = loc == '/login' ||
             loc == '/signup' ||
             loc.startsWith('/system-states') ||
+            loc.startsWith('/admin') ||
+            loc.startsWith('/business') ||
+            loc == '/explore' ||
             loc == '/offline' ||
             loc == '/server-error' ||
             loc == '/suspended' ||
@@ -60,6 +70,7 @@ class PunchyApp extends StatelessWidget {
         return null;
       },
       routes: [
+        // Auth
         GoRoute(
           path: '/login',
           builder: (context, state) => const LoginScreen(),
@@ -68,22 +79,65 @@ class PunchyApp extends StatelessWidget {
           path: '/signup',
           builder: (context, state) => const SignupScreen(),
         ),
+
+        // Customer Routes
         GoRoute(
           path: '/',
           builder: (context, state) => const CustomerDashboardScreen(),
         ),
         GoRoute(
+          path: '/explore',
+          builder: (context, state) => const ExploreScreen(),
+        ),
+        GoRoute(
           path: '/scanner',
           builder: (context, state) => const ScannerScreen(),
         ),
+
+        // Business Portal Routes
         GoRoute(
           path: '/business',
           builder: (context, state) => const BusinessDashboardScreen(),
         ),
         GoRoute(
-          path: '/business/create-card',
+          path: '/business/cards/new',
           builder: (context, state) => const CreateCardScreen(),
         ),
+        GoRoute(
+          path: '/business/cards/:id/edit',
+          builder: (context, state) => CreateCardScreen(
+            cardId: state.pathParameters['id'],
+            initialData: state.extra as Map<String, dynamic>?,
+          ),
+        ),
+        GoRoute(
+          path: '/business/setup',
+          builder: (context, state) => const BusinessSetupScreen(),
+        ),
+        GoRoute(
+          path: '/business/customers',
+          builder: (context, state) => const CustomerListScreen(),
+        ),
+
+        // Admin Portal Routes
+        GoRoute(
+          path: '/admin',
+          builder: (context, state) => const AdminDashboardScreen(),
+        ),
+        GoRoute(
+          path: '/admin/businesses',
+          builder: (context, state) => const AdminBusinessesScreen(),
+        ),
+        GoRoute(
+          path: '/admin/customers',
+          builder: (context, state) => const AdminCustomersScreen(),
+        ),
+        GoRoute(
+          path: '/admin/notifications',
+          builder: (context, state) => const AdminAnnouncementsScreen(),
+        ),
+
+        // Shared & System States
         GoRoute(
           path: '/profile',
           builder: (context, state) => const ProfileScreen(),

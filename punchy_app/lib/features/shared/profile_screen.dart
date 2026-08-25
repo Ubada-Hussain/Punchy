@@ -171,13 +171,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: Column(
                       children: [
-                        _buildSettingsRow('Edit profile', Icons.edit_outlined),
+                        _buildSettingsRow('Explore Businesses', Icons.explore_outlined, onTap: () => context.push('/explore')),
                         const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow('Privacy & security', Icons.shield_outlined),
+                        _buildSettingsRow('Business Portal', Icons.storefront_outlined, onTap: () => context.push('/business')),
                         const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow('Help & support', Icons.help_outline_rounded, onTap: () => SupportSheet.show(context)),
+                        _buildSettingsRow('Admin Dashboard', Icons.admin_panel_settings_outlined, onTap: () => context.push('/admin')),
                         const Divider(height: 1, color: AppColors.line),
                         _buildSettingsRow('System & Error States', Icons.layers_outlined, onTap: () => context.push('/system-states')),
+                        const Divider(height: 1, color: AppColors.line),
+                        _buildSettingsRow('Help & support', Icons.help_outline_rounded, onTap: () => SupportSheet.show(context)),
                       ],
                     ),
                   ),

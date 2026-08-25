@@ -13,6 +13,7 @@ import analyticsRouter from './routes/analytics';
 import notificationsRouter from './routes/notifications';
 import ticketsRouter from './routes/tickets';
 import adminRouter from './routes/admin';
+import businessPortalRouter from './routes/businessPortal';
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date()
 // Routes
 app.use('/auth', authRouter);
 app.use('/businesses', businessesRouter);
+app.use('/business', businessPortalRouter);
 app.use('/cards', cardsRouter);
 app.use('/punch-methods', punchMethodsRouter);
 app.use('/punch', punchRouter);

@@ -1,22 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
 
 class CreateCardScreen extends StatefulWidget {
-  const CreateCardScreen({super.key});
+  final String? cardId;
+  final Map<String, dynamic>? initialData;
+
+  const CreateCardScreen({super.key, this.cardId, this.initialData});
 
   @override
   State<CreateCardScreen> createState() => _CreateCardScreenState();
 }
 
 class _CreateCardScreenState extends State<CreateCardScreen> {
-  final _nameController = TextEditingController(text: 'Coffee Lovers Card');
-  final _rewardController = TextEditingController(text: '1 Free Coffee');
+  final ApiClient _api = ApiClient();
+  final _nameController = TextEditingController();
+  final _rewardController = TextEditingController();
   int _punchesRequired = 10;
   int _selectedColorIndex = 0; // 0=Coral, 1=Teal, 2=Purple, 3=Gold
   bool _useQR = true;
   bool _useNFC = true;
+  bool _isSaving = false;
 
   final List<LinearGradient> _gradients = [
     AppColors.gradCoral,
@@ -25,24 +31,69 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
     AppColors.gradGold,
   ];
 
-  void _saveCard() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppColors.ink,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: Text(
-          '🎉 Card Activated! Ready for customers.',
-          style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+  final List<String> _colorNames = ['coral', 'teal', 'purple', 'gold'];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialData != null) {
+      _nameController.text = widget.initialData!['title'] ?? 'Coffee Lovers Card';
+      _rewardController.text = widget.initialData!['rewardDescription'] ?? '1 Free Coffee';
+      _punchesRequired = widget.initialData!['punchesRequired'] as int? ?? 10;
+      final theme = widget.initialData!['visualStyle']?['theme']?.toString() ?? 'coral';
+      final idx = _colorNames.indexOf(theme);
+      if (idx != -1) _selectedColorIndex = idx;
+    } else {
+      _nameController.text = 'Coffee Lovers Card';
+      _rewardController.text = '1 Free Coffee';
+    }
+  }
+
+  Future<void> _saveCard() async {
+    setState(() => _isSaving = true);
+    final theme = _colorNames[_selectedColorIndex];
+
+    try {
+      if (widget.cardId != null) {
+        await _api.put('/business/cards/${widget.cardId}', {
+          'title': _nameController.text.trim(),
+          'punchesRequired': _punchesRequired,
+          'rewardDescription': _rewardController.text.trim(),
+          'visualStyle': {'theme': theme, 'icon': '☕'},
+        });
+      } else {
+        await _api.post('/business/cards', {
+          'title': _nameController.text.trim(),
+          'punchesRequired': _punchesRequired,
+          'rewardDescription': _rewardController.text.trim(),
+          'visualStyle': {'theme': theme, 'icon': '☕'},
+          'enableQR': _useQR,
+          'enableNFC': _useNFC,
+        });
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.ink,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          content: Text(
+            widget.cardId != null ? '✅ Loyalty Card Updated!' : '🎉 Loyalty Card Saved & Activated!',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
         ),
-      ),
-    );
-    context.pop();
+      );
+      context.pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final currentGradient = _gradients[_selectedColorIndex];
+    final isEditing = widget.cardId != null;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -71,9 +122,9 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                     ),
                   ),
                   Text(
-                    'Design your card',
+                    isEditing ? 'Edit Loyalty Card' : 'Design your card',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: AppColors.ink,
                     ),
@@ -271,7 +322,7 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
 
                   // Reward Input
                   Text(
-                    'Reward',
+                    'Reward description',
                     style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
                   ),
                   const SizedBox(height: 6),
@@ -288,7 +339,7 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
 
                   // Card Color Swatches
                   Text(
-                    'Card color',
+                    'Card color theme',
                     style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
                   ),
                   const SizedBox(height: 8),
@@ -350,21 +401,28 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: _saveCard,
+                        onTap: _isSaving ? null : _saveCard,
                         borderRadius: BorderRadius.circular(12),
                         child: Center(
-                          child: Text(
-                            'Save & Activate',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: _isSaving
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : Text(
+                                  isEditing ? 'Save Changes' : 'Save & Activate',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
