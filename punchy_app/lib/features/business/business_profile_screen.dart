@@ -265,36 +265,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
-
-                  // Switch to Customer View button
-                  GestureDetector(
-                    onTap: () => context.go('/'),
-                    child: Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text('🙋', style: TextStyle(fontSize: 16)),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Switch to Customer App View',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.tealDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
 
                   // Log Out Button
                   GestureDetector(

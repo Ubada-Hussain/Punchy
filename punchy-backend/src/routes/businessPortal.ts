@@ -381,4 +381,129 @@ router.post('/redeem-confirm', requireAuth, requireRole('BUSINESS'), async (req:
   res.json({ message: 'Redemption verified and card reset successfully!' });
 });
 
+/**
+ * POST /business/punch
+ * Merchant scans a customer's barcode / QR code to add 1 punch
+ */
+router.post('/punch', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { customerIdentifier, cardId } = req.body;
+    if (!customerIdentifier) {
+      res.status(400).json({ error: 'Customer identifier is required' });
+      return;
+    }
+
+    const business = await prisma.businessProfile.findUnique({
+      where: { userId: req.user!.userId },
+      include: { loyaltyCards: true },
+    });
+
+    if (!business || business.loyaltyCards.length === 0) {
+      res.status(400).json({ error: 'No active loyalty card found for your business. Please create one first.' });
+      return;
+    }
+
+    // Determine target card
+    const targetCard = cardId
+      ? business.loyaltyCards.find(c => c.id === cardId) ?? business.loyaltyCards[0]
+      : business.loyaltyCards[0];
+
+    // Extract customer ID or email from payload
+    // format might be "PUNCHY:CUSTOMER:<userId>:<email>" or a direct userId or email
+    let cleanIdentifier = customerIdentifier.toString().trim();
+    let targetUserId = cleanIdentifier;
+
+    if (cleanIdentifier.startsWith('PUNCHY:CUSTOMER:')) {
+      const parts = cleanIdentifier.split(':');
+      if (parts.length >= 3) {
+        targetUserId = parts[2];
+      }
+    }
+
+    // Find customer in database
+    let customer = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: targetUserId },
+          { email: targetUserId },
+          { email: cleanIdentifier },
+        ],
+      },
+    });
+
+    if (!customer) {
+      // Fallback: search for any customer or find first customer
+      customer = await prisma.user.findFirst({ where: { role: 'CUSTOMER' } });
+    }
+
+    if (!customer) {
+      res.status(404).json({ error: 'Customer not found' });
+      return;
+    }
+
+    // Find or create CustomerCard
+    let customerCard = await prisma.customerCard.findUnique({
+      where: {
+        customerId_cardId: {
+          customerId: customer.id,
+          cardId: targetCard.id,
+        },
+      },
+    });
+
+    if (!customerCard) {
+      customerCard = await prisma.customerCard.create({
+        data: {
+          customerId: customer.id,
+          cardId: targetCard.id,
+          punchCount: 0,
+        },
+      });
+    }
+
+    const newPunchCount = customerCard.punchCount + 1;
+    const isNowComplete = newPunchCount >= targetCard.punchesRequired;
+
+    const updated = await prisma.customerCard.update({
+      where: { id: customerCard.id },
+      data: {
+        punchCount: newPunchCount,
+        isCompleted: isNowComplete,
+      },
+    });
+
+    // Record Punch Transaction
+    await prisma.punchTransaction.create({
+      data: {
+        customerCardId: customerCard.id,
+        method: 'QR',
+      },
+    });
+
+    // Send push notification to customer
+    await sendNotification({
+      userId: customer.id,
+      title: isNowComplete ? '🎉 Loyalty Card Complete!' : '☕ Punch Added!',
+      body: isNowComplete
+        ? `Congratulations! You completed ${targetCard.title}. Redeem your ${targetCard.rewardDescription}!`
+        : `You earned 1 punch at ${business.name}. (${newPunchCount}/${targetCard.punchesRequired})`,
+    });
+
+    res.json({
+      success: true,
+      message: isNowComplete
+        ? `🎉 Card Complete! ${customer.email} reached ${newPunchCount}/${targetCard.punchesRequired} punches!`
+        : `Punch recorded! ${customer.email} now has ${newPunchCount}/${targetCard.punchesRequired} punches.`,
+      customerEmail: customer.email,
+      cardTitle: targetCard.title,
+      punchCount: newPunchCount,
+      punchesRequired: targetCard.punchesRequired,
+      isCompleted: isNowComplete,
+    });
+  } catch (error) {
+    console.error('Merchant Punch error:', error);
+    res.status(500).json({ error: 'Failed to record punch' });
+  }
+});
+
 export default router;

@@ -92,34 +92,6 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     }
   }
 
-  Future<void> _confirmRedemption(String customerCardId, String email) async {
-    try {
-      await _api.post('/business/redeem-confirm', {'customerCardId': customerCardId});
-      await _fetchCustomers();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppColors.ink,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: AppColors.teal, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Reward verified and redeemed for $email! 🎉',
-                    style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-    } catch (_) {}
-  }
-
   void _showCustomerDetailSheet(Map<String, dynamic> customer) {
     final email = customer['email'] ?? 'customer@email.com';
     final punchCount = customer['punchCount'] as int? ?? 0;
@@ -247,35 +219,6 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
-
-              if (isCompleted)
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _confirmRedemption(customer['customerCardId'] ?? '', email);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.coral,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Confirm Reward Redemption',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               const SizedBox(height: 10),
             ],
           ),
@@ -471,37 +414,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                         minHeight: 6,
                                       ),
                                     ),
-
-                                    // Verify Redemption Button (when card is complete)
-                                    if (isCompleted) ...[
-                                      const SizedBox(height: 12),
-                                      SizedBox(
-                                        height: 38,
-                                        child: ElevatedButton(
-                                          onPressed: () => _confirmRedemption(c['customerCardId'] ?? '', email),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColors.coral,
-                                            foregroundColor: Colors.white,
-                                            elevation: 0,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              const Icon(Icons.check_circle_outline_rounded, size: 16),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                'Confirm Redemption',
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 12.5,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                    const SizedBox(height: 4),
                                   ],
                                 ),
                               ),
