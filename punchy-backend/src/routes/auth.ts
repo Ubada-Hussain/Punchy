@@ -40,7 +40,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
   const accessToken = signAccessToken(tokenPayload);
   const refreshToken = signRefreshToken(tokenPayload);
   await prisma.refreshToken.create({
-    data: { id: uuid(), token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
+    data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
   });
 
   res.status(201).json({ user, accessToken, refreshToken });
@@ -61,7 +61,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   const accessToken = signAccessToken(tokenPayload);
   const refreshToken = signRefreshToken(tokenPayload);
   await prisma.refreshToken.create({
-    data: { id: uuid(), token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
+    data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
   });
 
   res.json({ user: { id: user.id, email: user.email, role: user.role }, accessToken, refreshToken });
@@ -86,10 +86,68 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
   const newAccess = signAccessToken(tokenPayload);
   const newRefresh = signRefreshToken(tokenPayload);
   await prisma.refreshToken.create({
-    data: { id: uuid(), token: newRefresh, userId: payload.userId, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
+    data: { token: newRefresh, userId: payload.userId, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
   });
 
   res.json({ accessToken: newAccess, refreshToken: newRefresh });
+});
+
+router.post('/clerk', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, name, role = 'CUSTOMER', provider } = req.body;
+    if (!email) {
+      res.status(400).json({ error: 'Email is required from Clerk' });
+      return;
+    }
+
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      const dummyPassword = await bcrypt.hash(`Clerk_OAuth_${Date.now()}_${Math.random()}`, 12);
+      user = await prisma.user.create({
+        data: {
+          email,
+          passwordHash: dummyPassword,
+          role: (role === 'BUSINESS' ? 'BUSINESS' : 'CUSTOMER'),
+        },
+      });
+
+      // If new customer, optionally link demo cards
+      if (user.role === 'CUSTOMER') {
+        const demoCards = await prisma.loyaltyCard.findMany({ take: 3 });
+        for (const c of demoCards) {
+          await prisma.customerCard.create({
+            data: {
+              customerId: user.id,
+              cardId: c.id,
+              punchCount: Math.floor(Math.random() * 4) + 2,
+            },
+          });
+        }
+      }
+    }
+
+    if (user.isBlocked) {
+      res.status(403).json({ error: 'Account is blocked' });
+      return;
+    }
+
+    const tokenPayload = { userId: user.id, email: user.email, role: user.role };
+    const accessToken = signAccessToken(tokenPayload);
+    const refreshToken = signRefreshToken(tokenPayload);
+    await prisma.refreshToken.create({
+      data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
+    });
+
+    res.json({
+      user: { id: user.id, email: user.email, role: user.role, name: name || user.email.split('@')[0] },
+      accessToken,
+      refreshToken,
+      provider: provider || 'clerk',
+    });
+  } catch (error) {
+    console.error('Clerk Auth error:', error);
+    res.status(500).json({ error: 'Failed to authenticate with Clerk' });
+  }
 });
 
 router.post('/logout', async (req: Request, res: Response): Promise<void> => {

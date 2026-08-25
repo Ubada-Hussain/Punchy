@@ -6,41 +6,35 @@ import '../../core/providers/auth_provider.dart';
 import '../../core/services/clerk_auth_service.dart';
 import '../../core/theme/app_colors.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class SignupScreen extends StatefulWidget {
+  const SignupScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController(text: 'demo-customer@punchy.app');
+class _SignupScreenState extends State<SignupScreen> {
+  final _nameController = TextEditingController(text: 'Ayesha Khan');
+  final _emailController = TextEditingController(text: 'ayesha@email.com');
   final _passwordController = TextEditingController(text: 'Customer1234!');
   final _formKey = GlobalKey<FormState>();
-  bool _obscurePassword = true;
+  int _roleIndex = 0; // 0 = Customer, 1 = Business
 
-  void _handleLogin() async {
+  void _handleSignup() async {
     if (_formKey.currentState!.validate()) {
       final auth = Provider.of<AuthProvider>(context, listen: false);
-      final success = await auth.login(
+      // For demo, login or mock register
+      await auth.login(
         _emailController.text.trim(),
         _passwordController.text,
       );
 
-      if (success && mounted) {
-        context.go('/');
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppColors.ink,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            content: Text(
-              'Login failed. Please check your credentials.',
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ),
-        );
+      if (mounted) {
+        if (_roleIndex == 1) {
+          context.go('/business');
+        } else {
+          context.go('/');
+        }
       }
     }
   }
@@ -54,63 +48,74 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: Form(
               key: _formKey,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Star Icon Badge
-                  Center(
-                    child: Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        gradient: AppColors.gradTeal,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.teal.withValues(alpha: 0.35),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.star_rounded,
-                          size: 32,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Heading
                   Text(
-                    'Welcome back',
+                    'Create your account',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
                       color: AppColors.ink,
                     ),
-                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Log in to keep collecting punches',
+                    'Join in a few seconds',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       color: AppColors.inkSoft,
                       fontWeight: FontWeight.w500,
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
-                  // Email Field
+                  // Segmented Switcher (Customer / Business)
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildSegButton(0, '🙋 Customer'),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: _buildSegButton(1, '🏪 Business'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Full Name
+                  Text(
+                    'Full name',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _nameController,
+                    style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
+                    decoration: const InputDecoration(
+                      hintText: 'Your name',
+                      prefixIcon: Icon(Icons.person_outline_rounded, color: AppColors.inkFaint, size: 18),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Email
                   Text(
                     'Email',
                     style: GoogleFonts.plusJakartaSans(
@@ -125,19 +130,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     keyboardType: TextInputType.emailAddress,
                     style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
                     decoration: const InputDecoration(
-                      hintText: 'ayesha@email.com',
+                      hintText: 'name@example.com',
                       prefixIcon: Icon(Icons.mail_outline_rounded, color: AppColors.inkFaint, size: 18),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 16),
 
-                  // Password Field
+                  // Password
                   Text(
                     'Password',
                     style: GoogleFonts.plusJakartaSans(
@@ -149,61 +148,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: _obscurePassword,
+                    obscureText: true,
                     style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
-                    decoration: InputDecoration(
-                      hintText: '••••••••',
-                      prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.inkFaint, size: 18),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                          color: AppColors.inkFaint,
-                          size: 18,
-                        ),
-                        onPressed: () {
-                          setState(() => _obscurePassword = !_obscurePassword);
-                        },
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
-                      }
-                      return null;
-                    },
-                  ),
-
-                  // Forgot Password
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {},
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        'Forgot password?',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.tealDark,
-                        ),
-                      ),
+                    decoration: const InputDecoration(
+                      hintText: 'Create a password',
+                      prefixIcon: Icon(Icons.lock_outline_rounded, color: AppColors.inkFaint, size: 18),
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 24),
 
-                  // Log In Button
+                  // Submit Button
                   Container(
                     height: 50,
                     decoration: BoxDecoration(
-                      color: AppColors.teal,
+                      color: _roleIndex == 1 ? AppColors.coral : AppColors.teal,
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.teal.withValues(alpha: 0.45),
+                          color: (_roleIndex == 1 ? AppColors.coral : AppColors.teal).withValues(alpha: 0.45),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
@@ -212,31 +174,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: isLoading ? null : _handleLogin,
+                        onTap: isLoading ? null : _handleSignup,
                         borderRadius: BorderRadius.circular(12),
                         child: Center(
-                          child: isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : Text(
-                                  'Log In',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                          child: Text(
+                            _roleIndex == 1 ? 'Start Business Account' : 'Create Account',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
                   // Divider
                   Row(
@@ -257,38 +210,47 @@ class _LoginScreenState extends State<LoginScreen> {
                       const Expanded(child: Divider(color: AppColors.line)),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   // Social Row (Powered by Clerk)
                   Row(
                     children: [
                       Expanded(
                         child: _buildSocialBtn('Google', Icons.g_mobiledata_rounded, onTap: () {
-                          ClerkAuthService.signInWithGoogle(context);
+                          ClerkAuthService.signInWithGoogle(context, role: _roleIndex == 1 ? 'BUSINESS' : 'CUSTOMER');
                         }),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: _buildSocialBtn('Apple', Icons.apple_rounded, onTap: () {
-                          ClerkAuthService.signInWithApple(context);
+                          ClerkAuthService.signInWithApple(context, role: _roleIndex == 1 ? 'BUSINESS' : 'CUSTOMER');
                         }),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 16),
 
-                  // Sign Up Link
+                  Text(
+                    'By continuing you agree to our Terms & Privacy Policy',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'New here? ',
+                        'Already have an account? ',
                         style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.inkSoft),
                       ),
                       GestureDetector(
-                        onTap: () => context.push('/signup'),
+                        onTap: () => context.pop(),
                         child: Text(
-                          'Sign up',
+                          'Log in',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
@@ -300,6 +262,39 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSegButton(int index, String label) {
+    final isSelected = _roleIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _roleIndex = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.surface : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: isSelected ? AppColors.ink : AppColors.inkSoft,
             ),
           ),
         ),
@@ -340,6 +335,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();

@@ -2,7 +2,7 @@ const { MongoClient } = require('mongodb');
 
 async function main() {
   // Connect to the mongod instance running on localhost:27017
-  const uri = "mongodb://localhost:27017";
+  const uri = "mongodb://127.0.0.1:27018/?directConnection=true";
   const client = new MongoClient(uri);
 
   try {
@@ -14,7 +14,7 @@ async function main() {
     const result = await db.command({ replSetInitiate: {
       _id: "rs0",
       members: [
-        { _id: 0, host: "localhost:27017" }
+        { _id: 0, host: "127.0.0.1:27018" }
       ]
     } });
 

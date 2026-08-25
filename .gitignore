@@ -29,3 +29,6 @@ yarn-error.log*
 
 # OS cache
 Thumbs.db
+
+# Database files
+mongo_data/

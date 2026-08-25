@@ -70,8 +70,9 @@ async function main() {
 
   // Sample customer
   const custEmail = 'demo-customer@punchy.app';
-  if (!(await prisma.user.findUnique({ where: { email: custEmail } }))) {
-    await prisma.user.create({
+  let custUser = await prisma.user.findUnique({ where: { email: custEmail } });
+  if (!custUser) {
+    custUser = await prisma.user.create({
       data: {
         email: custEmail,
         passwordHash: await bcrypt.hash('Customer1234!', 12),
@@ -79,6 +80,132 @@ async function main() {
       },
     });
     console.log('✅ Demo customer created: demo-customer@punchy.app / Customer1234!');
+  }
+
+  // Create Businesses and Cards matching the HTML Design:
+  // 1. Brew Culture (Violet theme, ☕, 7/10)
+  // 2. Glow Salon (Mint theme, 💇, 8/8)
+  // 3. Slice House (Coral theme, 🍕, 2/6)
+  const businesses = [
+    {
+      name: 'Brew Culture',
+      category: 'Cafe',
+      icon: '☕',
+      theme: 'violet',
+      cardTitle: 'Coffee Loyalty',
+      punchesRequired: 10,
+      reward: 'Free coffee at 10 punches',
+      punchCount: 7,
+      isCompleted: false,
+      transactions: [
+        { method: 'NFC', note: 'NFC tap', hoursAgo: 2 },
+        { method: 'QR', note: 'QR scan', hoursAgo: 48 },
+        { method: 'QR', note: 'QR scan', hoursAgo: 120 },
+      ],
+    },
+    {
+      name: 'Glow Salon',
+      category: 'Beauty',
+      icon: '💇',
+      theme: 'mint',
+      cardTitle: 'VIP Styling Card',
+      punchesRequired: 8,
+      reward: 'Free styling at 8 punches',
+      punchCount: 8,
+      isCompleted: true,
+      transactions: [
+        { method: 'QR', note: 'QR scan', hoursAgo: 24 },
+        { method: 'QR', note: 'QR scan', hoursAgo: 72 },
+      ],
+    },
+    {
+      name: 'Slice House',
+      category: 'Restaurant',
+      icon: '🍕',
+      theme: 'coral',
+      cardTitle: 'Pizza Lover Card',
+      punchesRequired: 6,
+      reward: 'Free pizza at 6 punches',
+      punchCount: 2,
+      isCompleted: false,
+      transactions: [
+        { method: 'QR', note: 'QR scan', hoursAgo: 12 },
+      ],
+    },
+  ];
+
+  for (const b of businesses) {
+    const bizUserEmail = `${b.name.toLowerCase().replace(/\s+/g, '')}@punchy.app`;
+    let curBizUser = await prisma.user.findUnique({ where: { email: bizUserEmail } });
+    if (!curBizUser) {
+      curBizUser = await prisma.user.create({
+        data: {
+          email: bizUserEmail,
+          passwordHash: await bcrypt.hash('Business1234!', 12),
+          role: 'BUSINESS',
+        },
+      });
+    }
+
+    let biz = await prisma.businessProfile.findUnique({ where: { userId: curBizUser.id } });
+    if (!biz) {
+      biz = await prisma.businessProfile.create({
+        data: {
+          userId: curBizUser.id,
+          name: b.name,
+          category: b.category,
+          description: `${b.name} loyalty program`,
+          status: 'APPROVED',
+          logo: b.icon,
+        },
+      });
+    }
+
+    let card = await prisma.loyaltyCard.findFirst({ where: { businessId: biz.id, title: b.cardTitle } });
+    if (!card) {
+      card = await prisma.loyaltyCard.create({
+        data: {
+          businessId: biz.id,
+          title: b.cardTitle,
+          punchesRequired: b.punchesRequired,
+          rewardDescription: b.reward,
+          visualStyle: { theme: b.theme, icon: b.icon },
+        },
+      });
+    }
+    let pm = await prisma.punchMethod.findFirst({ where: { cardId: card.id } });
+    if (!pm) {
+      pm = await prisma.punchMethod.create({
+        data: { cardId: card.id, type: 'QR', identifier: `qr-${biz.id}`, label: 'Counter QR' },
+      });
+      await prisma.punchMethod.create({
+        data: { cardId: card.id, type: 'NFC', identifier: `nfc-${biz.id}`, label: 'NFC Tag' },
+      });
+    }
+
+    let custCard = await prisma.customerCard.findFirst({
+      where: { customerId: custUser.id, cardId: card.id },
+    });
+    if (!custCard) {
+      custCard = await prisma.customerCard.create({
+        data: {
+          customerId: custUser.id,
+          cardId: card.id,
+          punchCount: b.punchCount,
+          isCompleted: b.isCompleted,
+        },
+      });
+      for (const t of b.transactions) {
+        await prisma.punchTransaction.create({
+          data: {
+            customerCard: { connect: { id: custCard.id } },
+            punchMethod: { connect: { id: pm.id } },
+            method: t.method as any,
+            timestamp: new Date(Date.now() - t.hoursAgo * 3600 * 1000),
+          },
+        });
+      }
+    }
   }
 
   // Default admin config
@@ -95,7 +222,7 @@ async function main() {
     });
   }
   console.log('✅ Default admin config set');
-  console.log('\n🎉 Seeding complete!');
+  console.log('\n🎉 Seeding complete with loyalty UI cards!');
 }
 
 main().catch(console.error).finally(() => prisma.$disconnect());
