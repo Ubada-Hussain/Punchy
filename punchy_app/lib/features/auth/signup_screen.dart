@@ -23,18 +23,33 @@ class _SignupScreenState extends State<SignupScreen> {
   void _handleSignup() async {
     if (_formKey.currentState!.validate()) {
       final auth = Provider.of<AuthProvider>(context, listen: false);
-      // For demo, login or mock register
-      await auth.login(
-        _emailController.text.trim(),
-        _passwordController.text,
+      final role = _roleIndex == 1 ? 'BUSINESS' : 'CUSTOMER';
+      
+      final success = await auth.register(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        role: role,
+        name: _nameController.text.trim(),
       );
 
-      if (mounted) {
+      if (success && mounted) {
         if (_roleIndex == 1) {
           context.go('/business');
         } else {
           context.go('/');
         }
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.ink,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Text(
+              auth.errorMessage ?? 'Registration failed. Please check your credentials.',
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+        );
       }
     }
   }
@@ -133,6 +148,11 @@ class _SignupScreenState extends State<SignupScreen> {
                       hintText: 'name@example.com',
                       prefixIcon: Icon(Icons.mail_outline_rounded, color: AppColors.inkFaint, size: 18),
                     ),
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) return 'Please enter an email';
+                      if (!val.contains('@') || !val.contains('.')) return 'Please enter a valid email address';
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
 
@@ -154,6 +174,11 @@ class _SignupScreenState extends State<SignupScreen> {
                       hintText: 'Create a password',
                       prefixIcon: Icon(Icons.lock_outline_rounded, color: AppColors.inkFaint, size: 18),
                     ),
+                    validator: (val) {
+                      if (val == null || val.isEmpty) return 'Please enter a password';
+                      if (val.length < 8) return 'Password must be at least 8 characters';
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 24),
 

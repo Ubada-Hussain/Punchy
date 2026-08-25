@@ -243,7 +243,7 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
                   child: InkWell(
                     onTap: _isProcessing
                         ? null
-                        : () => _processPunch('c3f4e1a0-9b8a-4e2b-8a1c-5d9e7f1a2b3c', _modeIndex == 0 ? 'QR Code' : 'NFC Tag'),
+                        : () => _processPunch('demo-qr-identifier-001', _modeIndex == 0 ? 'QR Code' : 'NFC Tag'),
                     borderRadius: BorderRadius.circular(12),
                     child: Center(
                       child: _isProcessing
