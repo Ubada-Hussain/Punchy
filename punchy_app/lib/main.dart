@@ -13,11 +13,14 @@ import 'features/business/business_dashboard_screen.dart';
 import 'features/business/create_card_screen.dart';
 import 'features/business/business_setup_screen.dart';
 import 'features/business/customer_list_screen.dart';
+import 'features/business/business_profile_screen.dart';
 import 'features/admin/admin_dashboard_screen.dart';
 import 'features/admin/admin_businesses_screen.dart';
 import 'features/admin/admin_customers_screen.dart';
 import 'features/admin/admin_announcements_screen.dart';
 import 'features/shared/profile_screen.dart';
+import 'features/shared/edit_profile_screen.dart';
+import 'features/shared/terms_screen.dart';
 import 'features/system_states/offline_screen.dart';
 import 'features/system_states/server_error_screen.dart';
 import 'features/system_states/account_suspended_screen.dart';
@@ -58,6 +61,8 @@ class PunchyApp extends StatelessWidget {
             loc.startsWith('/admin') ||
             loc.startsWith('/business') ||
             loc == '/explore' ||
+            loc == '/terms' ||
+            loc == '/edit-profile' ||
             loc == '/offline' ||
             loc == '/server-error' ||
             loc == '/suspended' ||
@@ -118,6 +123,10 @@ class PunchyApp extends StatelessWidget {
           path: '/business/customers',
           builder: (context, state) => const CustomerListScreen(),
         ),
+        GoRoute(
+          path: '/business/profile',
+          builder: (context, state) => const BusinessProfileScreen(),
+        ),
 
         // Admin Portal Routes
         GoRoute(
@@ -141,6 +150,14 @@ class PunchyApp extends StatelessWidget {
         GoRoute(
           path: '/profile',
           builder: (context, state) => const ProfileScreen(),
+        ),
+        GoRoute(
+          path: '/edit-profile',
+          builder: (context, state) => const EditProfileScreen(),
+        ),
+        GoRoute(
+          path: '/terms',
+          builder: (context, state) => const TermsScreen(),
         ),
         GoRoute(
           path: '/system-states',

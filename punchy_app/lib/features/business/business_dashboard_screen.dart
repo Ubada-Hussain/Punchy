@@ -513,8 +513,9 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
         children: [
           _buildNavItem(0, Icons.home_rounded, 'Home', onTap: () {}),
           _buildNavItem(1, Icons.credit_card_rounded, 'Cards', onTap: () => context.push('/business/cards/new')),
+          // Center Raised Add Card FAB
           GestureDetector(
-            onTap: () => context.push('/scanner'),
+            onTap: () => context.push('/business/cards/new'),
             child: Container(
               width: 46,
               height: 46,
@@ -531,14 +532,14 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                 ],
               ),
               child: const Icon(
-                Icons.qr_code_scanner_rounded,
+                Icons.add_rounded,
                 color: Colors.white,
-                size: 20,
+                size: 26,
               ),
             ),
           ),
           _buildNavItem(2, Icons.people_alt_rounded, 'Customers', onTap: () => context.push('/business/customers')),
-          _buildNavItem(3, Icons.person_outline_rounded, 'Profile', onTap: () => context.push('/profile')),
+          _buildNavItem(3, Icons.person_outline_rounded, 'Profile', onTap: () => context.push('/business/profile')),
         ],
       ),
     );

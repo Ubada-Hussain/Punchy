@@ -244,6 +244,60 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                           child: CircularProgressIndicator(color: AppColors.teal),
                         ),
                       )
+                    else if (_cards.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.line),
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceAlt,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Icon(Icons.credit_card_off_rounded, color: AppColors.tealDark, size: 26),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Your wallet is empty',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Explore nearby businesses to join loyalty cards and start collecting punches!',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: AppColors.inkSoft,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () => context.push('/explore'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.teal,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                              ),
+                              child: Text(
+                                'Explore Businesses',
+                                style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
                     else
                       Column(
                         children: _cards.map((c) => Padding(
