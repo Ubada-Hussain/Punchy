@@ -136,49 +136,21 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                             ),
                           ],
                         ),
-                        Row(
-                          children: [
-                            // Switch to Business view button
-                            GestureDetector(
-                              onTap: () => context.push('/business'),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceAlt,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: AppColors.line),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Text('🏪', style: TextStyle(fontSize: 12)),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Business',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.tealDark,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                        // Bell notification icon
+                        GestureDetector(
+                          onTap: () => context.push('/notifications'),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              border: Border.all(color: AppColors.line),
+                              borderRadius: BorderRadius.circular(11),
                             ),
-                            const SizedBox(width: 8),
-                            // Bell icon
-                            Container(
-                              width: 34,
-                              height: 34,
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                border: Border.all(color: AppColors.line),
-                                borderRadius: BorderRadius.circular(11),
-                              ),
-                              child: const Center(
-                                child: Icon(Icons.notifications_none_rounded, color: AppColors.ink, size: 18),
-                              ),
+                            child: const Center(
+                              child: Icon(Icons.notifications_none_rounded, color: AppColors.ink, size: 18),
                             ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -456,9 +428,9 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
         children: [
           _buildNavItem(0, Icons.home_rounded, 'Home'),
           _buildNavItem(1, Icons.explore_rounded, 'Explore', onTap: () => context.push('/explore')),
-          // Center Coral Scan FAB
+          // Center Coral Barcode / Loyalty Pass Button
           GestureDetector(
-            onTap: () => context.push('/scanner'),
+            onTap: () => context.push('/barcode'),
             child: Container(
               width: 46,
               height: 46,
@@ -476,13 +448,13 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                 ],
               ),
               child: const Icon(
-                Icons.qr_code_scanner_rounded,
+                Icons.qr_code_rounded,
                 color: Colors.white,
-                size: 20,
+                size: 22,
               ),
             ),
           ),
-          _buildNavItem(2, Icons.notifications_none_rounded, 'Alerts', onTap: () => context.push('/system-states')),
+          _buildNavItem(2, Icons.notifications_none_rounded, 'Alerts', onTap: () => context.push('/notifications')),
           _buildNavItem(3, Icons.person_outline_rounded, 'Profile', onTap: () => context.push('/profile')),
         ],
       ),

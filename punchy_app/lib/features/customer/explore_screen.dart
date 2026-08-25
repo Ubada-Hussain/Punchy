@@ -505,9 +505,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
             children: [
               _buildNavItem(Icons.wallet_rounded, 'Wallet', false, onTap: () => context.go('/')),
               _buildNavItem(Icons.explore_rounded, 'Explore', true, onTap: () {}),
-              // Floating Scan Coral FAB
+              // Floating Loyalty Barcode Pass FAB
               GestureDetector(
-                onTap: () => context.push('/scanner'),
+                onTap: () => context.push('/barcode'),
                 child: Container(
                   width: 48,
                   height: 48,
@@ -523,11 +523,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ],
                   ),
                   child: const Center(
-                    child: Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 22),
+                    child: Icon(Icons.qr_code_rounded, color: Colors.white, size: 22),
                   ),
                 ),
               ),
-              _buildNavItem(Icons.notifications_none_rounded, 'Alerts', false, onTap: () => context.push('/system-states')),
+              _buildNavItem(Icons.notifications_none_rounded, 'Alerts', false, onTap: () => context.push('/notifications')),
               _buildNavItem(Icons.person_outline_rounded, 'Profile', false, onTap: () => context.push('/profile')),
             ],
           ),

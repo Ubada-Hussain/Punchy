@@ -87,7 +87,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                       child: ListView(
                         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                         children: [
-                    // Top Row (Greeting + Switch view + Setup)
+                    // Top Row
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -95,7 +95,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Good morning ☕',
+                              business['name'] ?? 'Brew & Co.',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
@@ -104,7 +104,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              business['name'] ?? 'Brew & Co.',
+                              'Merchant Dashboard',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 color: AppColors.inkSoft,
@@ -113,52 +113,21 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                             ),
                           ],
                         ),
-                        Row(
-                          children: [
-                            // Switch to Customer view button
-                            GestureDetector(
-                              onTap: () => context.go('/'),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceAlt,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: AppColors.line),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Text('🙋', style: TextStyle(fontSize: 12)),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Customer',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.tealDark,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                        // Business Setup Gear Button
+                        GestureDetector(
+                          onTap: () => context.push('/business/setup'),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              border: Border.all(color: AppColors.line),
+                              borderRadius: BorderRadius.circular(11),
                             ),
-                            const SizedBox(width: 8),
-                            // Business Setup Gear Button
-                            GestureDetector(
-                              onTap: () => context.push('/business/setup'),
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface,
-                                  border: Border.all(color: AppColors.line),
-                                  borderRadius: BorderRadius.circular(11),
-                                ),
-                                child: const Center(
-                                  child: Icon(Icons.settings_outlined, color: AppColors.ink, size: 18),
-                                ),
-                              ),
+                            child: const Center(
+                              child: Icon(Icons.settings_outlined, color: AppColors.ink, size: 18),
                             ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -513,9 +482,9 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
         children: [
           _buildNavItem(0, Icons.home_rounded, 'Home', onTap: () {}),
           _buildNavItem(1, Icons.credit_card_rounded, 'Cards', onTap: () => context.push('/business/cards/new')),
-          // Center Raised Add Card FAB
+          // Center Raised Add Punch / Scan Barcode FAB
           GestureDetector(
-            onTap: () => context.push('/business/cards/new'),
+            onTap: () => context.push('/business/scan'),
             child: Container(
               width: 46,
               height: 46,

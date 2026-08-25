@@ -8,12 +8,14 @@ import 'features/auth/login_screen.dart';
 import 'features/auth/signup_screen.dart';
 import 'features/customer/dashboard_screen.dart';
 import 'features/customer/explore_screen.dart';
-import 'features/customer/scanner_screen.dart';
+import 'features/customer/customer_barcode_screen.dart';
+import 'features/customer/notifications_screen.dart';
 import 'features/business/business_dashboard_screen.dart';
 import 'features/business/create_card_screen.dart';
 import 'features/business/business_setup_screen.dart';
 import 'features/business/customer_list_screen.dart';
 import 'features/business/business_profile_screen.dart';
+import 'features/business/business_scanner_screen.dart';
 import 'features/admin/admin_dashboard_screen.dart';
 import 'features/admin/admin_businesses_screen.dart';
 import 'features/admin/admin_customers_screen.dart';
@@ -49,20 +51,21 @@ class PunchyApp extends StatelessWidget {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     final GoRouter router = GoRouter(
-      initialLocation: authProvider.isAuthenticated ? '/' : '/login',
+      initialLocation: authProvider.isAuthenticated
+          ? (authProvider.user?['role'] == 'BUSINESS' ? '/business' : '/')
+          : '/login',
       refreshListenable: authProvider,
       errorBuilder: (context, state) => const NotFoundScreen(),
       redirect: (context, state) {
         final loggedIn = authProvider.isAuthenticated;
         final loc = state.matchedLocation;
+        final user = authProvider.user;
+        final role = user?['role'] ?? 'CUSTOMER';
+
         final isPublic = loc == '/login' ||
             loc == '/signup' ||
-            loc.startsWith('/system-states') ||
-            loc.startsWith('/admin') ||
-            loc.startsWith('/business') ||
-            loc == '/explore' ||
             loc == '/terms' ||
-            loc == '/edit-profile' ||
+            loc.startsWith('/system-states') ||
             loc == '/offline' ||
             loc == '/server-error' ||
             loc == '/suspended' ||
@@ -71,7 +74,29 @@ class PunchyApp extends StatelessWidget {
             loc == '/not-found';
 
         if (!loggedIn && !isPublic) return '/login';
-        if (loggedIn && (loc == '/login' || loc == '/signup')) return '/';
+
+        if (loggedIn) {
+          if (loc == '/login' || loc == '/signup') {
+            if (role == 'BUSINESS') return '/business';
+            if (role == 'ADMIN') return '/admin';
+            return '/';
+          }
+
+          // Strict Role Security: Customers cannot visit business or admin routes
+          if (role == 'CUSTOMER') {
+            if (loc.startsWith('/business') || loc.startsWith('/admin')) {
+              return '/';
+            }
+          }
+
+          // Strict Role Security: Businesses cannot visit customer wallet or admin routes
+          if (role == 'BUSINESS') {
+            if (loc == '/' || loc == '/explore' || loc == '/barcode' || loc == '/notifications' || loc.startsWith('/admin')) {
+              return '/business';
+            }
+          }
+        }
+
         return null;
       },
       routes: [
@@ -95,14 +120,22 @@ class PunchyApp extends StatelessWidget {
           builder: (context, state) => const ExploreScreen(),
         ),
         GoRoute(
-          path: '/scanner',
-          builder: (context, state) => const ScannerScreen(),
+          path: '/barcode',
+          builder: (context, state) => const CustomerBarcodeScreen(),
+        ),
+        GoRoute(
+          path: '/notifications',
+          builder: (context, state) => const NotificationsScreen(),
         ),
 
         // Business Portal Routes
         GoRoute(
           path: '/business',
           builder: (context, state) => const BusinessDashboardScreen(),
+        ),
+        GoRoute(
+          path: '/business/scan',
+          builder: (context, state) => const BusinessScannerScreen(),
         ),
         GoRoute(
           path: '/business/cards/new',

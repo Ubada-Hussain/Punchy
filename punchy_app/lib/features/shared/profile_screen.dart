@@ -176,6 +176,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         _buildSettingsRow('Edit profile', Icons.edit_outlined, onTap: () => context.push('/edit-profile')),
                         const Divider(height: 1, color: AppColors.line),
+                        _buildSettingsRow('My Loyalty Pass (Barcode)', Icons.qr_code_rounded, onTap: () => context.push('/barcode')),
+                        const Divider(height: 1, color: AppColors.line),
+                        _buildSettingsRow('Punch Notifications', Icons.notifications_none_rounded, onTap: () => context.push('/notifications')),
+                        const Divider(height: 1, color: AppColors.line),
                         _buildSettingsRow('Explore Businesses', Icons.explore_outlined, onTap: () => context.push('/explore')),
                         const Divider(height: 1, color: AppColors.line),
                         _buildSettingsRow('Privacy & security', Icons.shield_outlined, onTap: () {
@@ -190,28 +194,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildSettingsRow('Terms & Conditions', Icons.description_outlined, onTap: () => context.push('/terms')),
                         const Divider(height: 1, color: AppColors.line),
                         _buildSettingsRow('Help & support', Icons.help_outline_rounded, onTap: () => SupportSheet.show(context)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Portal Switchers (Direct Navigation)
-                  Text(
-                    'Portals',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.line),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildSettingsRow('Business Portal', Icons.storefront_outlined, onTap: () => context.push('/business')),
-                        const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow('Admin Dashboard', Icons.admin_panel_settings_outlined, onTap: () => context.push('/admin')),
                       ],
                     ),
                   ),
