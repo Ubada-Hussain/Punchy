@@ -689,3 +689,105 @@ footer { border-top: 1px solid var(--line); padding: 50px 0 30px; }
 
 /* ── Icon SVG ────────────────────────────────────────────────────────────── */
 .icon { stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.nav-toggle { display: none; background: transparent; border: none; padding: 6px; cursor: pointer; color: var(--ink); }
+
+/* ── Responsive Media Queries ────────────────────────────────────────────── */
+@media (max-width: 992px) {
+  .wrap { padding: 0 24px; }
+  .hero-inner { gap: 40px; }
+  .hero h1 { font-size: 42px; }
+  .phone { width: 240px; height: 500px; }
+  .feat-grid { grid-template-columns: repeat(2, 1fr); }
+  .quote-grid { grid-template-columns: repeat(2, 1fr); }
+  .biz-band { padding: 48px 36px; gap: 36px; }
+  .download-band { padding: 48px 36px; gap: 28px; }
+  .app-shell { flex-direction: column; height: auto; min-height: 100vh; }
+  .admin-sidebar { width: 100%; flex-direction: row; align-items: center; justify-content: space-between; padding: 12px 18px; }
+  .side-nav { flex-direction: row; overflow-x: auto; flex: initial; gap: 4px; }
+  .side-foot { display: none; }
+  .two-col { flex-direction: column; }
+  .astat-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+}
+
+@media (max-width: 768px) {
+  section { padding: 56px 0; }
+  .wrap { padding: 0 18px; }
+  .nav-inner { padding: 14px 18px; flex-wrap: wrap; }
+  .nav-toggle { display: flex; align-items: center; justify-content: center; }
+  .nav-links, .nav-cta { display: none; width: 100%; }
+  .nav-inner.nav-open .nav-links { display: flex; flex-direction: column; gap: 14px; padding: 16px 0 8px; width: 100%; border-top: 1px solid var(--line); margin-top: 12px; }
+  .nav-inner.nav-open .nav-cta { display: flex; flex-direction: column; gap: 10px; width: 100%; padding-bottom: 8px; }
+  .nav-cta .btn, .nav-cta .lbtn { width: 100%; justify-content: center; }
+
+  .hero { padding: 40px 0 30px; }
+  .hero-inner { flex-direction: column; text-align: center; gap: 36px; }
+  .hero-copy { width: 100%; }
+  .hero h1 { font-size: 34px; margin: 16px 0 14px; }
+  .hero p.lead { font-size: 15.5px; max-width: 100%; margin: 0 auto 24px; }
+  .store-row { flex-direction: column; gap: 10px; width: 100%; max-width: 280px; margin: 0 auto 24px; }
+  .store-btn { justify-content: center; }
+  .trust-row { flex-direction: column; gap: 12px; justify-content: center; }
+
+  .hero-visual { width: 100%; }
+  .phone { width: 230px; height: 470px; border-radius: 36px; margin: 0 auto; }
+  .glow { width: 300px; height: 300px; top: 0; right: 0; }
+  .float-card { padding: 8px 11px; }
+  .fc1 { left: 0px; top: 20px; }
+  .fc2 { right: 0px; bottom: 40px; }
+
+  .logo-strip .wrap { flex-direction: column; gap: 14px; text-align: center; }
+  .logo-row { flex-wrap: wrap; justify-content: center; gap: 16px 24px; }
+
+  .sec-head { margin-bottom: 36px; }
+  .sec-head h2 { font-size: 28px; margin: 8px 0 10px; }
+  .sec-head p { font-size: 14.5px; }
+
+  .feat-grid { grid-template-columns: 1fr; gap: 16px; }
+  .feat-card { padding: 22px 20px; }
+
+  .steps { flex-direction: column; gap: 24px; }
+  .step p { max-width: 100%; }
+
+  .biz-band { flex-direction: column; padding: 36px 24px; text-align: center; gap: 32px; border-radius: 24px; }
+  .biz-copy h2 { font-size: 26px; }
+  .biz-copy p { max-width: 100%; font-size: 14px; margin-bottom: 20px; }
+  .biz-list { align-items: center; }
+  .biz-list div { font-size: 13px; text-align: left; }
+  .biz-mock { width: 100%; max-width: 280px; margin: 0 auto; }
+
+  .quote-grid { grid-template-columns: 1fr; gap: 16px; }
+
+  .download-band { flex-direction: column; text-align: center; padding: 36px 24px; gap: 28px; border-radius: 24px; }
+  .download-copy h2 { font-size: 26px; }
+  .download-copy p { font-size: 14px; max-width: 100%; margin-bottom: 20px; }
+  .download-store-row { flex-direction: column; gap: 10px; width: 100%; max-width: 280px; margin: 0 auto; }
+  .qr-box { display: none; }
+
+  footer { padding: 40px 0 24px; }
+  .foot-top { flex-direction: column; gap: 32px; }
+  .foot-brand p { max-width: 100%; }
+  .foot-cols { flex-wrap: wrap; gap: 28px 40px; }
+  .foot-bottom { flex-direction: column-reverse; gap: 16px; text-align: center; }
+
+  .admin-topbar { height: auto; padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+  .admin-topbar h3 { font-size: 15px; }
+  .top-search { width: 100%; }
+  .admin-content { padding: 14px; gap: 12px; }
+  table.atable { display: block; overflow-x: auto; width: 100%; white-space: nowrap; }
+  .filter-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .chip-set { overflow-x: auto; padding-bottom: 4px; }
+  .profile-hero { flex-direction: column; text-align: center; gap: 10px; }
+  .login-card { width: 100%; max-width: 340px; padding: 24px 18px; }
+}
+
+@media (max-width: 480px) {
+  .wrap { padding: 0 14px; }
+  .hero h1 { font-size: 28px; }
+  .phone { width: 210px; height: 430px; }
+  .float-card { font-size: 9px; padding: 6px 9px; }
+  .float-card .fc-ic { width: 24px; height: 24px; font-size: 12px; }
+  .fc1 { left: -6px; top: 10px; }
+  .fc2 { right: -6px; bottom: 20px; }
+  .astat-row { grid-template-columns: 1fr; }
+}

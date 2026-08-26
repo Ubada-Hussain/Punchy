@@ -159,6 +159,90 @@
   .foot-bottom{ display:flex; justify-content:space-between; align-items:center; padding-top:24px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink-faint); }
   .foot-social{ display:flex; gap:12px; }
   .foot-social div{ width:32px; height:32px; border-radius:9px; background:var(--surface-alt); display:flex; align-items:center; justify-content:center; }
+  .nav-toggle { display:none; background:transparent; border:none; padding:6px; cursor:pointer; color:var(--ink); }
+
+  /* RESPONSIVE BREAKPOINTS */
+  @media (max-width: 992px) {
+    .wrap { padding: 0 24px; }
+    .hero-inner { gap: 40px; }
+    .hero h1 { font-size: 42px; }
+    .phone { width: 240px; height: 500px; }
+    .feat-grid { grid-template-columns: repeat(2, 1fr); }
+    .quote-grid { grid-template-columns: repeat(2, 1fr); }
+    .biz-band { padding: 48px 36px; gap: 36px; }
+    .download-band { padding: 48px 36px; gap: 28px; }
+  }
+
+  @media (max-width: 768px) {
+    section { padding: 56px 0; }
+    .wrap { padding: 0 18px; }
+    .nav-inner { padding: 14px 18px; flex-wrap: wrap; }
+    .nav-toggle { display: flex; align-items: center; justify-content: center; }
+    .nav-links, .nav-cta { display: none; width: 100%; }
+    .nav-inner.nav-open .nav-links { display: flex; flex-direction: column; gap: 14px; padding: 16px 0 8px; width: 100%; border-top: 1px solid var(--line); margin-top: 12px; }
+    .nav-inner.nav-open .nav-cta { display: flex; flex-direction: column; gap: 10px; width: 100%; padding-bottom: 8px; }
+    .nav-cta .btn { width: 100%; justify-content: center; }
+
+    .hero { padding: 40px 0 30px; }
+    .hero-inner { flex-direction: column; text-align: center; gap: 36px; }
+    .hero-copy { width: 100%; }
+    .hero h1 { font-size: 34px; margin: 16px 0 14px; }
+    .hero p.lead { font-size: 15.5px; max-width: 100%; margin: 0 auto 24px; }
+    .store-row { flex-direction: column; gap: 10px; width: 100%; max-width: 280px; margin: 0 auto 24px; }
+    .store-btn { justify-content: center; }
+    .trust-row { flex-direction: column; gap: 12px; justify-content: center; }
+
+    .hero-visual { width: 100%; }
+    .phone { width: 230px; height: 470px; border-radius: 36px; margin: 0 auto; }
+    .glow { width: 300px; height: 300px; top: 0; right: 0; }
+    .float-card { padding: 8px 11px; }
+    .fc1 { left: 0px; top: 20px; }
+    .fc2 { right: 0px; bottom: 40px; }
+
+    .logo-strip .wrap { flex-direction: column; gap: 14px; text-align: center; }
+    .logo-row { flex-wrap: wrap; justify-content: center; gap: 16px 24px; }
+
+    .sec-head { margin-bottom: 36px; }
+    .sec-head h2 { font-size: 28px; margin: 8px 0 10px; }
+    .sec-head p { font-size: 14.5px; }
+
+    .feat-grid { grid-template-columns: 1fr; gap: 16px; }
+    .feat-card { padding: 22px 20px; }
+
+    .steps { flex-direction: column; gap: 24px; }
+    .step p { max-width: 100%; }
+
+    .biz-band { flex-direction: column; padding: 36px 24px; text-align: center; gap: 32px; border-radius: 24px; }
+    .biz-copy h2 { font-size: 26px; }
+    .biz-copy p { max-width: 100%; font-size: 14px; margin-bottom: 20px; }
+    .biz-list { align-items: center; }
+    .biz-list div { font-size: 13px; text-align: left; }
+    .biz-mock { width: 100%; max-width: 280px; margin: 0 auto; }
+
+    .quote-grid { grid-template-columns: 1fr; gap: 16px; }
+
+    .download-band { flex-direction: column; text-align: center; padding: 36px 24px; gap: 28px; border-radius: 24px; }
+    .download-copy h2 { font-size: 26px; }
+    .download-copy p { font-size: 14px; max-width: 100%; margin-bottom: 20px; }
+    .download-store-row { flex-direction: column; gap: 10px; width: 100%; max-width: 280px; margin: 0 auto; }
+    .qr-box { display: none; }
+
+    footer { padding: 40px 0 24px; }
+    .foot-top { flex-direction: column; gap: 32px; }
+    .foot-brand p { max-width: 100%; }
+    .foot-cols { flex-wrap: wrap; gap: 28px 40px; }
+    .foot-bottom { flex-direction: column-reverse; gap: 16px; text-align: center; }
+  }
+
+  @media (max-width: 480px) {
+    .wrap { padding: 0 14px; }
+    .hero h1 { font-size: 28px; }
+    .phone { width: 210px; height: 430px; }
+    .float-card { font-size: 9px; padding: 6px 9px; }
+    .float-card .fc-ic { width: 24px; height: 24px; font-size: 12px; }
+    .fc1 { left: -6px; top: 10px; }
+    .fc2 { right: -6px; bottom: 20px; }
+  }
 </style>
 </head>
 <body>
@@ -182,6 +266,9 @@
 <div class="nav">
   <div class="nav-inner">
     <div class="brand"><div class="mark"><svg class="icon" style="color:#fff;stroke-width:0;fill:currentColor;width:17px;height:17px;"><use href="#i-star"/></svg></div>Punchy</div>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+      <svg class="icon" viewBox="0 0 24 24" style="width:24px;height:24px;"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    </button>
     <div class="nav-links">
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
@@ -424,5 +511,14 @@
   </div>
 </footer>
 
+<script>
+  const navToggle = document.getElementById('navToggle');
+  const navInner = document.querySelector('.nav-inner');
+  if (navToggle && navInner) {
+    navToggle.addEventListener('click', function() {
+      navInner.classList.toggle('nav-open');
+    });
+  }
+</script>
 </body>
 </html>

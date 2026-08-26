@@ -152,6 +152,55 @@
   .login-card{ width:360px; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:32px; box-shadow:var(--shadow-soft); display:flex; flex-direction:column; gap:14px; }
   .login-mark{ width:50px; height:50px; border-radius:15px; background:var(--grad-teal); display:flex; align-items:center; justify-content:center; margin:0 auto 6px; }
   .cred-hint{ background:var(--surface-alt); border-radius:10px; padding:9px 12px; font-size:11.5px; color:var(--ink-soft); text-align:center; }
+
+  /* RESPONSIVE MEDIA QUERIES FOR ADMIN UI */
+  @media (max-width: 1180px) {
+    .page-head { padding: 32px 24px 16px; }
+    .group { padding: 20px 24px 6px; }
+    .admin-frame { width: 100%; max-width: 1120px; }
+  }
+
+  @media (max-width: 992px) {
+    .admin-frame { height: auto; min-height: 580px; }
+    .two-col { flex-direction: column; }
+    .astat-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  }
+
+  @media (max-width: 768px) {
+    .page-head { padding: 24px 16px 12px; }
+    .page-head h1 { font-size: 24px; margin: 10px 0 6px; }
+    .page-head p { font-size: 13.5px; }
+    .group { padding: 16px 16px 6px; }
+    .group-head h2 { font-size: 17px; }
+    
+    .admin-frame { height: auto; border-radius: 12px; }
+    .admin-shell { flex-direction: column; }
+    .admin-sidebar { width: 100%; padding: 10px 14px; flex-direction: column; gap: 10px; }
+    .side-logo { padding: 0; justify-content: space-between; width: 100%; }
+    .side-nav { flex-direction: row; overflow-x: auto; width: 100%; padding-bottom: 4px; }
+    .side-item { padding: 6px 10px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+    .side-foot { display: none; }
+
+    .admin-topbar { height: auto; padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+    .admin-topbar h3 { font-size: 15px; }
+    .top-search { width: 100%; }
+
+    .admin-content { padding: 14px; gap: 12px; }
+    .astat b { font-size: 19px; }
+    
+    table.atable { display: block; overflow-x: auto; width: 100%; white-space: nowrap; }
+
+    .filter-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+    .chip-set { overflow-x: auto; padding-bottom: 4px; }
+
+    .profile-hero { flex-direction: column; text-align: center; gap: 10px; }
+    .login-card { width: 100%; max-width: 340px; padding: 24px 18px; }
+  }
+
+  @media (max-width: 480px) {
+    .astat-row { grid-template-columns: 1fr; }
+    .hbar-name { width: 90px; font-size: 11px; }
+  }
 </style>
 </head>
 <body>
