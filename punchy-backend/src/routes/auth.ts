@@ -70,11 +70,31 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
   const { email, password } = parsed.data;
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: {
+      businessProfile: true,
+      staffBusiness: true,
+    },
+  });
+
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     res.status(401).json({ error: 'Invalid credentials' }); return;
   }
-  if (user.isBlocked) { res.status(403).json({ error: 'Account is blocked' }); return; }
+
+  const isBusinessSuspended = user.role === 'BUSINESS' && user.businessProfile?.status === 'SUSPENDED';
+  const isStaffBusinessSuspended = user.role === 'STAFF' && user.staffBusiness?.status === 'SUSPENDED';
+  const isSuspended = user.isBlocked || isBusinessSuspended || isStaffBusinessSuspended;
+
+  if (isSuspended) {
+    res.status(403).json({
+      error: 'Account has been suspended.',
+      isSuspended: true,
+      isBlocked: user.isBlocked,
+      role: user.role,
+    });
+    return;
+  }
 
   const tokenPayload = { userId: user.id, email: user.email, role: user.role };
   const accessToken = signAccessToken(tokenPayload);
@@ -90,6 +110,11 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       name: user.name || user.email.split('@')[0],
       role: user.role,
       phone: user.phone,
+      isBlocked: user.isBlocked,
+      isSuspended: false,
+      isStaffActive: user.isStaffActive,
+      businessId: user.businessId,
+      businessName: user.staffBusiness?.name ?? user.businessProfile?.name,
       createdAt: user.createdAt,
     },
     accessToken,
@@ -106,8 +131,14 @@ router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void
       name: true,
       role: true,
       phone: true,
+      isBlocked: true,
+      isStaffActive: true,
+      businessId: true,
       createdAt: true,
       businessProfile: true,
+      staffBusiness: {
+        select: { id: true, name: true, logo: true, category: true, status: true },
+      },
       _count: {
         select: { customerCards: true },
       },
@@ -119,7 +150,17 @@ router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void
     return;
   }
 
-  res.json({ user });
+  const isBusinessSuspended = user.role === 'BUSINESS' && user.businessProfile?.status === 'SUSPENDED';
+  const isStaffBusinessSuspended = user.role === 'STAFF' && user.staffBusiness?.status === 'SUSPENDED';
+  const isSuspended = user.isBlocked || isBusinessSuspended || isStaffBusinessSuspended;
+
+  res.json({
+    user: {
+      ...user,
+      isSuspended,
+      businessName: user.staffBusiness?.name ?? user.businessProfile?.name,
+    },
+  });
 });
 
 router.put('/profile', requireAuth, async (req: Request, res: Response): Promise<void> => {

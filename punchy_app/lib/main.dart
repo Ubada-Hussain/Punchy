@@ -16,6 +16,8 @@ import 'features/business/business_setup_screen.dart';
 import 'features/business/customer_list_screen.dart';
 import 'features/business/business_profile_screen.dart';
 import 'features/business/business_scanner_screen.dart';
+import 'features/business/business_staff_screen.dart';
+import 'features/staff/staff_portal_screen.dart';
 import 'features/admin/admin_dashboard_screen.dart';
 import 'features/admin/admin_businesses_screen.dart';
 import 'features/admin/admin_customers_screen.dart';
@@ -52,7 +54,15 @@ class PunchyApp extends StatelessWidget {
 
     final GoRouter router = GoRouter(
       initialLocation: authProvider.isAuthenticated
-          ? (authProvider.user?['role'] == 'BUSINESS' ? '/business' : '/')
+          ? (authProvider.isSuspended
+              ? '/suspended'
+              : authProvider.user?['role'] == 'BUSINESS'
+                  ? '/business'
+                  : authProvider.user?['role'] == 'STAFF'
+                      ? '/staff'
+                      : authProvider.user?['role'] == 'ADMIN'
+                          ? '/admin'
+                          : '/')
           : '/login',
       refreshListenable: authProvider,
       errorBuilder: (context, state) => const NotFoundScreen(),
@@ -61,6 +71,23 @@ class PunchyApp extends StatelessWidget {
         final loc = state.matchedLocation;
         final user = authProvider.user;
         final role = user?['role'] ?? 'CUSTOMER';
+        final isSuspended = authProvider.isSuspended;
+
+        // If user is suspended, they can ONLY be on /suspended or /terms
+        if (isSuspended) {
+          if (loc != '/suspended' && loc != '/terms') {
+            return '/suspended';
+          }
+          return null;
+        }
+
+        // If on /suspended but not suspended, redirect home
+        if (loc == '/suspended' && !isSuspended && loggedIn) {
+          if (role == 'BUSINESS') return '/business';
+          if (role == 'STAFF') return '/staff';
+          if (role == 'ADMIN') return '/admin';
+          return '/';
+        }
 
         final isPublic = loc == '/login' ||
             loc == '/signup' ||
@@ -78,20 +105,28 @@ class PunchyApp extends StatelessWidget {
         if (loggedIn) {
           if (loc == '/login' || loc == '/signup') {
             if (role == 'BUSINESS') return '/business';
+            if (role == 'STAFF') return '/staff';
             if (role == 'ADMIN') return '/admin';
             return '/';
           }
 
-          // Strict Role Security: Customers cannot visit business or admin routes
+          // Strict Role Security: STAFF can ONLY access /staff (and public error pages)
+          if (role == 'STAFF') {
+            if (loc != '/staff' && !isPublic) {
+              return '/staff';
+            }
+          }
+
+          // Strict Role Security: Customers cannot visit business, staff, or admin routes
           if (role == 'CUSTOMER') {
-            if (loc.startsWith('/business') || loc.startsWith('/admin')) {
+            if (loc.startsWith('/business') || loc == '/staff' || loc.startsWith('/admin')) {
               return '/';
             }
           }
 
-          // Strict Role Security: Businesses cannot visit customer wallet or admin routes
+          // Strict Role Security: Businesses cannot visit customer wallet, staff portal, or admin routes
           if (role == 'BUSINESS') {
-            if (loc == '/' || loc == '/explore' || loc == '/barcode' || loc == '/notifications' || loc.startsWith('/admin')) {
+            if (loc == '/' || loc == '/explore' || loc == '/barcode' || loc == '/notifications' || loc == '/staff' || loc.startsWith('/admin')) {
               return '/business';
             }
           }
@@ -128,6 +163,12 @@ class PunchyApp extends StatelessWidget {
           builder: (context, state) => const NotificationsScreen(),
         ),
 
+        // Staff Portal Route (pure scanner view)
+        GoRoute(
+          path: '/staff',
+          builder: (context, state) => const StaffPortalScreen(),
+        ),
+
         // Business Portal Routes
         GoRoute(
           path: '/business',
@@ -159,6 +200,10 @@ class PunchyApp extends StatelessWidget {
         GoRoute(
           path: '/business/profile',
           builder: (context, state) => const BusinessProfileScreen(),
+        ),
+        GoRoute(
+          path: '/business/staff',
+          builder: (context, state) => const BusinessStaffScreen(),
         ),
 
         // Admin Portal Routes

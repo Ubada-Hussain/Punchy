@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Punchy Admin — Full Panel UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F9F6; --surface:#FFFFFF; --surface-alt:#EEF5F0;
+    --ink:#142420; --ink-soft:#63736C; --ink-faint:#9AA8A2; --line:#E2EBE5;
+    --teal:#0EA893; --teal-dark:#076B5D; --coral:#FF6B57; --coral-dark:#E4503D;
+    --gold:#FFC145; --purple:#7C6FF0;
+    --grad-teal: linear-gradient(135deg,#14C1A6 0%, #076B5D 100%);
+    --grad-coral: linear-gradient(135deg,#FF9166 0%, #E4503D 100%);
+    --grad-purple: linear-gradient(135deg,#9A8CFF 0%, #5B4FD6 100%);
+    --grad-gold: linear-gradient(135deg,#FFD166 0%, #F2994A 100%);
+    --shadow-card: 0 20px 44px -18px rgba(20,36,32,0.30);
+    --shadow-soft: 0 8px 20px -10px rgba(20,36,32,0.16);
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:#EAF1EC; font-family:'Plus Jakarta Sans', sans-serif; color:var(--ink); }
+  .page-head{ padding:48px 40px 16px; text-align:center; }
+  .page-head .eyebrow{ display:inline-flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--line); padding:6px 14px; border-radius:999px; font-size:12.5px; font-weight:700; color:var(--teal-dark); letter-spacing:.04em; text-transform:uppercase; }
+  .page-head h1{ font-size:34px; font-weight:800; margin:16px 0 8px; letter-spacing:-0.02em; }
+  .page-head p{ color:var(--ink-soft); font-size:15px; max-width:560px; margin:0 auto; }
+  .group{ padding: 28px 40px 6px; }
+  .group-head{ display:flex; align-items:baseline; gap:12px; margin-bottom:18px; }
+  .group-head h2{ font-size:20px; font-weight:800; margin:0; }
+  .group-head span{ color:var(--ink-faint); font-size:13px; font-weight:600; }
+  .row{ display:flex; gap:26px; overflow-x:auto; padding-bottom:22px; }
+  .frame-wrap{ flex-shrink:0; }
+  .frame-label{ font-size:12.5px; font-weight:700; color:var(--ink-soft); margin-bottom:9px; }
+
+  /* Browser chrome + admin shell */
+  .admin-frame{ width:1120px; height:680px; border-radius:16px; overflow:hidden; box-shadow:var(--shadow-card); background:var(--surface); border:1px solid var(--line); display:flex; flex-direction:column; }
+  .browser-bar{ height:38px; background:#EDF2EE; display:flex; align-items:center; gap:7px; padding:0 14px; border-bottom:1px solid var(--line); flex-shrink:0; }
+  .traffic{ width:10px; height:10px; border-radius:50%; }
+  .url-pill{ flex:1; background:#fff; border:1px solid var(--line); border-radius:8px; padding:5px 12px; font-size:11.5px; color:var(--ink-soft); margin-left:8px; }
+
+  .admin-shell{ display:flex; flex:1; min-height:0; }
+  .admin-sidebar{ width:214px; background:#0E1A17; color:#fff; display:flex; flex-direction:column; padding:18px 12px; flex-shrink:0; }
+  .side-logo{ display:flex; align-items:center; gap:9px; padding:6px 8px 20px; }
+  .side-logo .mark{ width:30px; height:30px; border-radius:9px; background:var(--grad-teal); display:flex; align-items:center; justify-content:center; }
+  .side-logo b{ font-size:15px; font-weight:800; }
+  .side-nav{ display:flex; flex-direction:column; gap:3px; flex:1; }
+  .side-item{ display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:10px; font-size:13px; font-weight:700; color:rgba(255,255,255,.65); }
+  .side-item.on{ background:var(--teal); color:#fff; }
+  .side-item svg{ width:16px; height:16px; flex-shrink:0; }
+  .side-foot{ display:flex; align-items:center; gap:9px; padding:10px 8px; border-top:1px solid rgba(255,255,255,.12); margin-top:8px; }
+  .side-foot .av{ width:30px; height:30px; border-radius:50%; background:var(--grad-purple); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0;}
+  .side-foot div{ font-size:11.5px; }
+  .side-foot b{ display:block; font-size:12.5px; }
+
+  .admin-main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--bg); }
+  .admin-topbar{ height:58px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 22px; border-bottom:1px solid var(--line); background:var(--surface); }
+  .admin-topbar h3{ font-size:17px; font-weight:800; margin:0; }
+  .top-actions{ display:flex; align-items:center; gap:12px; }
+  .top-search{ display:flex; align-items:center; gap:7px; background:var(--surface-alt); border-radius:9px; padding:7px 11px; font-size:12.5px; color:var(--ink-faint); width:200px; }
+  .top-search svg{ width:14px; height:14px; flex-shrink:0; }
+  .top-icon{ width:32px; height:32px; border-radius:9px; background:var(--surface-alt); display:flex; align-items:center; justify-content:center; color:var(--ink); }
+  .admin-content{ flex:1; overflow-y:auto; padding:20px 22px 30px; display:flex; flex-direction:column; gap:16px; }
+
+  .icon{ stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; width:18px; height:18px; }
+
+  .btn{ border:none; border-radius:10px; padding:9px 14px; font-family:inherit; font-weight:700; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;}
+  .btn-primary{ background:var(--teal); color:#fff; }
+  .btn-coral{ background:var(--coral); color:#fff; }
+  .btn-outline{ background:var(--surface); color:var(--ink); border:1.5px solid var(--line); }
+  .btn-danger-ghost{ background:rgba(228,80,61,.1); color:var(--coral-dark); }
+  .btn-ghost{ background:transparent; color:var(--teal-dark); font-weight:700; padding:6px 8px;}
+  .btn-xs{ padding:6px 10px; font-size:11.5px; border-radius:8px; }
+
+  .astat-row{ display:flex; gap:14px; }
+  .astat{ flex:1; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:15px 16px; }
+  .astat span{ font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-soft); }
+  .astat b{ display:block; font-size:23px; font-weight:800; margin-top:5px; }
+  .astat em{ font-style:normal; font-size:11px; font-weight:700; color:var(--teal-dark); margin-left:6px;}
+
+  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:16px 18px; }
+  .panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .panel-head h4{ font-size:14px; font-weight:800; margin:0; }
+
+  .two-col{ display:flex; gap:16px; align-items:flex-start; }
+  .two-col > *{ flex:1; min-width:0; }
+
+  table.atable{ width:100%; border-collapse:collapse; }
+  .atable th{ text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-soft); padding:9px 12px; font-weight:800; background:var(--surface-alt); }
+  .atable th:first-child{ border-radius:10px 0 0 10px; } .atable th:last-child{ border-radius:0 10px 10px 0; }
+  .atable td{ padding:11px 12px; font-size:12.5px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  .atable tr:last-child td{ border-bottom:none; }
+  .row-biz{ display:flex; align-items:center; gap:9px; }
+  .row-logo{ width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
+  .row-name{ font-weight:700; font-size:12.5px; }
+  .row-sub{ font-size:11px; color:var(--ink-faint); }
+
+  .badge{ padding:4px 10px; border-radius:999px; font-size:10px; font-weight:800; white-space:nowrap; }
+  .b-active{ background:rgba(14,168,147,.13); color:var(--teal-dark); }
+  .b-pending{ background:rgba(255,193,69,.22); color:#8A6300; }
+  .b-suspended{ background:rgba(228,80,61,.13); color:var(--coral-dark); }
+  .b-open{ background:rgba(124,111,240,.14); color:#4A3FCF; }
+  .b-progress{ background:rgba(255,193,69,.22); color:#8A6300; }
+  .b-resolved{ background:rgba(14,168,147,.13); color:var(--teal-dark); }
+  .b-qr{ background:rgba(124,111,240,.14); color:#4A3FCF; }
+  .b-nfc{ background:rgba(255,107,87,.13); color:var(--coral-dark); }
+
+  .filter-bar{ display:flex; align-items:center; gap:10px; }
+  .search-in{ flex:1; display:flex; align-items:center; gap:8px; background:var(--surface); border:1.5px solid var(--line); border-radius:11px; padding:9px 13px; font-size:12.5px; color:var(--ink-faint); }
+  .search-in svg{ width:15px; height:15px; flex-shrink:0; }
+  .chip-set{ display:flex; gap:7px; }
+  .fchip{ padding:8px 13px; border-radius:999px; border:1.5px solid var(--line); background:var(--surface); font-size:11.5px; font-weight:700; color:var(--ink-soft); }
+  .fchip.on{ background:var(--teal); border-color:var(--teal); color:#fff; }
+
+  .profile-hero{ display:flex; align-items:center; gap:16px; }
+  .p-logo{ width:60px; height:60px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0; box-shadow:var(--shadow-soft); }
+  .p-name{ font-size:18px; font-weight:800; }
+  .p-meta{ font-size:12px; color:var(--ink-soft); margin-top:3px; }
+
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field label{ font-size:11.5px; font-weight:700; color:var(--ink-soft); }
+  .field .input, .field textarea, .field select{ font-family:inherit; background:var(--surface); border:1.5px solid var(--line); border-radius:10px; padding:10px 12px; font-size:13px; color:var(--ink); }
+  .field textarea{ resize:none; }
+
+  .toggle{ width:38px; height:22px; border-radius:999px; background:var(--line); position:relative; flex-shrink:0; }
+  .toggle.on{ background:var(--teal); }
+  .toggle::after{ content:""; position:absolute; width:16px; height:16px; border-radius:50%; background:#fff; top:3px; left:3px; }
+  .toggle.on::after{ left:19px; }
+
+  .bar-chart{ display:flex; align-items:flex-end; gap:12px; height:130px; padding-top:10px;}
+  .bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end;}
+  .bar{ width:100%; background:var(--grad-teal); border-radius:7px 7px 2px 2px; }
+  .bar-lbl{ font-size:10px; font-weight:700; color:var(--ink-faint); }
+
+  .hbar-row{ display:flex; align-items:center; gap:10px; }
+  .hbar-track{ flex:1; height:9px; background:var(--surface-alt); border-radius:999px; overflow:hidden; }
+  .hbar-fill{ height:100%; background:var(--grad-coral); border-radius:999px; }
+  .hbar-name{ width:130px; font-size:12px; font-weight:700; flex-shrink:0; }
+  .hbar-val{ width:36px; text-align:right; font-size:11.5px; font-weight:800; color:var(--ink-soft); flex-shrink:0;}
+
+  .mod-row{ display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .mod-row:last-child{ border-bottom:none; }
+  .mod-thumb{ width:44px; height:44px; border-radius:11px; flex-shrink:0; }
+
+  .settings-row{ display:flex; align-items:center; justify-content:space-between; padding:13px 0; border-bottom:1px solid var(--line); }
+  .settings-row:last-child{ border-bottom:none; }
+  .settings-row .st{ font-size:13px; font-weight:700; }
+  .settings-row .ss{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+
+  /* login page */
+  .login-wrap{ flex:1; display:flex; align-items:center; justify-content:center; background:var(--bg); }
+  .login-card{ width:360px; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:32px; box-shadow:var(--shadow-soft); display:flex; flex-direction:column; gap:14px; }
+  .login-mark{ width:50px; height:50px; border-radius:15px; background:var(--grad-teal); display:flex; align-items:center; justify-content:center; margin:0 auto 6px; }
+  .cred-hint{ background:var(--surface-alt); border-radius:10px; padding:9px 12px; font-size:11.5px; color:var(--ink-soft); text-align:center; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+<defs>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24"><path d="M4 9l1-4h14l1 4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9a2.2 2.2 0 0 0 4.4.2A2.2 2.2 0 0 0 12 9a2.2 2.2 0 0 0 3.6.2A2.2 2.2 0 0 0 20 9" stroke-linecap="round"/><path d="M5 9v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9" stroke-linecap="round"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.8-3.2 3-4.8 5.5-4.8s4.7 1.6 5.5 4.8" stroke-linecap="round"/><circle cx="17" cy="9" r="2.3"/><path d="M15.5 14.3c2 .2 3.5 1.6 4 4.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M20 20H4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4" stroke-linecap="round"/><path d="M5 4h11l-2.5 3.5L16 11H5" stroke-linejoin="round"/></symbol>
+  <symbol id="i-nfc" viewBox="0 0 24 24"><path d="M6 16a8 8 0 0 1 0-8" stroke-linecap="round"/><path d="M9 13.5a3.5 3.5 0 0 1 0-3" stroke-linecap="round"/><circle cx="13" cy="12" r="1.3" fill="currentColor" stroke="none"/><path d="M17 8a8 8 0 0 1 0 8" stroke-linecap="round"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9Z" stroke-linejoin="round"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.2M12 18.8V21M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M3 12h2.2M18.8 12H21M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a1.6 1.6 0 0 0 0 3V16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2.5a1.6 1.6 0 0 0 0-3Z" stroke-linejoin="round"/><path d="M14 7v10" stroke-dasharray="2 2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.5-4.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M11 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3.5" y="6" width="17" height="12" rx="1.5"/><path d="M4 7l8 6 8-6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5.5" y="10.5" width="13" height="9" rx="1.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5 10 17 19 7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><path d="M14 14h3v3h-3zM19 14h2M14 19h2M19 19h2" stroke-linecap="round"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8Z" stroke-linejoin="round"/></symbol>
+</defs>
+</svg>
+
+<div class="page-head">
+  <div class="eyebrow">🖥️ Punchy Admin</div>
+  <h1>Complete admin panel — trypunchy.site</h1>
+  <p>Every page of the admin web app, same design language as the mobile app — light, refreshing, teal/coral accents, one simple typeface.</p>
+</div>
+
+<!-- LOGIN -->
+<div class="group">
+  <div class="group-head"><h2>🔐 Login</h2><span>/login</span></div>
+  <div class="row">
+    <div class="frame-wrap">
+      <div class="frame-label">Admin Login</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/login</div></div>
+        <div class="login-wrap">
+          <div class="login-card">
+            <div class="login-mark"><svg class="icon" style="width:22px;height:22px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div>
+            <div style="text-align:center;"><h3 style="margin:0;font-size:18px;font-weight:800;">Punchy Admin</h3><p style="color:var(--ink-soft);font-size:13px;margin:4px 0 0;">Sign in to manage the platform</p></div>
+            <div class="field"><label>Email</label><div class="input" style="display:flex;align-items:center;gap:8px;"><svg class="icon" style="width:15px;height:15px;color:var(--ink-faint);"><use href="#i-mail"/></svg>admin@punchy.app</div></div>
+            <div class="field"><label>Password</label><div class="input" style="display:flex;align-items:center;gap:8px;"><svg class="icon" style="width:15px;height:15px;color:var(--ink-faint);"><use href="#i-lock"/></svg>••••••••••••</div></div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;">Log In</button>
+            <div class="cred-hint">Demo credentials — admin@punchy.app / AdminPass123!</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="group">
+  <div class="group-head"><h2>📊 Dashboard</h2><span>/dashboard</span></div>
+  <div class="row">
+    <div class="frame-wrap">
+      <div class="frame-label">Platform Overview</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/dashboard</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item on"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><h3>Dashboard</h3><div class="top-actions"><div class="top-search"><svg class="icon"><use href="#i-search"/></svg>Search platform...</div><div class="top-icon"><svg class="icon" style="width:16px;height:16px;"><use href="#i-bell"/></svg></div></div></div>
+            <div class="admin-content">
+              <div class="astat-row">
+                <div class="astat"><span>Total Businesses</span><b>184 <em>+12 this wk</em></b></div>
+                <div class="astat"><span>Total Customers</span><b>6,412 <em>+340 this wk</em></b></div>
+                <div class="astat"><span>Total Punches</span><b>58,930</b></div>
+                <div class="astat"><span>Redemptions</span><b>4,105</b></div>
+              </div>
+              <div class="two-col">
+                <div class="panel">
+                  <div class="panel-head"><h4>Pending Businesses</h4><span class="btn-ghost">View all →</span></div>
+                  <table class="atable"><tr><th>Business</th><th>Category</th><th></th></tr>
+                    <tr><td><div class="row-biz"><div class="row-logo" style="background:var(--grad-teal);color:#fff;">☕</div><div class="row-name">Bean & Barrel</div></div></td><td>Café</td><td style="display:flex;gap:6px;"><button class="btn btn-primary btn-xs">Approve</button><button class="btn btn-outline btn-xs">Reject</button></td></tr>
+                    <tr><td><div class="row-biz"><div class="row-logo" style="background:var(--grad-purple);color:#fff;">💇</div><div class="row-name">Glow Studio</div></div></td><td>Salon</td><td style="display:flex;gap:6px;"><button class="btn btn-primary btn-xs">Approve</button><button class="btn btn-outline btn-xs">Reject</button></td></tr>
+                    <tr><td><div class="row-biz"><div class="row-logo" style="background:var(--grad-gold);color:#fff;">🍕</div><div class="row-name">Slice House</div></div></td><td>Restaurant</td><td style="display:flex;gap:6px;"><button class="btn btn-primary btn-xs">Approve</button><button class="btn btn-outline btn-xs">Reject</button></td></tr>
+                  </table>
+                </div>
+                <div class="panel">
+                  <div class="panel-head"><h4>Open Support Tickets</h4><span class="btn-ghost">View all →</span></div>
+                  <table class="atable"><tr><th>User</th><th>Subject</th><th>Status</th></tr>
+                    <tr><td class="row-name">Ayesha K.</td><td class="row-sub">Card not syncing</td><td><span class="badge b-open">OPEN</span></td></tr>
+                    <tr><td class="row-name">Brew & Co.</td><td class="row-sub">NFC tag not working</td><td><span class="badge b-progress">IN PROGRESS</span></td></tr>
+                    <tr><td class="row-name">Bilal R.</td><td class="row-sub">Reward not redeemed</td><td><span class="badge b-open">OPEN</span></td></tr>
+                  </table>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h4>Quick Actions</h4></div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                  <button class="btn btn-outline btn-xs"><svg class="icon" style="width:14px;height:14px;"><use href="#i-store"/></svg>Approve Businesses</button>
+                  <button class="btn btn-outline btn-xs"><svg class="icon" style="width:14px;height:14px;"><use href="#i-chart"/></svg>View Analytics</button>
+                  <button class="btn btn-outline btn-xs"><svg class="icon" style="width:14px;height:14px;"><use href="#i-bell"/></svg>Send Notification</button>
+                  <button class="btn btn-outline btn-xs"><svg class="icon" style="width:14px;height:14px;"><use href="#i-ticket"/></svg>Support Tickets</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BUSINESSES -->
+<div class="group">
+  <div class="group-head"><h2>🏪 Businesses</h2><span>/businesses · /businesses/[id]</span></div>
+  <div class="row">
+
+    <div class="frame-wrap">
+      <div class="frame-label">Businesses list</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/businesses</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item on"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><h3>Businesses</h3><div class="top-actions"><div class="top-icon"><svg class="icon" style="width:16px;height:16px;"><use href="#i-bell"/></svg></div></div></div>
+            <div class="admin-content">
+              <div class="filter-bar">
+                <div class="search-in"><svg class="icon"><use href="#i-search"/></svg>Search businesses...</div>
+                <div class="chip-set"><div class="fchip on">All</div><div class="fchip">Active</div><div class="fchip">Pending</div><div class="fchip">Suspended</div></div>
+              </div>
+              <div class="panel" style="padding:0;">
+                <table class="atable">
+                  <tr><th>Business</th><th>Category</th><th>Customers</th><th>Status</th><th>Joined</th><th>Actions</th></tr>
+                  <tr><td><div class="row-biz"><div class="row-logo" style="background:var(--grad-teal);color:#fff;">☕</div><div><div class="row-name">Brew & Co.</div><div class="row-sub">Gulberg, Lahore</div></div></div></td><td>Café</td><td>312</td><td><span class="badge b-active">ACTIVE</span></td><td>Jan 12, 2026</td><td style="display:flex;gap:6px;"><button class="btn btn-outline btn-xs">View</button><button class="btn btn-danger-ghost btn-xs">Suspend</button></td></tr>
+                  <tr><td><div class="row-biz"><div class="row-logo" style="background:var(--grad-purple);color:#fff;">💇</div><div><div class="row-name">Glow Salon</div><div class="row-sub">DHA, Lahore</div></div></div></td><td>Salon</td><td>128</td><td><span class="badge b-active">ACTIVE</span></td><td>Feb 3, 2026</td><td style="display:flex;gap:6px;"><button class="btn btn-outline btn-xs">View</button><button class="btn btn-danger-ghost btn-xs">Suspend</button></td></tr>
+                  <tr><td><div class="row-biz"><div class="row-logo" style="background:var(--grad-gold);color:#fff;">🍕</div><div><div class="row-name">Slice House</div><div class="row-sub">Johar Town</div></div></div></td><td>Restaurant</td><td>0</td><td><span class="badge b-pending">PENDING</span></td><td>Aug 24, 2026</td><td style="display:flex;gap:6px;"><button class="btn btn-primary btn-xs">Approve</button><button class="btn btn-outline btn-xs">View</button></td></tr>
+                  <tr><td><div class="row-biz"><div class="row-logo" style="background:#ccc;color:#fff;">🏋️</div><div><div class="row-name">FitZone Gym</div><div class="row-sub">Model Town</div></div></div></td><td>Fitness</td><td>64</td><td><span class="badge b-suspended">SUSPENDED</span></td><td>Nov 8, 2025</td><td style="display:flex;gap:6px;"><button class="btn btn-outline btn-xs">View</button><button class="btn btn-primary btn-xs">Reinstate</button></td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame-wrap">
+      <div class="frame-label">Business detail</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/businesses/brew-co</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item on"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><div style="display:flex;align-items:center;gap:10px;"><svg class="icon"><use href="#i-back"/></svg><h3>Brew & Co.</h3></div><div class="top-actions"><button class="btn btn-danger-ghost btn-xs">Suspend</button><button class="btn btn-primary btn-xs">Approve</button></div></div>
+            <div class="admin-content">
+              <div class="panel">
+                <div class="profile-hero">
+                  <div class="p-logo" style="background:var(--grad-teal);color:#fff;">☕</div>
+                  <div style="flex:1;"><div class="p-name">Brew & Co.</div><div class="p-meta">Café · Gulberg, Lahore · Joined Jan 12, 2026</div></div>
+                  <span class="badge b-active">ACTIVE</span>
+                </div>
+              </div>
+              <div class="astat-row">
+                <div class="astat"><span>Punch Cards</span><b>2</b></div>
+                <div class="astat"><span>Customers</span><b>312</b></div>
+                <div class="astat"><span>Total Punches</span><b>2,140</b></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h4>Punch Cards</h4></div>
+                <table class="atable"><tr><th>Card</th><th>Punches Req.</th><th>Reward</th><th>Status</th></tr>
+                  <tr><td class="row-name">Coffee Lovers Card</td><td>10</td><td>1 Free Coffee</td><td><span class="badge b-active">ACTIVE</span></td></tr>
+                  <tr><td class="row-name">Pastry Punch</td><td>6</td><td>Free Croissant</td><td><span class="badge b-active">ACTIVE</span></td></tr>
+                </table>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h4>Recent Customers</h4></div>
+                <table class="atable"><tr><th>Customer</th><th>Progress</th><th>Last Activity</th></tr>
+                  <tr><td class="row-name">Ayesha K.</td><td>6/10</td><td>2 hrs ago</td></tr>
+                  <tr><td class="row-name">Bilal R.</td><td>10/10 🎉</td><td>1 day ago</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- CUSTOMERS -->
+<div class="group">
+  <div class="group-head"><h2>👥 Customers</h2><span>/customers · /customers/[id]</span></div>
+  <div class="row">
+
+    <div class="frame-wrap">
+      <div class="frame-label">Customers list</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/customers</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item on"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><h3>Customers</h3><div class="top-actions"><div class="top-icon"><svg class="icon" style="width:16px;height:16px;"><use href="#i-bell"/></svg></div></div></div>
+            <div class="admin-content">
+              <div class="filter-bar"><div class="search-in"><svg class="icon"><use href="#i-search"/></svg>Search customers by name or email...</div></div>
+              <div class="panel" style="padding:0;">
+                <table class="atable">
+                  <tr><th>Customer</th><th>Email</th><th>Joined</th><th>Cards / Punches</th><th>Status</th><th>Action</th></tr>
+                  <tr><td><div class="row-biz"><div class="row-logo" style="background:var(--grad-purple);color:#fff;">AK</div><div class="row-name">Ayesha Khan</div></div></td><td class="row-sub">ayesha@email.com</td><td>Mar 2, 2026</td><td>3 cards · 22 punches</td><td><span class="badge b-active">ACTIVE</span></td><td><button class="btn btn-danger-ghost btn-xs">Block</button></td></tr>
+                  <tr><td><div class="row-biz"><div class="row-logo" style="background:var(--grad-coral);color:#fff;">BR</div><div class="row-name">Bilal Raza</div></div></td><td class="row-sub">bilal@email.com</td><td>Jan 19, 2026</td><td>1 card · 10 punches</td><td><span class="badge b-active">ACTIVE</span></td><td><button class="btn btn-danger-ghost btn-xs">Block</button></td></tr>
+                  <tr><td><div class="row-biz"><div class="row-logo" style="background:#ccc;color:#fff;">SM</div><div class="row-name">Sana Malik</div></div></td><td class="row-sub">sana@email.com</td><td>Jun 30, 2025</td><td>0 cards · 0 punches</td><td><span class="badge b-suspended">BLOCKED</span></td><td><button class="btn btn-primary btn-xs">Unblock</button></td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame-wrap">
+      <div class="frame-label">Customer detail</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/customers/ayesha-khan</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item on"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><div style="display:flex;align-items:center;gap:10px;"><svg class="icon"><use href="#i-back"/></svg><h3>Ayesha Khan</h3></div><div class="top-actions"><button class="btn btn-danger-ghost btn-xs">Block Account</button></div></div>
+            <div class="admin-content">
+              <div class="panel">
+                <div class="profile-hero">
+                  <div class="p-logo" style="background:var(--grad-purple);color:#fff;">AK</div>
+                  <div style="flex:1;"><div class="p-name">Ayesha Khan</div><div class="p-meta">ayesha@email.com · Joined Mar 2, 2026</div></div>
+                  <span class="badge b-active">ACTIVE</span>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h4>Loyalty Cards</h4></div>
+                <table class="atable"><tr><th>Business</th><th>Card</th><th>Progress</th></tr>
+                  <tr><td class="row-name">Brew & Co.</td><td>Coffee Lovers Card</td><td>6/10</td></tr>
+                  <tr><td class="row-name">Glow Salon</td><td>Style Rewards</td><td>2/5</td></tr>
+                  <tr><td class="row-name">FitZone Gym</td><td>Sweat Streak</td><td>8/8 🎉</td></tr>
+                </table>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h4>Activity Log</h4></div>
+                <table class="atable"><tr><th>Event</th><th>Business</th><th>Date</th></tr>
+                  <tr><td>Punch added</td><td>Brew & Co.</td><td>Today, 10:24 AM</td></tr>
+                  <tr><td>Reward redeemed</td><td>FitZone Gym</td><td>Aug 20, 2026</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ANALYTICS / MODERATION / NFC -->
+<div class="group">
+  <div class="group-head"><h2>📈 Analytics · Moderation · NFC & QR</h2><span>/analytics · /moderation · /nfc-qr</span></div>
+  <div class="row">
+
+    <div class="frame-wrap">
+      <div class="frame-label">Analytics</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/analytics</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item on"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><h3>Analytics</h3><div class="top-actions"><button class="btn btn-outline btn-xs">Export CSV</button></div></div>
+            <div class="admin-content">
+              <div class="astat-row">
+                <div class="astat"><span>Punches (30d)</span><b>12,480</b></div>
+                <div class="astat"><span>New Signups (30d)</span><b>842</b></div>
+                <div class="astat"><span>Redemption Rate</span><b>34%</b></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h4>Signups — last 7 weeks</h4></div>
+                <div class="bar-chart">
+                  <div class="bar-col"><div class="bar" style="height:38%;"></div><span class="bar-lbl">W1</span></div>
+                  <div class="bar-col"><div class="bar" style="height:52%;"></div><span class="bar-lbl">W2</span></div>
+                  <div class="bar-col"><div class="bar" style="height:46%;"></div><span class="bar-lbl">W3</span></div>
+                  <div class="bar-col"><div class="bar" style="height:68%;"></div><span class="bar-lbl">W4</span></div>
+                  <div class="bar-col"><div class="bar" style="height:60%;"></div><span class="bar-lbl">W5</span></div>
+                  <div class="bar-col"><div class="bar" style="height:82%;"></div><span class="bar-lbl">W6</span></div>
+                  <div class="bar-col"><div class="bar" style="height:100%;background:var(--grad-coral);"></div><span class="bar-lbl">W7</span></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h4>Top Businesses by Punch Volume</h4></div>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  <div class="hbar-row"><div class="hbar-name">Brew & Co.</div><div class="hbar-track"><div class="hbar-fill" style="width:92%;"></div></div><div class="hbar-val">2,140</div></div>
+                  <div class="hbar-row"><div class="hbar-name">FitZone Gym</div><div class="hbar-track"><div class="hbar-fill" style="width:70%;"></div></div><div class="hbar-val">1,610</div></div>
+                  <div class="hbar-row"><div class="hbar-name">Glow Salon</div><div class="hbar-track"><div class="hbar-fill" style="width:52%;"></div></div><div class="hbar-val">1,120</div></div>
+                  <div class="hbar-row"><div class="hbar-name">Slice House</div><div class="hbar-track"><div class="hbar-fill" style="width:30%;"></div></div><div class="hbar-val">640</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame-wrap">
+      <div class="frame-label">Moderation</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/moderation</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item on"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><h3>Moderation</h3></div>
+            <div class="admin-content">
+              <div class="panel">
+                <div class="panel-head"><h4>Pending Image Review</h4></div>
+                <div class="mod-row"><div class="mod-thumb" style="background:var(--grad-teal);"></div><div style="flex:1;"><div class="row-name">Brew & Co. — logo update</div><div class="row-sub">Uploaded 2 hrs ago</div></div><button class="btn btn-primary btn-xs">Approve</button><button class="btn btn-danger-ghost btn-xs">Flag</button></div>
+                <div class="mod-row"><div class="mod-thumb" style="background:var(--grad-gold);"></div><div style="flex:1;"><div class="row-name">Slice House — cover photo</div><div class="row-sub">Uploaded 5 hrs ago</div></div><button class="btn btn-primary btn-xs">Approve</button><button class="btn btn-danger-ghost btn-xs">Flag</button></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h4>Flagged Content</h4></div>
+                <div class="mod-row"><div class="mod-thumb" style="background:#ccc;"></div><div style="flex:1;"><div class="row-name">FitZone Gym — profile image</div><div class="row-sub">Flagged: inappropriate content</div></div><button class="btn btn-danger-ghost btn-xs">Suspend Business</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame-wrap">
+      <div class="frame-label">NFC & QR</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/nfc-qr</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item on"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><h3>NFC & QR Identifiers</h3></div>
+            <div class="admin-content">
+              <div class="filter-bar"><div class="search-in"><svg class="icon"><use href="#i-search"/></svg>Search identifier or business...</div><div class="chip-set"><div class="fchip on">All</div><div class="fchip">QR</div><div class="fchip">NFC</div></div></div>
+              <div class="panel" style="padding:0;">
+                <table class="atable">
+                  <tr><th>Identifier</th><th>Type</th><th>Business</th><th>Card</th><th>Status</th></tr>
+                  <tr><td class="row-sub">qr-8841af</td><td><span class="badge b-qr">QR</span></td><td class="row-name">Brew & Co.</td><td>Coffee Lovers Card</td><td><span class="badge b-active">ACTIVE</span></td></tr>
+                  <tr><td class="row-sub">nfc-3390bd</td><td><span class="badge b-nfc">NFC</span></td><td class="row-name">Brew & Co.</td><td>Coffee Lovers Card</td><td><span class="badge b-active">ACTIVE</span></td></tr>
+                  <tr><td class="row-sub">qr-1207ee</td><td><span class="badge b-qr">QR</span></td><td class="row-name">Glow Salon</td><td>Style Rewards</td><td><span class="badge b-active">ACTIVE</span></td></tr>
+                  <tr><td class="row-sub">nfc-9910cc</td><td><span class="badge b-nfc">NFC</span></td><td class="row-name">FitZone Gym</td><td>Sweat Streak</td><td><span class="badge b-suspended">INACTIVE</span></td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- NOTIFICATIONS / SETTINGS / SUPPORT -->
+<div class="group" style="padding-bottom:60px;">
+  <div class="group-head"><h2>🔔 Notifications · Settings · Support</h2><span>/notifications · /settings · /support</span></div>
+  <div class="row">
+
+    <div class="frame-wrap">
+      <div class="frame-label">Notifications</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/notifications</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item on"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><h3>Notifications</h3></div>
+            <div class="admin-content">
+              <div class="panel">
+                <div class="panel-head"><h4>Compose Announcement</h4></div>
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                  <div class="field"><label>Target</label><div class="input">All Users ▾</div></div>
+                  <div class="field"><label>Title</label><div class="input">Weekend double-punch event! 🎉</div></div>
+                  <div class="field"><label>Body</label><textarea rows="3" style="font-family:inherit;">Earn 2x punches at any participating business this Saturday & Sunday.</textarea></div>
+                  <button class="btn btn-coral" style="width:fit-content;">Send Notification</button>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h4>History</h4></div>
+                <table class="atable"><tr><th>Title</th><th>Target</th><th>Sent</th><th>Delivered</th></tr>
+                  <tr><td class="row-name">New feature: NFC tap!</td><td>All Users</td><td>Aug 18, 2026</td><td>6,120</td></tr>
+                  <tr><td class="row-name">Business dashboard update</td><td>Businesses</td><td>Aug 10, 2026</td><td>184</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame-wrap">
+      <div class="frame-label">Settings</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/settings</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item on"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><h3>Platform Settings</h3></div>
+            <div class="admin-content">
+              <div class="panel" style="border-color:var(--coral);background:rgba(255,107,87,.06);">
+                <div class="settings-row" style="border:none;padding:2px 0;">
+                  <div><div class="st">Maintenance Mode</div><div class="ss">When ON, all API requests return 503 and users see the maintenance screen</div></div>
+                  <div class="toggle"></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="settings-row"><div><div class="st">Minimum app version</div><div class="ss">Forces update screen below this version</div></div><span class="section-link" style="color:var(--teal-dark);font-weight:700;font-size:12.5px;">v2.1.0 — Edit</span></div>
+                <div class="settings-row"><div><div class="st">Support email</div><div class="ss">Shown in the app's contact support sheet</div></div><span style="color:var(--teal-dark);font-weight:700;font-size:12.5px;">support@punchy.app — Edit</span></div>
+                <div class="settings-row"><div><div class="st">Terms & Conditions URL</div><div class="ss">Linked from Profile → Terms & Conditions</div></div><span style="color:var(--teal-dark);font-weight:700;font-size:12.5px;">trypunchy.site/terms — Edit</span></div>
+                <div class="settings-row"><div><div class="st">Default trial period</div><div class="ss">Days new businesses get before billing (if enabled)</div></div><span style="color:var(--teal-dark);font-weight:700;font-size:12.5px;">30 days — Edit</span></div>
+              </div>
+              <button class="btn btn-primary" style="width:fit-content;">Save Settings</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame-wrap">
+      <div class="frame-label">Support tickets</div>
+      <div class="admin-frame">
+        <div class="browser-bar"><div class="traffic" style="background:#FF5F57;"></div><div class="traffic" style="background:#FEBC2E;"></div><div class="traffic" style="background:#28C840;"></div><div class="url-pill">🔒 trypunchy.site/support</div></div>
+        <div class="admin-shell">
+          <div class="admin-sidebar">
+            <div class="side-logo"><div class="mark"><svg class="icon" style="width:15px;height:15px;color:#fff;stroke-width:0;fill:currentColor"><use href="#i-star"/></svg></div><b>Punchy Admin</b></div>
+            <div class="side-nav">
+              <div class="side-item"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</div>
+              <div class="side-item"><svg class="icon"><use href="#i-store"/></svg>Businesses</div>
+              <div class="side-item"><svg class="icon"><use href="#i-users"/></svg>Customers</div>
+              <div class="side-item"><svg class="icon"><use href="#i-chart"/></svg>Analytics</div>
+              <div class="side-item"><svg class="icon"><use href="#i-flag"/></svg>Moderation</div>
+              <div class="side-item"><svg class="icon"><use href="#i-nfc"/></svg>NFC & QR</div>
+              <div class="side-item"><svg class="icon"><use href="#i-bell"/></svg>Notifications</div>
+              <div class="side-item on"><svg class="icon"><use href="#i-ticket"/></svg>Support</div>
+              <div class="side-item"><svg class="icon"><use href="#i-settings"/></svg>Settings</div>
+            </div>
+            <div class="side-foot"><div class="av">AD</div><div><b>Admin User</b>admin@punchy.app</div></div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar"><h3>Support Tickets</h3></div>
+            <div class="admin-content">
+              <div class="astat-row">
+                <div class="astat"><span>Open</span><b>14</b></div>
+                <div class="astat"><span>In Progress</span><b>6</b></div>
+                <div class="astat"><span>Resolved (30d)</span><b>92</b></div>
+              </div>
+              <div class="panel" style="padding:0;">
+                <table class="atable">
+                  <tr><th>Ticket</th><th>User</th><th>Subject</th><th>Status</th><th>Created</th><th></th></tr>
+                  <tr><td class="row-sub">#1042</td><td class="row-name">Ayesha K.</td><td class="row-sub">Card not syncing</td><td><span class="badge b-open">OPEN</span></td><td>Today</td><td><button class="btn btn-outline btn-xs">Update</button></td></tr>
+                  <tr><td class="row-sub">#1041</td><td class="row-name">Brew & Co.</td><td class="row-sub">NFC tag not working</td><td><span class="badge b-progress">IN PROGRESS</span></td><td>Yesterday</td><td><button class="btn btn-outline btn-xs">Update</button></td></tr>
+                  <tr><td class="row-sub">#1039</td><td class="row-name">Bilal R.</td><td class="row-sub">Reward not redeemed</td><td><span class="badge b-open">OPEN</span></td><td>2 days ago</td><td><button class="btn btn-outline btn-xs">Update</button></td></tr>
+                  <tr><td class="row-sub">#1035</td><td class="row-name">Glow Salon</td><td class="row-sub">Billing question</td><td><span class="badge b-resolved">RESOLVED</span></td><td>5 days ago</td><td><button class="btn btn-outline btn-xs">View</button></td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

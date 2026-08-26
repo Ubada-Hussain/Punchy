@@ -37,18 +37,29 @@ Traditional paper punch cards get lost, damaged, or forgotten at home. Punchy di
 - **Profile & Preferences (`/profile`)**: Manage profile name, notification toggles, terms of service, and support sheets.
 
 ### 🏪 Business Portal (`/business`)
-- **Merchant Dashboard (`/business`)**: Real-time stats (*Total Customers*, *Punches Today*, *Rewards Redeemed*), active card preview, and in-store customer activity feeds.
+- **Merchant Dashboard (`/business`)**: Real-time stats (*Total Customers*, *Punches Today*, *Rewards Redeemed*), active card preview with expiration countdown, quick action cards, and in-store customer activity feeds.
+- **Single Active Card Limit**: Businesses can maintain **1 active loyalty card** at any given time. New card creation is dynamically locked until the existing card is deleted or replaced.
 - **Loyalty Card Studio (`/business/cards/new` & `/business/cards/:id/edit`)**:
-  - Live interactive card preview with instant visual updates.
+  - **Card Validity ("Valid Till") Date**: Set precise expiration dates with quick presets (*3 Months, 6 Months, 1 Year, Custom Date Picker*).
+  - Live interactive card preview with instant visual updates and validity badge.
   - Stepper for required punches (3 to 20 punches).
   - Curated gradient themes (*Teal, Coral, Purple, Gold*).
   - Hardware toggles for QR and NFC punch enablement.
+  - One-tap **"Delete This Loyalty Card"** action with confirmation safety dialog.
+- **Staff & Terminal Management (`/business/staff`)**:
+  - Add and manage child **Staff accounts** linked to the business.
+  - Instant **Scanner Activation Toggle**: Enable or disable scanner permissions for any staff terminal with real-time enforcement.
 - **Customer List & Redemption Verification (`/business/customers`)**:
   - Track customer loyalty progress bars (e.g. `8/10` punches).
   - Tapping a customer reveals detailed join date and visit logs.
   - **One-tap "Confirm Redemption"** button when a customer completes their card.
 - **Business Profile & Setup (`/business/setup` & `/business/profile`)**:
   - Manage business name, category, address, and merchant notifications (*"New customer joined"*, *"Card completed"*).
+
+### 📱 Staff Scanner Portal (`/staff`)
+- **Minimalist Child Terminal**: Purpose-built for cashier and floor staff. Contains exclusively the customer barcode scanner with laser viewfinder, manual email/ID entry, and simulation triggers.
+- **Remote Activation Lock**: Terminal is operable *only* when the business owner activates that staff ID. When deactivated, displays a secure lock screen with real-time status check.
+- **Zero Distraction**: Staff accounts have no access to business financials, card studio, or customer wallets.
 
 ### 👑 Platform Administration Suite (`/admin`)
 - **Admin Overview (`/admin`)**: Platform-wide metrics, signup growth analytics chart powered by `fl_chart`, and audit activity stream.
@@ -58,10 +69,10 @@ Traditional paper punch cards get lost, damaged, or forgotten at home. Punchy di
 
 ### 🛡️ System & Error States
 Robust, user-friendly fallback screens designed to handle real runtime states:
+- **Account Suspended (`/suspended`)**: Dedicated suspension page displayed automatically when an account or business is flagged or suspended by platform admins. Includes status refresh and support contact triggers.
 - **Offline / Network Error (`/offline`)**: Automatic retry mechanism and offline indicators.
 - **Server Error (`/server-error`)**: 500 error handling with direct support bottom sheets.
 - **Session Expired (`session_expired_dialog.dart`)**: Non-dismissible re-login modal.
-- **Account Suspended (`/suspended`)**: Informational lock screen for suspended users.
 - **404 Not Found (`/not-found`)**: Registered with GoRouter `errorBuilder`.
 - **Maintenance & Updates (`/maintenance`, `/update`)**: Seamless maintenance banners and update prompts.
 

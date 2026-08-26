@@ -41,15 +41,10 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
       }
     } catch (_) {}
 
-    // Fallback sample data
+    // Fallback
     if (mounted) {
       setState(() {
-        _businesses = [
-          {'id': 'b1', 'name': 'Brew & Co. Artisanal Coffee', 'category': 'Cafe & Bakery', 'status': 'APPROVED', 'user': {'email': 'brew@punchy.app'}},
-          {'id': 'b2', 'name': 'Glow Hair & Spa Studio', 'category': 'Salon & Spa', 'status': 'APPROVED', 'user': {'email': 'glow@punchy.app'}},
-          {'id': 'b3', 'name': 'FitZone Gym', 'category': 'Fitness', 'status': 'PENDING', 'user': {'email': 'fitzone@punchy.app'}},
-          {'id': 'b4', 'name': 'Slice House Pizza', 'category': 'Dining', 'status': 'SUSPENDED', 'user': {'email': 'slice@punchy.app'}},
-        ];
+        _businesses = [];
         _isLoading = false;
       });
     }

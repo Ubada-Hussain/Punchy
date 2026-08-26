@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { v4 as uuid } from 'uuid';
+import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { sendNotification } from '../lib/notifications';
@@ -24,9 +25,18 @@ const CardSchema = z.object({
   title: z.string().min(2),
   punchesRequired: z.number().min(2).max(20).default(10),
   rewardDescription: z.string().min(2),
-  visualStyle: z.record(z.unknown()).default({}),
+  visualStyle: z.record(z.string(), z.any()).default({}),
+  validUntil: z.string().nullable().optional(),
   enableQR: z.boolean().default(true),
   enableNFC: z.boolean().default(true),
+});
+
+// Staff Create Schema
+const CreateStaffSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  password: z.string().min(6),
+  phone: z.string().optional(),
 });
 
 /**
@@ -122,8 +132,8 @@ router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Reque
       },
       stats: {
         totalCustomers,
-        punchesToday: punchesToday || 48,
-        rewardsRedeemed: redeemedCount || 19,
+        punchesToday,
+        rewardsRedeemed: redeemedCount,
       },
       cards: business.loyaltyCards,
       recentActivity: recentPunches.map(p => ({
@@ -137,6 +147,53 @@ router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Reque
   } catch (error) {
     console.error('Business Dashboard error:', error);
     res.status(500).json({ error: 'Failed to load business dashboard' });
+  }
+});
+
+/**
+ * GET /business/profile
+ * Get business profile, owner details, card counts, and member since date
+ */
+router.get('/profile', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    let business = await prisma.businessProfile.findUnique({
+      where: { userId: req.user!.userId },
+      include: {
+        loyaltyCards: true,
+        user: { select: { email: true, name: true, phone: true, createdAt: true } },
+      },
+    });
+
+    if (!business) {
+      const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+      business = await prisma.businessProfile.create({
+        data: {
+          userId: req.user!.userId,
+          name: user?.name || 'My Business',
+          category: 'Retail & Services',
+          status: 'APPROVED',
+        },
+        include: {
+          loyaltyCards: true,
+          user: { select: { email: true, name: true, phone: true, createdAt: true } },
+        },
+      });
+    }
+
+    const cardIds = business.loyaltyCards.map(c => c.id);
+    const totalCustomers = await prisma.customerCard.count({
+      where: { cardId: { in: cardIds } },
+    });
+
+    res.json({
+      business,
+      activeCardsCount: business.loyaltyCards.length,
+      totalCustomers,
+      memberSince: business.user.createdAt,
+    });
+  } catch (error) {
+    console.error('Business Profile error:', error);
+    res.status(500).json({ error: 'Failed to load business profile' });
   }
 });
 
@@ -203,7 +260,7 @@ router.get('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request, 
 
 /**
  * POST /business/cards
- * Create loyalty card with auto-generated QR and NFC PunchMethods
+ * Create loyalty card (enforces single active card rule per business)
  */
 router.post('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
   let business = await prisma.businessProfile.findUnique({ where: { userId: req.user!.userId } });
@@ -218,13 +275,24 @@ router.post('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request,
     });
   }
 
+  // Enforce Single Active Card rule: Business can only hold 1 active card
+  const existingCard = await prisma.loyaltyCard.findFirst({
+    where: { businessId: business.id },
+  });
+  if (existingCard) {
+    res.status(400).json({
+      error: 'A business can only have one active loyalty card at a time. Please delete your existing card before creating a new one.',
+    });
+    return;
+  }
+
   const parsed = CardSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
 
-  const { title, punchesRequired, rewardDescription, visualStyle, enableQR, enableNFC } = parsed.data;
+  const { title, punchesRequired, rewardDescription, visualStyle, validUntil, enableQR, enableNFC } = parsed.data;
 
   const card = await prisma.loyaltyCard.create({
     data: {
@@ -232,7 +300,8 @@ router.post('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request,
       title,
       punchesRequired,
       rewardDescription,
-      visualStyle,
+      visualStyle: (visualStyle ?? {}) as any,
+      validUntil: validUntil ? new Date(validUntil) : null,
       punchMethods: {
         create: [
           ...(enableQR ? [{ type: 'QR' as const, identifier: uuid(), label: `${title} QR Code` }] : []),
@@ -277,12 +346,184 @@ router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
       title: parsed.data.title,
       punchesRequired: parsed.data.punchesRequired,
       rewardDescription: parsed.data.rewardDescription,
-      visualStyle: parsed.data.visualStyle,
+      ...(parsed.data.visualStyle !== undefined ? { visualStyle: parsed.data.visualStyle as any } : {}),
+      ...(parsed.data.validUntil !== undefined
+        ? { validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null }
+        : {}),
     },
     include: { punchMethods: true },
   });
 
   res.json(updated);
+});
+
+/**
+ * DELETE /business/cards/:id
+ * Allows business to delete their existing card so a new card can be created
+ */
+router.delete('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+  const business = await prisma.businessProfile.findUnique({ where: { userId: req.user!.userId } });
+  if (!business) {
+    res.status(404).json({ error: 'Business not found' });
+    return;
+  }
+
+  const cardId = String(req.params.id);
+  const card = await prisma.loyaltyCard.findFirst({
+    where: { id: cardId, businessId: business.id },
+  });
+
+  if (!card) {
+    res.status(404).json({ error: 'Card not found or does not belong to your business' });
+    return;
+  }
+
+  // Delete related punch methods, customer cards, and card
+  await prisma.punchMethod.deleteMany({ where: { cardId } });
+  await prisma.customerCard.deleteMany({ where: { cardId } });
+  await prisma.loyaltyCard.delete({ where: { id: cardId } });
+
+  res.json({ message: 'Loyalty card deleted successfully. You can now create a new loyalty card.' });
+});
+
+/**
+ * GET /business/staff
+ * Lists all staff child accounts under this business
+ */
+router.get('/staff', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+  const business = await prisma.businessProfile.findUnique({ where: { userId: req.user!.userId } });
+  if (!business) {
+    res.status(404).json({ error: 'Business not found' });
+    return;
+  }
+
+  const staffMembers = await prisma.user.findMany({
+    where: { businessId: business.id, role: 'STAFF' },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      isStaffActive: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  res.json(staffMembers);
+});
+
+/**
+ * POST /business/staff
+ * Create a new staff child account for this business
+ */
+router.post('/staff', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+  const business = await prisma.businessProfile.findUnique({ where: { userId: req.user!.userId } });
+  if (!business) {
+    res.status(404).json({ error: 'Business not found' });
+    return;
+  }
+
+  const parsed = CreateStaffSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const { name, email, password, phone } = parsed.data;
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    res.status(409).json({ error: 'Email is already registered in the system.' });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const staff = await prisma.user.create({
+    data: {
+      email,
+      name,
+      passwordHash,
+      phone,
+      role: 'STAFF',
+      businessId: business.id,
+      isStaffActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      isStaffActive: true,
+      createdAt: true,
+    },
+  });
+
+  res.status(201).json({ message: 'Staff member account created successfully! 🎉', staff });
+});
+
+/**
+ * PATCH /business/staff/:id/toggle-active
+ * Business owner toggles a staff member's scanner access ON/OFF
+ */
+router.patch('/staff/:id/toggle-active', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+  const business = await prisma.businessProfile.findUnique({ where: { userId: req.user!.userId } });
+  if (!business) {
+    res.status(404).json({ error: 'Business not found' });
+    return;
+  }
+
+  const staffId = String(req.params.id);
+  const staff = await prisma.user.findFirst({
+    where: { id: staffId, businessId: business.id, role: 'STAFF' },
+  });
+
+  if (!staff) {
+    res.status(404).json({ error: 'Staff member not found' });
+    return;
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: staffId },
+    data: { isStaffActive: !staff.isStaffActive },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      isStaffActive: true,
+      createdAt: true,
+    },
+  });
+
+  res.json({
+    message: `Staff scanner access ${updated.isStaffActive ? 'activated' : 'deactivated'} successfully.`,
+    staff: updated,
+  });
+});
+
+/**
+ * DELETE /business/staff/:id
+ * Remove a staff account
+ */
+router.delete('/staff/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+  const business = await prisma.businessProfile.findUnique({ where: { userId: req.user!.userId } });
+  if (!business) {
+    res.status(404).json({ error: 'Business not found' });
+    return;
+  }
+
+  const staffId = String(req.params.id);
+  const staff = await prisma.user.findFirst({
+    where: { id: staffId, businessId: business.id, role: 'STAFF' },
+  });
+
+  if (!staff) {
+    res.status(404).json({ error: 'Staff member not found' });
+    return;
+  }
+
+  await prisma.user.delete({ where: { id: staffId } });
+  res.json({ message: 'Staff member account deleted successfully.' });
 });
 
 /**
@@ -300,7 +541,7 @@ router.get('/customers', requireAuth, requireRole('BUSINESS'), async (req: Reque
     where: { card: { businessId: business.id } },
     include: {
       customer: { select: { id: true, email: true, phone: true, createdAt: true } },
-      card: { select: { id: true, title: true, punchesRequired: true, rewardDescription: true } },
+      card: { select: { id: true, title: true, punchesRequired: true, rewardDescription: true, validUntil: true } },
       punchTransactions: { orderBy: { timestamp: 'desc' }, take: 1 },
     },
     orderBy: { updatedAt: 'desc' },
@@ -313,6 +554,7 @@ router.get('/customers', requireAuth, requireRole('BUSINESS'), async (req: Reque
     cardTitle: cc.card.title,
     punchCount: cc.punchCount,
     punchesRequired: cc.card.punchesRequired,
+    validUntil: cc.card.validUntil,
     isCompleted: cc.isCompleted,
     joinedAt: cc.joinedAt,
     lastActivity: cc.punchTransactions[0]?.timestamp ?? cc.updatedAt,
@@ -323,9 +565,9 @@ router.get('/customers', requireAuth, requireRole('BUSINESS'), async (req: Reque
 
 /**
  * POST /business/redeem-confirm
- * Staff confirms that a completed card's reward was redeemed
+ * Staff or Business confirms that a completed card's reward was redeemed
  */
-router.post('/redeem-confirm', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+router.post('/redeem-confirm', requireAuth, requireRole('BUSINESS', 'STAFF'), async (req: Request, res: Response): Promise<void> => {
   const { customerCardId } = req.body;
   if (!customerCardId) {
     res.status(400).json({ error: 'customerCardId is required' });
@@ -383,9 +625,9 @@ router.post('/redeem-confirm', requireAuth, requireRole('BUSINESS'), async (req:
 
 /**
  * POST /business/punch
- * Merchant scans a customer's barcode / QR code to add 1 punch
+ * Merchant OR Staff scans a customer's barcode / QR code to add 1 punch
  */
-router.post('/punch', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+router.post('/punch', requireAuth, requireRole('BUSINESS', 'STAFF'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { customerIdentifier, cardId } = req.body;
     if (!customerIdentifier) {
@@ -393,8 +635,38 @@ router.post('/punch', requireAuth, requireRole('BUSINESS'), async (req: Request,
       return;
     }
 
+    let businessId: string | null = null;
+    let executorName = 'Merchant';
+
+    if (req.user!.role === 'STAFF') {
+      const staffUser = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+      if (!staffUser || staffUser.role !== 'STAFF' || !staffUser.businessId) {
+        res.status(403).json({ error: 'Invalid staff account' });
+        return;
+      }
+      if (!staffUser.isStaffActive) {
+        res.status(403).json({
+          error: 'Staff scanner access is disabled. Please contact your business owner to activate your scanner.',
+          isStaffInactive: true,
+        });
+        return;
+      }
+      businessId = staffUser.businessId;
+      executorName = staffUser.name || 'Staff';
+    } else {
+      const business = await prisma.businessProfile.findUnique({
+        where: { userId: req.user!.userId },
+      });
+      if (business) businessId = business.id;
+    }
+
+    if (!businessId) {
+      res.status(404).json({ error: 'Business profile not found' });
+      return;
+    }
+
     const business = await prisma.businessProfile.findUnique({
-      where: { userId: req.user!.userId },
+      where: { id: businessId },
       include: { loyaltyCards: true },
     });
 
@@ -408,8 +680,15 @@ router.post('/punch', requireAuth, requireRole('BUSINESS'), async (req: Request,
       ? business.loyaltyCards.find(c => c.id === cardId) ?? business.loyaltyCards[0]
       : business.loyaltyCards[0];
 
+    // Card Validity Expiration Check
+    if (targetCard.validUntil && new Date(targetCard.validUntil) < new Date()) {
+      res.status(400).json({
+        error: `This loyalty card expired on ${new Date(targetCard.validUntil).toLocaleDateString()}. Punches cannot be added to an expired card.`,
+      });
+      return;
+    }
+
     // Extract customer ID or email from payload
-    // format might be "PUNCHY:CUSTOMER:<userId>:<email>" or a direct userId or email
     let cleanIdentifier = customerIdentifier.toString().trim();
     let targetUserId = cleanIdentifier;
 
@@ -432,7 +711,7 @@ router.post('/punch', requireAuth, requireRole('BUSINESS'), async (req: Request,
     });
 
     if (!customer) {
-      // Fallback: search for any customer or find first customer
+      // Fallback for simulation testing
       customer = await prisma.user.findFirst({ where: { role: 'CUSTOMER' } });
     }
 
@@ -473,10 +752,34 @@ router.post('/punch', requireAuth, requireRole('BUSINESS'), async (req: Request,
     });
 
     // Record Punch Transaction
+    let pm = await prisma.punchMethod.findFirst({ where: { cardId: targetCard.id } });
+    if (!pm) {
+      pm = await prisma.punchMethod.create({
+        data: { cardId: targetCard.id, type: 'QR', identifier: uuid(), label: `${targetCard.title} QR` },
+      });
+    }
+
     await prisma.punchTransaction.create({
       data: {
         customerCardId: customerCard.id,
+        punchMethodId: pm.id,
         method: 'QR',
+      },
+    });
+
+    // Record Activity Log
+    await prisma.activityLog.create({
+      data: {
+        userId: customer.id,
+        action: req.user!.role === 'STAFF' ? 'PUNCH_RECORDED_BY_STAFF' : 'PUNCH_RECORDED_BY_BUSINESS',
+        metadata: {
+          executorId: req.user!.userId,
+          executorName,
+          businessId: business.id,
+          cardId: targetCard.id,
+          punchCount: newPunchCount,
+          punchesRequired: targetCard.punchesRequired,
+        },
       },
     });
 
@@ -501,7 +804,7 @@ router.post('/punch', requireAuth, requireRole('BUSINESS'), async (req: Request,
       isCompleted: isNowComplete,
     });
   } catch (error) {
-    console.error('Merchant Punch error:', error);
+    console.error('Merchant/Staff Punch error:', error);
     res.status(500).json({ error: 'Failed to record punch' });
   }
 });

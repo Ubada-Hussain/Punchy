@@ -61,6 +61,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
+  String _formatDate(dynamic dateVal) {
+    if (dateVal == null) return 'No expiry';
+    try {
+      final dt = DateTime.parse(dateVal.toString());
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    } catch (_) {
+      return dateVal.toString();
+    }
+  }
+
   Future<void> _addCardToWallet(String cardId, String businessName) async {
     try {
       final res = await _api.post('/customer/cards/join', {'cardId': cardId});
@@ -392,6 +403,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ),
                     ],
                   ),
+                  if (card['validUntil'] != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '⏳ Valid till: ${_formatDate(card['validUntil'])}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

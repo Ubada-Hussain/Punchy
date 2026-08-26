@@ -39,14 +39,10 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
       }
     } catch (_) {}
 
-    // Fallback sample customers
+    // Fallback
     if (mounted) {
       setState(() {
-        _customers = [
-          {'id': 'u1', 'email': 'ayesha@email.com', 'isBlocked': false, 'createdAt': DateTime.now().subtract(const Duration(days: 40)).toIso8601String(), '_count': {'customerCards': 3}},
-          {'id': 'u2', 'email': 'bilal.hassan@gmail.com', 'isBlocked': false, 'createdAt': DateTime.now().subtract(const Duration(days: 20)).toIso8601String(), '_count': {'customerCards': 2}},
-          {'id': 'u3', 'email': 'fraud_spammer@tempmail.com', 'isBlocked': true, 'createdAt': DateTime.now().subtract(const Duration(days: 2)).toIso8601String(), '_count': {'customerCards': 1}},
-        ];
+        _customers = [];
         _isLoading = false;
       });
     }

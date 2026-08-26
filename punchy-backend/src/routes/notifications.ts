@@ -32,12 +32,33 @@ router.post('/', requireAuth, async (req: Request, res: Response): Promise<void>
 router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const { page = '1', limit = '20' } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
-  const where = req.user!.role === 'ADMIN' ? {} : { createdBy: req.user!.userId };
+  let where: any = {};
+  if (req.user!.role === 'ADMIN') {
+    where = {};
+  } else if (req.user!.role === 'CUSTOMER') {
+    where = {
+      OR: [
+        { targetType: 'ALL' },
+        { targetType: 'CUSTOMERS' },
+        { targetType: 'USER', targetId: req.user!.userId },
+      ],
+    };
+  } else if (req.user!.role === 'BUSINESS') {
+    where = {
+      OR: [
+        { targetType: 'ALL' },
+        { targetType: 'BUSINESSES' },
+        { createdBy: req.user!.userId },
+      ],
+    };
+  } else {
+    where = { targetType: 'ALL' };
+  }
 
   const [notifications, total] = await Promise.all([
     prisma.notification.findMany({
       where, skip, take: Number(limit),
-      include: { creator: { select: { email: true, role: true } } },
+      include: { creator: { select: { email: true, name: true, role: true } } },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.notification.count({ where }),

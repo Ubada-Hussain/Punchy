@@ -49,6 +49,17 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
     }
   }
 
+  String _formatDate(dynamic dateVal) {
+    if (dateVal == null) return 'No expiry';
+    try {
+      final dt = DateTime.parse(dateVal.toString());
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    } catch (_) {
+      return dateVal.toString();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -250,10 +261,12 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
   Widget _buildWalletCard(Map<String, dynamic> cardData) {
     final cardInfo = cardData['card'] ?? {};
     final biz = cardInfo['business'] ?? {};
-    final bizName = biz['name'] ?? cardInfo['title'] ?? 'Brew & Co.';
-    final bizCat = biz['category'] ?? '☕ Café';
-    final bizLogo = biz['logo'] ?? cardInfo['visualStyle']?['icon'] ?? '☕';
-    final punchCount = cardData['punchCount'] as int? ?? 6;
+    final bizName = biz['name'] ?? cardInfo['title'] ?? 'Business';
+    final bizCat = biz['category'] ?? 'Loyalty Program';
+    final bizLogo = (biz['logo'] != null && biz['logo'].toString().isNotEmpty)
+        ? biz['logo'].toString()
+        : (cardInfo['visualStyle']?['icon'] ?? '🎟️');
+    final punchCount = cardData['punchCount'] as int? ?? 0;
     final punchesRequired = cardInfo['punchesRequired'] as int? ?? 10;
     final isCompleted = cardData['isCompleted'] == true || punchCount >= punchesRequired;
 
@@ -331,7 +344,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
             ),
             const SizedBox(height: 18),
 
-            // Bottom Row (Dots + Badge)
+            // Bottom Row (Dots + Validity + Badge)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -350,20 +363,42 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                     );
                   }),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    isCompleted ? '$punchCount/$punchesRequired 🎉' : '$punchCount/$punchesRequired',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
+                Row(
+                  children: [
+                    if (cardInfo['validUntil'] != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '⏳ ${_formatDate(cardInfo['validUntil'])}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.9),
+                          ),
+                        ),
+                      ),
+                    ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        isCompleted ? '$punchCount/$punchesRequired 🎉' : '$punchCount/$punchesRequired',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),

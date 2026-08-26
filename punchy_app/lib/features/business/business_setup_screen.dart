@@ -15,15 +15,17 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   final ApiClient _api = ApiClient();
   final _formKey = GlobalKey<FormState>();
 
-  final _nameController = TextEditingController(text: 'Brew & Co. Artisanal Coffee');
-  final _descController = TextEditingController(text: 'Specialty coffee roastery, handcrafted drinks, and bakery.');
-  final _websiteController = TextEditingController(text: 'https://brewandco.coffee');
-  final _addressController = TextEditingController(text: '142 Market Street, Downtown');
+  final _nameController = TextEditingController();
+  final _descController = TextEditingController();
+  final _websiteController = TextEditingController();
+  final _addressController = TextEditingController();
 
   String _selectedCategory = 'Cafe & Bakery';
+  String _selectedLogo = '🏪';
   bool _enableQR = true;
   bool _enableNFC = true;
   bool _isSaving = false;
+  bool _isLoading = true;
 
   final List<String> _categories = [
     'Cafe & Bakery',
@@ -32,7 +34,108 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     'Restaurant & Dining',
     'Retail & Boutique',
     'Auto & Car Care',
+    'Health & Wellness',
+    'Other Services',
   ];
+
+  final List<String> _logoPresets = [
+    '🏪', '☕', '💇', '🏋️', '🍕', '🍰', '🍔', '🛍️', '💈', '🚗', '🧼', '🥐', '🍣', '✨', '🏷️', '🎯'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingProfile();
+  }
+
+  Future<void> _loadExistingProfile() async {
+    try {
+      final res = await _api.get('/business/profile');
+      if (res is Map<String, dynamic> && res['business'] != null && mounted) {
+        final b = res['business'];
+        setState(() {
+          _nameController.text = b['name'] ?? '';
+          _descController.text = b['description'] ?? '';
+          _websiteController.text = b['website'] ?? '';
+          if (b['category'] != null && _categories.contains(b['category'])) {
+            _selectedCategory = b['category'];
+          }
+          if (b['logo'] != null && b['logo'].toString().isNotEmpty) {
+            _selectedLogo = b['logo'];
+          }
+          if (b['locations'] is List && (b['locations'] as List).isNotEmpty) {
+            _addressController.text = b['locations'][0]['address'] ?? '';
+          }
+          _isLoading = false;
+        });
+        return;
+      }
+    } catch (_) {}
+
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  void _showLogoSelector() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(22),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: AppColors.line, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Select Business Icon / Logo',
+              style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: _logoPresets.map((emoji) {
+                final isSelected = _selectedLogo == emoji;
+                return GestureDetector(
+                  onTap: () {
+                    setState(() => _selectedLogo = emoji);
+                    Navigator.pop(ctx);
+                  },
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.teal.withValues(alpha: 0.15) : AppColors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSelected ? AppColors.teal : AppColors.line,
+                        width: isSelected ? 2 : 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(emoji, style: const TextStyle(fontSize: 26)),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
 
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
@@ -45,6 +148,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
         'description': _descController.text.trim(),
         'website': _websiteController.text.trim(),
         'address': _addressController.text.trim(),
+        'logo': _selectedLogo,
         'enableQR': _enableQR,
         'enableNFC': _enableNFC,
       });
@@ -58,7 +162,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           content: Text(
-            'Business Profile Setup Completed! 🎉',
+            'Business Profile Saved! 🎉',
             style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
           ),
         ),
@@ -110,74 +214,86 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
 
             // Form Content
             Expanded(
-              child: Form(
-                key: _formKey,
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                  children: [
-                    // Logo Picker
-                    Center(
-                      child: Stack(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.teal))
+                  : Form(
+                      key: _formKey,
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                         children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceAlt,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: AppColors.line, width: 2),
-                            ),
-                            child: const Center(
-                              child: Text('☕', style: TextStyle(fontSize: 32)),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              width: 26,
-                              height: 26,
-                              decoration: const BoxDecoration(
-                                color: AppColors.teal,
-                                shape: BoxShape.circle,
+                          // Logo Picker
+                          Center(
+                            child: GestureDetector(
+                              onTap: _showLogoSelector,
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: 72,
+                                    height: 72,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surfaceAlt,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: AppColors.line, width: 2),
+                                    ),
+                                    child: Center(
+                                      child: Text(_selectedLogo, style: const TextStyle(fontSize: 32)),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: Container(
+                                      width: 26,
+                                      height: 26,
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.teal,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.edit_rounded, size: 14, color: Colors.white),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              child: const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+                          const SizedBox(height: 6),
+                          Center(
+                            child: Text(
+                              'Tap to choose icon',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.inkSoft, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
 
-                    // Business Name
-                    Text(
-                      'Business Name',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
-                    ),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _nameController,
-                      validator: (v) => v == null || v.isEmpty ? 'Business name is required' : null,
-                      style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 13.5, fontWeight: FontWeight.w600),
-                      decoration: const InputDecoration(hintText: 'e.g. Brew & Co.'),
-                    ),
-                    const SizedBox(height: 16),
+                          // Business Name
+                          Text(
+                            'Business Name',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _nameController,
+                            validator: (v) => v == null || v.isEmpty ? 'Business name is required' : null,
+                            style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 13.5, fontWeight: FontWeight.w600),
+                            decoration: const InputDecoration(hintText: 'e.g. My Cafe, Urban Salon, FitClub'),
+                          ),
+                          const SizedBox(height: 16),
 
-                    // Category Dropdown
-                    Text(
-                      'Business Category',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.line, width: 1.5),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
+                          // Category Dropdown
+                          Text(
+                            'Business Category',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.line, width: 1.5),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
                           value: _selectedCategory,
                           isExpanded: true,
                           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.inkSoft),

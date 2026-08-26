@@ -23,6 +23,8 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   bool _useQR = true;
   bool _useNFC = true;
   bool _isSaving = false;
+  bool _isDeleting = false;
+  DateTime _validUntil = DateTime.now().add(const Duration(days: 365));
 
   final List<LinearGradient> _gradients = [
     AppColors.gradCoral,
@@ -43,10 +45,50 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
       final theme = widget.initialData!['visualStyle']?['theme']?.toString() ?? 'coral';
       final idx = _colorNames.indexOf(theme);
       if (idx != -1) _selectedColorIndex = idx;
+      if (widget.initialData!['validUntil'] != null) {
+        try {
+          _validUntil = DateTime.parse(widget.initialData!['validUntil'].toString());
+        } catch (_) {}
+      }
     } else {
       _nameController.text = 'Coffee Lovers Card';
       _rewardController.text = '1 Free Coffee';
     }
+  }
+
+  String _formatDate(DateTime dt) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _validUntil.isAfter(DateTime.now()) ? _validUntil : DateTime.now().add(const Duration(days: 30)),
+      firstDate: DateTime.now().add(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.teal,
+              onPrimary: Colors.white,
+              onSurface: AppColors.ink,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _validUntil = picked);
+    }
+  }
+
+  void _applyPresetDuration(int days) {
+    setState(() {
+      _validUntil = DateTime.now().add(Duration(days: days));
+    });
   }
 
   Future<void> _saveCard() async {
@@ -59,6 +101,7 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
           'title': _nameController.text.trim(),
           'punchesRequired': _punchesRequired,
           'rewardDescription': _rewardController.text.trim(),
+          'validUntil': _validUntil.toIso8601String(),
           'visualStyle': {'theme': theme, 'icon': '☕'},
         });
       } else {
@@ -66,27 +109,110 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
           'title': _nameController.text.trim(),
           'punchesRequired': _punchesRequired,
           'rewardDescription': _rewardController.text.trim(),
+          'validUntil': _validUntil.toIso8601String(),
           'visualStyle': {'theme': theme, 'icon': '☕'},
           'enableQR': _useQR,
           'enableNFC': _useNFC,
         });
       }
-    } catch (_) {}
 
-    if (mounted) {
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.ink,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          content: Text(
-            widget.cardId != null ? '✅ Loyalty Card Updated!' : '🎉 Loyalty Card Saved & Activated!',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.ink,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Text(
+              widget.cardId != null ? '✅ Loyalty Card Updated!' : '🎉 Loyalty Card Saved & Activated!',
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
           ),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        String msg = 'Failed to save card.';
+        if (e is ApiException) {
+          msg = e.message;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.coralDark,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Text(
+              msg,
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteCard() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Delete Loyalty Card?',
+          style: GoogleFonts.plusJakartaSans(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.ink),
         ),
-      );
-      context.pop();
+        content: Text(
+          'Are you sure you want to delete this loyalty card? Customers will no longer be able to earn punches for it. Deleting will allow you to create a brand new card.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.inkSoft, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.plusJakartaSans(color: AppColors.inkSoft, fontWeight: FontWeight.w700)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.coralDark,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Delete Card', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && widget.cardId != null) {
+      setState(() => _isDeleting = true);
+      try {
+        await _api.delete('/business/cards/${widget.cardId}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.ink,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              content: Text(
+                '🗑️ Loyalty Card deleted successfully. You can now create a new card!',
+                style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+            ),
+          );
+          context.pop();
+        }
+      } catch (err) {
+        if (mounted) {
+          setState(() => _isDeleting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.coralDark,
+              content: Text('Failed to delete card: $err', style: GoogleFonts.plusJakartaSans(color: Colors.white)),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -129,7 +255,23 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                       color: AppColors.ink,
                     ),
                   ),
-                  const SizedBox(width: 34),
+                  if (isEditing)
+                    GestureDetector(
+                      onTap: _isDeleting ? null : _deleteCard,
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: AppColors.coralDark.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.coralDark),
+                        ),
+                      ),
+                    )
+                  else
+                    const SizedBox(width: 34),
                 ],
               ),
             ),
@@ -157,39 +299,61 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Container(
-                              width: 34,
-                              height: 34,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.22),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Center(
-                                child: Text('☕', style: TextStyle(fontSize: 15)),
-                              ),
-                            ),
-                            const SizedBox(width: 9),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            Row(
                               children: [
-                                Text(
-                                  _nameController.text.isEmpty ? 'Your Card' : _nameController.text,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
+                                Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.22),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Center(
+                                    child: Text('☕', style: TextStyle(fontSize: 15)),
                                   ),
                                 ),
-                                Text(
-                                  'Live preview',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                  ),
+                                const SizedBox(width: 9),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _nameController.text.isEmpty ? 'Your Card' : _nameController.text,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Live preview',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white.withValues(alpha: 0.85),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
+                            ),
+                            // Validity Badge on Card
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                              ),
+                              child: Text(
+                                '⏳ Valid till ${_formatDate(_validUntil)}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -264,6 +428,78 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                     onChanged: (_) => setState(() {}),
                     style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
                     decoration: const InputDecoration(hintText: 'e.g. Coffee Lovers Card'),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Card Validity Date ("Valid Till")
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Card validity (Valid till)',
+                        style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
+                      ),
+                      Text(
+                        _formatDate(_validUntil),
+                        style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.tealDark),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.line, width: 1.5),
+                    ),
+                    child: Column(
+                      children: [
+                        GestureDetector(
+                          onTap: _selectDate,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceAlt,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.tealDark),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Set Expiry Date: ${_formatDate(_validUntil)}',
+                                  style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.ink),
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right_rounded, color: AppColors.inkFaint),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Divider(height: 1, color: AppColors.line),
+                        const SizedBox(height: 10),
+                        // Quick Presets
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildDurationChip('3 Months', () => _applyPresetDuration(90)),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildDurationChip('6 Months', () => _applyPresetDuration(180)),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _buildDurationChip('1 Year', () => _applyPresetDuration(365)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
 
@@ -422,11 +658,58 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+
+                  // Delete Card Button (when editing)
+                  if (isEditing)
+                    SizedBox(
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: _isDeleting ? null : _deleteCard,
+                        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.coralDark, size: 18),
+                        label: Text(
+                          _isDeleting ? 'Deleting Card...' : 'Delete This Loyalty Card',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.coralDark,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.coralDark, width: 1.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 16),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDurationChip(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.tealDark,
+            ),
+          ),
         ),
       ),
     );

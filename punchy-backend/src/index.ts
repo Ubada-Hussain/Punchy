@@ -22,20 +22,27 @@ app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
 
 // Health check
-app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.get(['/health', '/api/health'], (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// Routes
-app.use('/auth', authRouter);
-app.use('/businesses', businessesRouter);
-app.use('/business', businessPortalRouter);
-app.use('/cards', cardsRouter);
-app.use('/punch-methods', punchMethodsRouter);
-app.use('/punch', punchRouter);
-app.use('/customer', customerRouter);
-app.use('/analytics', analyticsRouter);
-app.use('/notifications', notificationsRouter);
-app.use('/tickets', ticketsRouter);
-app.use('/admin', adminRouter);
+// Register routes on both direct paths and /api prefix for clean proxying
+const apiRoutes: [string, express.Router][] = [
+  ['/auth', authRouter],
+  ['/businesses', businessesRouter],
+  ['/business', businessPortalRouter],
+  ['/cards', cardsRouter],
+  ['/punch-methods', punchMethodsRouter],
+  ['/punch', punchRouter],
+  ['/customer', customerRouter],
+  ['/analytics', analyticsRouter],
+  ['/notifications', notificationsRouter],
+  ['/tickets', ticketsRouter],
+  ['/admin', adminRouter],
+];
+
+for (const [routePath, router] of apiRoutes) {
+  app.use(routePath, router);
+  app.use(`/api${routePath}`, router);
+}
 
 // 404 handler
 app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));
