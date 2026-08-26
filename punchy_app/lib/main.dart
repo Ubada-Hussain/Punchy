@@ -33,19 +33,25 @@ import 'features/system_states/maintenance_screen.dart';
 import 'features/system_states/app_update_screen.dart';
 import 'features/system_states/system_states_demo_screen.dart';
 
+import 'dart:async';
+
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-  };
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-      ],
-      child: const PunchyApp(),
-    ),
-  );
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+    };
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ],
+        child: const PunchyApp(),
+      ),
+    );
+  }, (error, stack) {
+    debugPrint('Uncaught app error: $error\n$stack');
+  });
 }
 
 class PunchyApp extends StatefulWidget {
