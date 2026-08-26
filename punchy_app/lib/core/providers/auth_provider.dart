@@ -38,12 +38,17 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _loadToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('token');
-    if (_token != null) {
-      await fetchProfile();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _token = prefs.getString('token');
+      if (_token != null) {
+        await fetchProfile();
+      }
+    } catch (e) {
+      debugPrint('AuthProvider _loadToken error: $e');
+    } finally {
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   Future<void> fetchProfile() async {
@@ -55,6 +60,7 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
+      debugPrint('AuthProvider fetchProfile error: $e');
       if (e is ApiException && e.statusCode == 403) {
         _isSuspended = true;
         notifyListeners();
