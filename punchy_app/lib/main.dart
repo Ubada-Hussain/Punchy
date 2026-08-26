@@ -35,6 +35,9 @@ import 'features/system_states/system_states_demo_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+  };
   runApp(
     MultiProvider(
       providers: [
@@ -45,14 +48,22 @@ void main() {
   );
 }
 
-class PunchyApp extends StatelessWidget {
+class PunchyApp extends StatefulWidget {
   const PunchyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<PunchyApp> createState() => _PunchyAppState();
+}
+
+class _PunchyAppState extends State<PunchyApp> {
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    final GoRouter router = GoRouter(
+    _router = GoRouter(
       initialLocation: authProvider.isAuthenticated
           ? (authProvider.isSuspended
               ? '/suspended'
@@ -267,11 +278,14 @@ class PunchyApp extends StatelessWidget {
         ),
       ],
     );
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'Punchy — Loyalty & Rewards',
       theme: AppTheme.lightTheme,
-      routerConfig: router,
+      routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );
   }
