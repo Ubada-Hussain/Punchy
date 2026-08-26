@@ -97,7 +97,7 @@ export default function Sidebar() {
 
   function handleLogout() {
     api.clearSession();
-    router.push('/login');
+    router.replace('/login');
   }
 
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? 'AD';
