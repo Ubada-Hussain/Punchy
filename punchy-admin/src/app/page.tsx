@@ -1,12 +1,11 @@
-import Link from 'next/link';
-import type { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Punchy — Your loyalty cards, all in one app',
-  description: 'Ditch the paper cards. Collect stamps at your favorite cafés, salons and gyms with a tap or scan — and never miss a free reward again.',
-};
+import Link from 'next/link';
+import { useState } from 'react';
 
 export default function LandingPage() {
+  const [navOpen, setNavOpen] = useState(false);
+
   return (
     <>
       {/* SVG Defs */}
@@ -45,7 +44,7 @@ export default function LandingPage() {
 
       {/* NAV */}
       <div className="nav">
-        <div className="nav-inner">
+        <div className={`nav-inner ${navOpen ? 'nav-open' : ''}`}>
           <div className="brand">
             <div className="brand-mark">
               <svg className="icon" style={{ color:'#fff', strokeWidth:0, fill:'currentColor', width:17, height:17 }}>
@@ -54,15 +53,20 @@ export default function LandingPage() {
             </div>
             Punchy
           </div>
+          <button className="nav-toggle" onClick={() => setNavOpen(!navOpen)} aria-label="Toggle navigation">
+            <svg className="icon" viewBox="0 0 24 24" style={{ width:24, height:24 }}>
+              <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+            </svg>
+          </button>
           <div className="nav-links">
-            <a href="#features">Features</a>
-            <a href="#how">How it works</a>
-            <a href="#business">For Business</a>
-            <a href="#reviews">Reviews</a>
+            <a href="#features" onClick={() => setNavOpen(false)}>Features</a>
+            <a href="#how" onClick={() => setNavOpen(false)}>How it works</a>
+            <a href="#business" onClick={() => setNavOpen(false)}>For Business</a>
+            <a href="#reviews" onClick={() => setNavOpen(false)}>Reviews</a>
           </div>
           <div className="nav-cta">
-            <Link href="/login" className="lbtn lbtn-outline lbtn-sm">Log In</Link>
-            <a href="#download" className="lbtn lbtn-coral lbtn-sm">Get the App</a>
+            <Link href="/login" className="lbtn lbtn-outline lbtn-sm" onClick={() => setNavOpen(false)}>Log In</Link>
+            <a href="#download" className="lbtn lbtn-coral lbtn-sm" onClick={() => setNavOpen(false)}>Get the App</a>
           </div>
         </div>
       </div>
