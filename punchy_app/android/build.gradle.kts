@@ -16,9 +16,27 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 subprojects {
+    val setCompileSdk = {
+        project.extensions.findByName("android")?.let { android ->
+            if (android is com.android.build.gradle.BaseExtension) {
+                android.compileSdkVersion(36)
+            }
+        }
+    }
+    if (project.state.executed) {
+        setCompileSdk()
+    } else {
+        project.afterEvaluate {
+            setCompileSdk()
+        }
+    }
+}
+
+subprojects {
     project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
+rootProject.extra.set("compileSdkVersion", 36)
