@@ -107,6 +107,11 @@ router.post('/cards/join', requireAuth, requireRole('CUSTOMER'), async (req: Req
     return;
   }
 
+  if (card.validUntil && new Date(card.validUntil) < new Date()) {
+    res.status(400).json({ error: 'This loyalty card has expired and cannot be added.' });
+    return;
+  }
+
   const customerId = req.user!.userId;
   const existing = await prisma.customerCard.findUnique({
     where: { customerId_cardId: { customerId, cardId: card.id } },

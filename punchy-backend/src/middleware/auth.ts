@@ -20,7 +20,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const payload = verifyAccessToken(header.slice(7));
     const user = await prisma.user.findUnique({ where: { id: payload.userId }, select: { isBlocked: true } });
     if (!user || user.isBlocked) {
-      res.status(403).json({ error: 'Account is blocked' });
+      res.status(403).json({ error: 'Account is suspended', isSuspended: true });
       return;
     }
     req.user = payload;

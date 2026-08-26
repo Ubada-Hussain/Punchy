@@ -25,6 +25,17 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     _fetchFullDetails();
   }
 
+  String _formatDate(dynamic dateVal) {
+    if (dateVal == null) return 'No expiry';
+    try {
+      final dt = DateTime.parse(dateVal.toString());
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    } catch (_) {
+      return dateVal.toString();
+    }
+  }
+
   Future<void> _fetchFullDetails() async {
     final cardId = _card['id'];
     if (cardId == null) return;
@@ -133,12 +144,14 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
   Widget build(BuildContext context) {
     final cardInfo = _card['card'] ?? {};
     final biz = cardInfo['business'] ?? {};
-    final bizName = biz['name'] ?? cardInfo['title'] ?? 'Brew & Co.';
-    final bizCat = biz['category'] ?? 'Café · Gulberg';
-    final bizLogo = biz['logo'] ?? cardInfo['visualStyle']?['icon'] ?? '☕';
-    final punchCount = _card['punchCount'] as int? ?? 6;
+    final bizName = biz['name'] ?? cardInfo['title'] ?? 'Business';
+    final bizCat = biz['category'] ?? '';
+    final bizLogo = (biz['logo'] != null && biz['logo'].toString().isNotEmpty)
+        ? biz['logo'].toString()
+        : (cardInfo['visualStyle']?['icon'] ?? '🎟️');
+    final punchCount = _card['punchCount'] as int? ?? 0;
     final punchesRequired = cardInfo['punchesRequired'] as int? ?? 10;
-    final reward = cardInfo['rewardDescription'] ?? '1 Free Coffee';
+    final reward = cardInfo['rewardDescription'] ?? 'Reward';
     final isCompleted = _card['isCompleted'] == true || punchCount >= punchesRequired;
 
     final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal').toString().toLowerCase();
@@ -263,21 +276,44 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                                 ),
                               ],
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.22),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                isCompleted ? 'REWARD READY' : 'ACTIVE',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  letterSpacing: 0.3,
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.22),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    isCompleted ? 'REWARD READY' : 'ACTIVE',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                if (cardInfo['validUntil'] != null) ...[
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.25),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '⏳ Valid: ${_formatDate(cardInfo['validUntil'])}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white.withValues(alpha: 0.9),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),

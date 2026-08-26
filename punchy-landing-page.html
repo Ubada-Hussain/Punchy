@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Punchy — Your loyalty cards, all in one app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F9F6; --surface:#FFFFFF; --surface-alt:#EEF5F0;
+    --ink:#142420; --ink-soft:#5B6B64; --ink-faint:#93A29B; --line:#E2EBE5;
+    --teal:#0EA893; --teal-dark:#076B5D; --coral:#FF6B57; --coral-dark:#E4503D;
+    --gold:#FFC145; --purple:#7C6FF0;
+    --grad-teal: linear-gradient(135deg,#14C1A6 0%, #076B5D 100%);
+    --grad-coral: linear-gradient(135deg,#FF9166 0%, #E4503D 100%);
+    --grad-purple: linear-gradient(135deg,#9A8CFF 0%, #5B4FD6 100%);
+    --grad-gold: linear-gradient(135deg,#FFD166 0%, #F2994A 100%);
+    --grad-hero: linear-gradient(135deg,#0EA893 0%, #7C6FF0 100%);
+    --shadow-card: 0 24px 50px -20px rgba(20,36,32,0.30);
+    --shadow-soft: 0 10px 24px -12px rgba(20,36,32,0.18);
+    --radius-lg:28px; --radius-md:18px; --radius-sm:12px;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); font-family:'Plus Jakarta Sans', sans-serif; color:var(--ink); }
+  a{ text-decoration:none; color:inherit; }
+  .wrap{ max-width:1180px; margin:0 auto; padding:0 32px; }
+  section{ padding:88px 0; }
+
+  /* NAV */
+  .nav{ position:sticky; top:0; z-index:50; background:rgba(245,249,246,.85); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
+  .nav-inner{ display:flex; align-items:center; justify-content:space-between; padding:16px 32px; max-width:1180px; margin:0 auto; }
+  .brand{ display:flex; align-items:center; gap:10px; font-weight:800; font-size:18px; }
+  .brand .mark{ width:34px; height:34px; border-radius:11px; background:var(--grad-teal); display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-soft); }
+  .nav-links{ display:flex; gap:32px; }
+  .nav-links a{ font-size:14px; font-weight:700; color:var(--ink-soft); }
+  .nav-links a:hover{ color:var(--ink); }
+  .nav-cta{ display:flex; gap:10px; }
+
+  .btn{ border:none; border-radius:999px; padding:12px 22px; font-family:inherit; font-weight:800; font-size:14px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
+  .btn-primary{ background:var(--ink); color:#fff; }
+  .btn-coral{ background:var(--coral); color:#fff; box-shadow:0 14px 26px -10px rgba(228,80,61,.55); }
+  .btn-outline{ background:var(--surface); color:var(--ink); border:1.5px solid var(--line); }
+  .btn-sm{ padding:9px 16px; font-size:13px; }
+
+  .icon{ stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; width:18px; height:18px; }
+
+  /* HERO */
+  .hero{ padding:70px 0 40px; position:relative; overflow:hidden; }
+  .hero-inner{ display:flex; align-items:center; gap:60px; }
+  .hero-copy{ flex:1; }
+  .eyebrow{ display:inline-flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--line); padding:7px 15px; border-radius:999px; font-size:12.5px; font-weight:800; color:var(--teal-dark); }
+  .hero h1{ font-size:52px; line-height:1.06; font-weight:800; letter-spacing:-0.025em; margin:20px 0 18px; }
+  .hero h1 span{ background:var(--grad-hero); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero p.lead{ font-size:18px; color:var(--ink-soft); max-width:460px; line-height:1.6; margin:0 0 32px; }
+  .store-row{ display:flex; gap:14px; margin-bottom:28px; }
+  .store-btn{ display:flex; align-items:center; gap:11px; background:var(--ink); color:#fff; border-radius:14px; padding:11px 20px; box-shadow:var(--shadow-soft); }
+  .store-btn small{ display:block; font-size:10px; opacity:.75; font-weight:600; }
+  .store-btn b{ display:block; font-size:15px; font-weight:800; margin-top:1px; }
+  .trust-row{ display:flex; align-items:center; gap:22px; }
+  .trust-avatars{ display:flex; }
+  .trust-avatars div{ width:32px; height:32px; border-radius:50%; border:2.5px solid var(--bg); margin-left:-9px; }
+  .trust-row span{ font-size:13px; color:var(--ink-soft); font-weight:700; }
+
+  .hero-visual{ flex:1; display:flex; justify-content:center; position:relative; }
+  .glow{ position:absolute; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle, rgba(14,168,147,.20) 0%, transparent 70%); top:-40px; right:-20px; }
+  .phone{ width:270px; height:560px; background:#0C1210; border-radius:42px; padding:9px; box-shadow:var(--shadow-card); position:relative; z-index:2; }
+  .phone-screen{ width:100%; height:100%; background:var(--bg); border-radius:33px; overflow:hidden; padding:26px 16px; display:flex; flex-direction:column; gap:12px; }
+  .float-card{ position:absolute; z-index:3; background:var(--surface); border-radius:16px; padding:11px 14px; box-shadow:var(--shadow-card); display:flex; align-items:center; gap:9px; }
+  .fc1{ top:60px; left:-30px; }
+  .fc2{ bottom:100px; right:-36px; }
+  .float-card .fc-ic{ width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .float-card b{ display:block; font-size:12px; font-weight:800; }
+  .float-card span{ font-size:10.5px; color:var(--ink-soft); font-weight:700; }
+
+  .wallet-card{ border-radius:18px; padding:14px; color:#fff; display:flex; flex-direction:column; gap:8px; box-shadow:var(--shadow-soft); }
+  .wc-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .wc-name{ font-weight:800; font-size:13px; }
+  .wc-cat{ font-size:10px; opacity:.85; font-weight:600; margin-top:2px; }
+  .wc-logo{ width:28px; height:28px; border-radius:8px; background:rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center; font-size:12px; }
+  .wc-dots{ display:flex; gap:4px; }
+  .wc-dot{ width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,.4); }
+  .wc-dot.on{ background:#fff; }
+  .wc-count{ font-size:10px; font-weight:800; background:rgba(255,255,255,.22); padding:3px 7px; border-radius:999px; margin-left:auto; }
+
+  /* LOGO STRIP */
+  .logo-strip{ padding:26px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .logo-strip .wrap{ display:flex; align-items:center; justify-content:space-between; }
+  .logo-strip span.lbl{ font-size:11.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); }
+  .logo-row{ display:flex; gap:34px; align-items:center; }
+  .logo-row div{ font-weight:800; font-size:15px; color:var(--ink-faint); }
+
+  /* SECTION HEAD */
+  .sec-head{ text-align:center; max-width:600px; margin:0 auto 52px; }
+  .sec-eyebrow{ font-size:12.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--coral-dark); }
+  .sec-head h2{ font-size:36px; font-weight:800; letter-spacing:-0.02em; margin:12px 0 12px; }
+  .sec-head p{ color:var(--ink-soft); font-size:16px; line-height:1.6; }
+
+  /* FEATURES */
+  .feat-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+  .feat-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-md); padding:28px 24px; }
+  .feat-ic{ width:48px; height:48px; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:18px; }
+  .feat-card h3{ font-size:17px; font-weight:800; margin:0 0 8px; }
+  .feat-card p{ font-size:13.5px; color:var(--ink-soft); line-height:1.6; margin:0; }
+
+  /* HOW IT WORKS */
+  .steps{ display:flex; gap:26px; }
+  .step{ flex:1; text-align:center; position:relative; }
+  .step-num{ width:44px; height:44px; border-radius:50%; background:var(--grad-hero); color:#fff; font-weight:800; font-size:17px; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; box-shadow:var(--shadow-soft); }
+  .step h3{ font-size:16px; font-weight:800; margin:0 0 8px; }
+  .step p{ font-size:13.5px; color:var(--ink-soft); line-height:1.6; margin:0; max-width:220px; margin-inline:auto; }
+
+  /* BUSINESS */
+  .biz-band{ background:#0E1A17; border-radius:32px; padding:64px 56px; display:flex; align-items:center; gap:50px; color:#fff; }
+  .biz-copy{ flex:1; }
+  .biz-copy .sec-eyebrow{ color:var(--gold); }
+  .biz-copy h2{ color:#fff; font-size:32px; font-weight:800; margin:12px 0 14px; letter-spacing:-0.02em; }
+  .biz-copy p{ color:rgba(255,255,255,.7); font-size:15px; line-height:1.7; margin:0 0 24px; max-width:440px; }
+  .biz-list{ display:flex; flex-direction:column; gap:12px; margin-bottom:28px; }
+  .biz-list div{ display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700; color:#fff; }
+  .biz-list svg{ width:18px; height:18px; color:var(--teal); flex-shrink:0; }
+  .biz-visual{ flex:1; display:flex; justify-content:center; }
+  .biz-mock{ width:280px; background:var(--surface); border-radius:20px; padding:18px; box-shadow:var(--shadow-card); }
+  .biz-mock .stat-row{ display:flex; gap:8px; margin-bottom:12px; }
+  .biz-mock .stat{ flex:1; background:var(--surface-alt); border-radius:11px; padding:10px; }
+  .biz-mock .stat span{ font-size:9px; font-weight:800; color:var(--ink-soft); text-transform:uppercase; }
+  .biz-mock .stat b{ display:block; font-size:16px; font-weight:800; margin-top:3px; }
+
+  /* TESTIMONIALS */
+  .quote-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+  .quote-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-md); padding:26px 24px; display:flex; flex-direction:column; gap:16px; }
+  .stars{ display:flex; gap:3px; color:var(--gold); }
+  .stars svg{ width:15px; height:15px; }
+  .quote-card p{ font-size:14px; color:var(--ink); line-height:1.65; margin:0; }
+  .quote-who{ display:flex; align-items:center; gap:10px; }
+  .quote-who .av{ width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:13px; flex-shrink:0; }
+  .quote-who b{ display:block; font-size:13px; }
+  .quote-who span{ font-size:11.5px; color:var(--ink-soft); }
+
+  /* DOWNLOAD BANNER */
+  .download-band{ background:var(--grad-hero); border-radius:32px; padding:64px 56px; display:flex; align-items:center; justify-content:space-between; gap:40px; color:#fff; position:relative; overflow:hidden; }
+  .download-band::before{ content:""; position:absolute; width:340px; height:340px; border-radius:50%; background:rgba(255,255,255,.08); top:-120px; right:-80px; }
+  .download-copy h2{ font-size:32px; font-weight:800; margin:0 0 12px; letter-spacing:-0.02em; }
+  .download-copy p{ font-size:15px; color:rgba(255,255,255,.85); max-width:420px; line-height:1.6; margin:0 0 26px; }
+  .download-store-row{ display:flex; gap:14px; }
+  .download-store-row .store-btn{ background:rgba(255,255,255,.14); backdrop-filter:blur(6px); }
+  .qr-box{ background:#fff; border-radius:18px; padding:16px; text-align:center; flex-shrink:0; z-index:2; }
+  .qr-box .qr-graphic{ width:120px; height:120px; background:#0C1210; border-radius:10px; margin-bottom:10px; display:flex; align-items:center; justify-content:center; }
+  .qr-box span{ font-size:11px; font-weight:800; color:var(--ink); }
+
+  /* FOOTER */
+  footer{ border-top:1px solid var(--line); padding:50px 0 30px; }
+  .foot-top{ display:flex; justify-content:space-between; gap:40px; margin-bottom:40px; }
+  .foot-brand p{ color:var(--ink-soft); font-size:13.5px; max-width:260px; line-height:1.6; margin-top:14px; }
+  .foot-cols{ display:flex; gap:60px; }
+  .foot-col h4{ font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); margin:0 0 14px; }
+  .foot-col a{ display:block; font-size:13.5px; color:var(--ink-soft); font-weight:600; margin-bottom:10px; }
+  .foot-col a:hover{ color:var(--ink); }
+  .foot-bottom{ display:flex; justify-content:space-between; align-items:center; padding-top:24px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink-faint); }
+  .foot-social{ display:flex; gap:12px; }
+  .foot-social div{ width:32px; height:32px; border-radius:9px; background:var(--surface-alt); display:flex; align-items:center; justify-content:center; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+<defs>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8Z" stroke-linejoin="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5 10 17 19 7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><path d="M14 14h3v3h-3zM19 14h2M14 19h2M19 19h2" stroke-linecap="round"/></symbol>
+  <symbol id="i-nfc" viewBox="0 0 24 24"><path d="M6 16a8 8 0 0 1 0-8" stroke-linecap="round"/><path d="M9 13.5a3.5 3.5 0 0 1 0-3" stroke-linecap="round"/><circle cx="13" cy="12" r="1.3" fill="currentColor" stroke="none"/><path d="M17 8a8 8 0 0 1 0 8" stroke-linecap="round"/></symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="10" rx="1"/><path d="M4 9h16v3H4z"/><path d="M12 9v10"/><path d="M12 9c-1-3-5-3-5-.5S9 9 12 9Zm0 0c1-3 5-3 5-.5S15 9 12 9Z" stroke-linejoin="round"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9Z" stroke-linejoin="round"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M20 20H4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24"><path d="M4 9l1-4h14l1 4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9a2.2 2.2 0 0 0 4.4.2A2.2 2.2 0 0 0 12 9a2.2 2.2 0 0 0 3.6.2A2.2 2.2 0 0 0 20 9" stroke-linecap="round"/><path d="M5 9v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9" stroke-linecap="round"/></symbol>
+  <symbol id="i-apple" viewBox="0 0 24 24"><path d="M16.4 12.7c0-2.2 1.8-3.3 1.9-3.4-1-1.5-2.6-1.7-3.2-1.7-1.4-.1-2.6.8-3.3.8s-1.8-.8-2.9-.8c-1.5 0-2.9.9-3.6 2.2-1.6 2.7-.4 6.7 1.1 8.9.7 1.1 1.6 2.3 2.8 2.2 1.1 0 1.5-.7 2.9-.7s1.7.7 2.9.7c1.2 0 2-1.1 2.7-2.2.8-1.2 1.2-2.4 1.2-2.5-.1 0-2.4-.9-2.5-3.5Z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M4 3.5v17l14-8.5-14-8.5Z" fill="currentColor" stroke="none"/></symbol>
+</defs>
+</svg>
+
+<!-- NAV -->
+<div class="nav">
+  <div class="nav-inner">
+    <div class="brand"><div class="mark"><svg class="icon" style="color:#fff;stroke-width:0;fill:currentColor;width:17px;height:17px;"><use href="#i-star"/></svg></div>Punchy</div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#business">For Business</a>
+      <a href="#reviews">Reviews</a>
+    </div>
+    <div class="nav-cta">
+      <a href="#download" class="btn btn-outline btn-sm">Log In</a>
+      <a href="#download" class="btn btn-coral btn-sm">Get the App</a>
+    </div>
+  </div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap hero-inner">
+    <div class="hero-copy">
+      <div class="eyebrow">⭐ Loyalty made simple</div>
+      <h1>Every punch card<br>you love, <span>in one app.</span></h1>
+      <p class="lead">Ditch the paper cards. Collect stamps at your favorite cafés, salons and gyms with a tap or scan — and never miss a free reward again.</p>
+      <div class="store-row">
+        <a href="#" class="store-btn"><svg class="icon" style="width:22px;height:22px;"><use href="#i-apple"/></svg><span><small>Download on the</small><b>App Store</b></span></a>
+        <a href="#" class="store-btn"><svg class="icon" style="width:20px;height:20px;"><use href="#i-play"/></svg><span><small>Get it on</small><b>Google Play</b></span></a>
+      </div>
+      <div class="trust-row">
+        <div class="trust-avatars">
+          <div style="background:var(--grad-teal);"></div>
+          <div style="background:var(--grad-coral);"></div>
+          <div style="background:var(--grad-purple);"></div>
+          <div style="background:var(--grad-gold);"></div>
+        </div>
+        <span>Loved by 6,000+ customers & 180+ local businesses</span>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="glow"></div>
+      <div class="float-card fc1"><div class="fc-ic" style="background:var(--grad-coral);color:#fff;">🎁</div><div><b>Reward ready!</b><span>Free coffee unlocked</span></div></div>
+      <div class="float-card fc2"><div class="fc-ic" style="background:var(--grad-purple);color:#fff;"><svg class="icon" style="width:15px;height:15px;color:#fff;"><use href="#i-nfc"/></svg></div><div><b>Tap to punch</b><span>Instant & contactless</span></div></div>
+      <div class="phone">
+        <div class="phone-screen">
+          <p style="font-size:11px;font-weight:800;color:var(--ink-faint);margin:2px 0 0;">YOUR CARDS</p>
+          <div class="wallet-card" style="background:var(--grad-teal);">
+            <div class="wc-top"><div><div class="wc-name">Brew & Co.</div><div class="wc-cat">☕ Café</div></div><div class="wc-logo">☕</div></div>
+            <div style="display:flex;align-items:center;"><div class="wc-dots"><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot"></div><div class="wc-dot"></div></div><div class="wc-count">6/8</div></div>
+          </div>
+          <div class="wallet-card" style="background:var(--grad-coral);">
+            <div class="wc-top"><div><div class="wc-name">Glow Salon</div><div class="wc-cat">💇 Salon</div></div><div class="wc-logo">💇</div></div>
+            <div style="display:flex;align-items:center;"><div class="wc-dots"><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot"></div><div class="wc-dot"></div><div class="wc-dot"></div></div><div class="wc-count">2/5</div></div>
+          </div>
+          <div class="wallet-card" style="background:var(--grad-purple);">
+            <div class="wc-top"><div><div class="wc-name">FitZone Gym</div><div class="wc-cat">🏋️ Fitness</div></div><div class="wc-logo">🏋️</div></div>
+            <div style="display:flex;align-items:center;"><div class="wc-dots"><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot on"></div><div class="wc-dot on"></div></div><div class="wc-count">8/8 🎉</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LOGO STRIP -->
+<div class="logo-strip">
+  <div class="wrap">
+    <span class="lbl">Trusted by local favorites</span>
+    <div class="logo-row">
+      <div>Brew & Co.</div><div>Glow Salon</div><div>FitZone</div><div>Slice House</div><div>Bloom Studio</div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-eyebrow">Why Punchy</div>
+      <h2>Loyalty, without the clutter</h2>
+      <p>No more lost paper cards. Everything lives in your pocket, updates instantly, and works with a tap.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-ic" style="background:rgba(14,168,147,.14);"><svg class="icon" style="color:var(--teal-dark);"><use href="#i-scan"/></svg></div>
+        <h3>Scan or tap — your choice</h3>
+        <p>Earn a punch instantly by scanning the counter QR code or tapping your phone on the NFC tag. No app-switching, no waiting on staff.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-ic" style="background:rgba(124,111,240,.14);"><svg class="icon" style="color:var(--purple);"><use href="#i-gift"/></svg></div>
+        <h3>Rewards you'll actually use</h3>
+        <p>Track exactly how many punches you need until your next free coffee, haircut or class — and get notified the moment it's ready.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-ic" style="background:rgba(255,107,87,.14);"><svg class="icon" style="color:var(--coral-dark);"><use href="#i-bell"/></svg></div>
+        <h3>Never miss an offer</h3>
+        <p>Get gentle reminders when a reward is close, plus occasional perks from businesses you love — nothing spammy.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how" style="background:var(--surface-alt);">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-eyebrow">Getting started</div>
+      <h2>Three steps to your first reward</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Download & sign up</h3>
+        <p>Grab Punchy from the App Store or Google Play and create your free account in seconds.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Add your first card</h3>
+        <p>Scan a business's QR code in-store, or browse Explore to add cards from anywhere.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Punch & redeem</h3>
+        <p>Scan or tap on every visit. Watch your progress fill up, then redeem your reward in-store.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOR BUSINESS -->
+<section id="business">
+  <div class="wrap">
+    <div class="biz-band">
+      <div class="biz-copy">
+        <div class="sec-eyebrow">For businesses</div>
+        <h2>Turn first-time visitors into regulars</h2>
+        <p>Set up your own digital loyalty program in minutes — no hardware required to start, no manual bookkeeping, ever.</p>
+        <div class="biz-list">
+          <div><svg class="icon"><use href="#i-check"/></svg>Free to get started, live in under 10 minutes</div>
+          <div><svg class="icon"><use href="#i-check"/></svg>Design your own card, punches & reward</div>
+          <div><svg class="icon"><use href="#i-check"/></svg>QR and NFC punching, fully self-serve for customers</div>
+          <div><svg class="icon"><use href="#i-check"/></svg>Real-time dashboard of customers & activity</div>
+        </div>
+        <a href="#download" class="btn btn-coral">Get Punchy for Business</a>
+      </div>
+      <div class="biz-visual">
+        <div class="biz-mock">
+          <p style="font-size:11px;font-weight:800;color:var(--ink-soft);margin:0 0 10px;">☕ Brew & Co. — Dashboard</p>
+          <div class="stat-row">
+            <div class="stat"><span>Customers</span><b>312</b></div>
+            <div class="stat"><span>Today</span><b>48</b></div>
+            <div class="stat"><span>Redeemed</span><b>19</b></div>
+          </div>
+          <div class="wallet-card" style="background:var(--grad-teal);">
+            <div class="wc-top"><div><div class="wc-name">Coffee Lovers Card</div><div class="wc-cat">10 punches → Free Coffee</div></div><div class="wc-logo">☕</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section id="reviews">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-eyebrow">Loved by our community</div>
+      <h2>What people are saying</h2>
+    </div>
+    <div class="quote-grid">
+      <div class="quote-card">
+        <div class="stars"><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg></div>
+        <p>I used to lose my paper punch cards constantly. Now everything's in one app and I actually earn my free coffee.</p>
+        <div class="quote-who"><div class="av" style="background:var(--grad-purple);">AK</div><div><b>Ayesha Khan</b><span>Customer</span></div></div>
+      </div>
+      <div class="quote-card">
+        <div class="stars"><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg></div>
+        <p>Setup took ten minutes and customers started tapping in on day one. Repeat visits are noticeably up.</p>
+        <div class="quote-who"><div class="av" style="background:var(--grad-teal);">BC</div><div><b>Brew & Co.</b><span>Business owner</span></div></div>
+      </div>
+      <div class="quote-card">
+        <div class="stars"><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg><svg class="icon" style="fill:currentColor;stroke:none;"><use href="#i-star"/></svg></div>
+        <p>The NFC tap is so fast — no camera fumbling, just tap and go. My favorite loyalty app by far.</p>
+        <div class="quote-who"><div class="av" style="background:var(--grad-coral);">BR</div><div><b>Bilal Raza</b><span>Customer</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DOWNLOAD BANNER -->
+<section id="download">
+  <div class="wrap">
+    <div class="download-band">
+      <div class="download-copy">
+        <h2>Get Punchy today</h2>
+        <p>Free to download, free to join. Scan the code or tap a button below to get started on your phone.</p>
+        <div class="download-store-row">
+          <a href="#" class="store-btn"><svg class="icon" style="width:22px;height:22px;"><use href="#i-apple"/></svg><span><small>Download on the</small><b>App Store</b></span></a>
+          <a href="#" class="store-btn"><svg class="icon" style="width:20px;height:20px;"><use href="#i-play"/></svg><span><small>Get it on</small><b>Google Play</b></span></a>
+        </div>
+      </div>
+      <div class="qr-box">
+        <div class="qr-graphic"><svg class="icon" style="width:60px;height:60px;color:#fff;"><use href="#i-scan"/></svg></div>
+        <span>Scan to download</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot-top">
+      <div class="foot-brand">
+        <div class="brand"><div class="mark"><svg class="icon" style="color:#fff;stroke-width:0;fill:currentColor;width:17px;height:17px;"><use href="#i-star"/></svg></div>Punchy</div>
+        <p>The simplest way to collect loyalty punches from every business you love — all in one wallet.</p>
+      </div>
+      <div class="foot-cols">
+        <div class="foot-col">
+          <h4>Product</h4>
+          <a href="#features">Features</a>
+          <a href="#how">How it works</a>
+          <a href="#business">For Business</a>
+        </div>
+        <div class="foot-col">
+          <h4>Company</h4>
+          <a href="#">About</a>
+          <a href="#">Careers</a>
+          <a href="#">Contact</a>
+        </div>
+        <div class="foot-col">
+          <h4>Legal</h4>
+          <a href="#">Terms & Conditions</a>
+          <a href="#">Privacy Policy</a>
+          <a href="#">Support</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Punchy. All rights reserved.</span>
+      <div class="foot-social">
+        <div>𝕏</div><div>◎</div><div>in</div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

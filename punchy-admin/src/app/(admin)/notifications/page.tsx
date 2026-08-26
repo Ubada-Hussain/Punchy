@@ -1,134 +1,116 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { api, type Notification } from '@/lib/api';
 
-const TARGET_OPTIONS = [
-  { value: 'ALL', label: '🌐 Everyone (all users)' },
-  { value: 'BUSINESSES', label: '🏪 All Businesses' },
-  { value: 'CUSTOMERS', label: '👥 All Customers' },
-];
-
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [history, setHistory] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
   const [form, setForm] = useState({ title: '', body: '', targetType: 'ALL' });
-  const [success, setSuccess] = useState('');
-  const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
 
-  function load() {
+  useEffect(() => {
     api.get<{ notifications: Notification[] }>('/notifications')
-      .then(d => setNotifications(d.notifications))
+      .then(res => setHistory(res.notifications))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }
+  }, []);
 
-  useEffect(() => { load(); }, []);
-
-  async function handleSend(e: React.FormEvent) {
+  async function handleSend(e: FormEvent) {
     e.preventDefault();
+    if (!form.title || !form.body) return;
     setSending(true);
-    setError('');
     try {
-      await api.post('/notifications', form);
-      setSuccess('Notification sent!');
+      const res = await api.post<{ notification: Notification }>('/notifications', form);
+      setHistory(prev => [res.notification, ...prev]);
       setForm({ title: '', body: '', targetType: 'ALL' });
-      load();
-      setTimeout(() => setSuccess(''), 3000);
+      alert('Notification sent!');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to send');
+      alert(err instanceof Error ? err.message : 'Failed to send');
     } finally {
       setSending(false);
     }
   }
 
   return (
-    <div className="page-content">
-      <div className="page-header">
-        <h1 className="page-title">Notifications</h1>
-        <p className="page-subtitle">Send platform-wide announcements and view history</p>
+    <>
+      <div className="admin-topbar">
+        <h3>Notifications</h3>
       </div>
-
-      <div className="grid-2">
-        {/* Compose */}
-        <div className="card card-padded">
-          <h2 className="text-lg font-semibold mb-5">Send Announcement</h2>
-          {success && <div className="alert alert-success">{success}</div>}
-          {error && <div className="alert alert-danger">{error}</div>}
-          <form onSubmit={handleSend}>
-            <div className="form-group">
-              <label className="form-label">Audience</label>
+      <div className="admin-content">
+        <div className="panel">
+          <div className="panel-head"><h4>Compose Announcement</h4></div>
+          <form onSubmit={handleSend} style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            <div className="field">
+              <label>Target</label>
               <select
-                className="form-select"
                 value={form.targetType}
-                onChange={e => setForm(f => ({ ...f, targetType: e.target.value }))}
+                onChange={e => setForm({ ...form, targetType: e.target.value })}
               >
-                {TARGET_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                <option value="ALL">All Users</option>
+                <option value="CUSTOMERS">Customers Only</option>
+                <option value="BUSINESSES">Businesses Only</option>
               </select>
             </div>
-            <div className="form-group">
-              <label className="form-label">Title</label>
+            <div className="field">
+              <label>Title</label>
               <input
-                className="form-input"
-                placeholder="Notification title"
+                type="text"
                 value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                onChange={e => setForm({ ...form, title: e.target.value })}
+                placeholder="Weekend double-punch event! 🎉"
                 required
               />
             </div>
-            <div className="form-group">
-              <label className="form-label">Message</label>
+            <div className="field">
+              <label>Body</label>
               <textarea
-                className="form-textarea"
-                placeholder="Notification body text…"
+                rows={3}
                 value={form.body}
-                onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                onChange={e => setForm({ ...form, body: e.target.value })}
+                placeholder="Earn 2x punches at any participating business..."
                 required
               />
             </div>
-            <button type="submit" className="btn btn-primary w-full" disabled={sending}>
-              {sending ? 'Sending…' : '🔔 Send Notification'}
+            <button type="submit" className="btn btn-coral" style={{ width:'fit-content' }} disabled={sending}>
+              {sending ? 'Sending...' : 'Send Notification'}
             </button>
           </form>
         </div>
 
-        {/* History */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Recent History</h2>
-          <div className="table-container">
-            {loading ? (
-              <div className="loading-page"><div className="loading-spinner" /></div>
-            ) : notifications.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-icon">🔔</div>
-                <div className="empty-state-title">No notifications sent yet</div>
-              </div>
-            ) : (
-              <table className="data-table">
-                <thead><tr><th>Title</th><th>Audience</th><th>Sent</th></tr></thead>
-                <tbody>
-                  {notifications.map(n => (
-                    <tr key={n.id}>
-                      <td>
-                        <div className="font-medium">{n.title}</div>
-                        <div className="text-xs text-muted truncate" style={{ maxWidth: 200 }}>{n.body}</div>
-                      </td>
-                      <td>
-                        <span className="badge badge-active">{n.targetType}</span>
-                      </td>
-                      <td>
-                        <span className="text-sm text-muted">
-                          {n.sentAt ? new Date(n.sentAt).toLocaleDateString() : 'Scheduled'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+        <div className="panel">
+          <div className="panel-head"><h4>History</h4></div>
+          {loading ? (
+             <div className="loading-page" style={{ minHeight:100 }}><div className="loading-spinner"/></div>
+          ) : history.length === 0 ? (
+            <div className="empty-state" style={{ padding:20 }}>
+              <span className="empty-state-icon">📭</span>No notifications sent yet
+            </div>
+          ) : (
+            <table className="atable">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Target</th>
+                  <th>Sent</th>
+                  <th>Delivered</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map(n => (
+                  <tr key={n.id}>
+                    <td className="row-name">{n.title}</td>
+                    <td>{n.targetType}</td>
+                    <td>
+                      {new Date(n.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
+                    </td>
+                    <td>—</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
-    </div>
+    </>
   );
 }

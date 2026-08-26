@@ -41,16 +41,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       setState(() {
         _statsData = {
           'stats': {
-            'totalBusinesses': 14,
-            'totalCustomers': 842,
-            'totalPunches': 4120,
-            'totalRedemptions': 310,
+            'totalBusinesses': 0,
+            'totalCustomers': 0,
+            'totalPunches': 0,
+            'totalRedemptions': 0,
           },
-          'recentActivity': [
-            {'userEmail': 'ayesha@email.com', 'role': 'CUSTOMER', 'action': 'PUNCH_RECORDED', 'timestamp': DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String()},
-            {'userEmail': 'glow.salon@punchy.app', 'role': 'BUSINESS', 'action': 'BUSINESS_PROFILE_UPDATED', 'timestamp': DateTime.now().subtract(const Duration(minutes: 25)).toIso8601String()},
-            {'userEmail': 'hamza.k@gmail.com', 'role': 'CUSTOMER', 'action': 'REWARD_REDEEMED', 'timestamp': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String()},
-          ],
+          'recentActivity': [],
         };
         _isLoading = false;
       });
@@ -59,7 +55,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final stats = _statsData?['stats'] ?? {'totalBusinesses': 14, 'totalCustomers': 842, 'totalPunches': 4120, 'totalRedemptions': 310};
+    final stats = _statsData?['stats'] ?? {'totalBusinesses': 0, 'totalCustomers': 0, 'totalPunches': 0, 'totalRedemptions': 0};
     final recent = (_statsData?['recentActivity'] as List?) ?? [];
 
     return Scaffold(

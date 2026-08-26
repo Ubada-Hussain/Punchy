@@ -83,6 +83,7 @@ export interface LoyaltyCard {
   punchesRequired: number;
   rewardDescription: string;
   visualStyle: { primaryColor: string; bgColor: string; iconType: string };
+  validUntil?: string;
   isActive: boolean;
   createdAt: string;
   punchMethods?: PunchMethod[];
@@ -103,8 +104,10 @@ export interface User {
   id: string;
   email: string;
   phone?: string;
-  role: 'CUSTOMER' | 'BUSINESS' | 'ADMIN';
+  role: 'CUSTOMER' | 'BUSINESS' | 'ADMIN' | 'STAFF';
   isBlocked: boolean;
+  isStaffActive?: boolean;
+  businessId?: string;
   createdAt: string;
   businessProfile?: { name: string; status: string };
 }

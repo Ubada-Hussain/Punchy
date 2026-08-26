@@ -42,32 +42,135 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
     if (mounted) {
       setState(() {
         _dashboardData = {
-          'business': {'name': 'Brew & Co.', 'category': 'Cafe & Bakery'},
-          'stats': {'totalCustomers': 312, 'punchesToday': 48, 'rewardsRedeemed': 19},
-          'cards': [
-            {
-              'id': 'c1',
-              'title': 'Coffee Lovers Card',
-              'punchesRequired': 10,
-              'rewardDescription': '1 Free Specialty Beverage',
-              'visualStyle': {'theme': 'teal'},
-            }
-          ],
-          'recentActivity': [
-            {'customerEmail': 'ayesha@email.com', 'cardTitle': 'Coffee Lovers Card', 'timestamp': DateTime.now().subtract(const Duration(minutes: 2)).toIso8601String()},
-            {'customerEmail': 'bilal.r@gmail.com', 'cardTitle': 'Coffee Lovers Card', 'timestamp': DateTime.now().subtract(const Duration(minutes: 40)).toIso8601String()},
-            {'customerEmail': 'sana.m@outlook.com', 'cardTitle': 'Coffee Lovers Card', 'timestamp': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String()},
-          ],
+          'business': {'name': 'My Business', 'category': 'Retail & Cafe'},
+          'stats': {'totalCustomers': 0, 'punchesToday': 0, 'rewardsRedeemed': 0},
+          'cards': [],
+          'recentActivity': [],
         };
         _isLoading = false;
       });
     }
   }
 
+  String _formatDate(dynamic dateVal) {
+    if (dateVal == null) return 'No expiry';
+    try {
+      final dt = DateTime.parse(dateVal.toString());
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    } catch (_) {
+      return dateVal.toString();
+    }
+  }
+
+  Future<void> _deleteCard(String cardId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Delete Active Card?',
+          style: GoogleFonts.plusJakartaSans(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.ink),
+        ),
+        content: Text(
+          'A business can only have 1 active loyalty card at a time. Deleting this card will allow you to create a new one.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.inkSoft, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.plusJakartaSans(color: AppColors.inkSoft, fontWeight: FontWeight.w700)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.coralDark,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Delete Card', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _api.delete('/business/cards/$cardId');
+        await _loadDashboard();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.ink,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              content: Text(
+                '🗑️ Card deleted. You can now create a new loyalty card!',
+                style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+            ),
+          );
+        }
+      } catch (_) {}
+    }
+  }
+
+  void _handleNewCardTap(dynamic activeCard) {
+    if (activeCard != null) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.info_outline_rounded, color: AppColors.coralDark, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'Active Card Limit',
+                style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink),
+              ),
+            ],
+          ),
+          content: Text(
+            'Each business can only have 1 active card at a time. To add a new card, please delete or edit your existing active card first.',
+            style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.inkSoft, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Got It', style: GoogleFonts.plusJakartaSans(color: AppColors.inkSoft, fontWeight: FontWeight.w700)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CreateCardScreen(
+                      cardId: activeCard['id'],
+                      initialData: activeCard,
+                    ),
+                  ),
+                ).then((_) => _loadDashboard());
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.teal,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text('Edit / Delete Card', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      );
+    } else {
+      context.push('/business/cards/new').then((_) => _loadDashboard());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final business = _dashboardData?['business'] ?? {'name': 'Brew & Co.'};
-    final stats = _dashboardData?['stats'] ?? {'totalCustomers': 312, 'punchesToday': 48, 'rewardsRedeemed': 19};
+    final business = _dashboardData?['business'] ?? {};
+    final stats = _dashboardData?['stats'] ?? {'totalCustomers': 0, 'punchesToday': 0, 'rewardsRedeemed': 0};
     final cards = (_dashboardData?['cards'] as List?) ?? [];
     final activeCard = cards.isNotEmpty ? cards.first : null;
     final recentActivity = (_dashboardData?['recentActivity'] as List?) ?? [];
@@ -95,7 +198,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              business['name'] ?? 'Brew & Co.',
+                              business['name'] ?? 'My Business',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
@@ -113,21 +216,41 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                             ),
                           ],
                         ),
-                        // Business Setup Gear Button
-                        GestureDetector(
-                          onTap: () => context.push('/business/setup'),
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              border: Border.all(color: AppColors.line),
-                              borderRadius: BorderRadius.circular(11),
+                        // Actions: Staff + Setup Gear Button
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () => context.push('/business/staff'),
+                              child: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  border: Border.all(color: AppColors.line),
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                                child: const Center(
+                                  child: Icon(Icons.badge_outlined, color: AppColors.tealDark, size: 18),
+                                ),
+                              ),
                             ),
-                            child: const Center(
-                              child: Icon(Icons.settings_outlined, color: AppColors.ink, size: 18),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () => context.push('/business/setup'),
+                              child: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  border: Border.all(color: AppColors.line),
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                                child: const Center(
+                                  child: Icon(Icons.settings_outlined, color: AppColors.ink, size: 18),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
@@ -158,23 +281,39 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                           ),
                         ),
                         if (activeCard != null)
-                          GestureDetector(
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => CreateCardScreen(
-                                  cardId: activeCard['id'],
-                                  initialData: activeCard,
+                          Row(
+                            children: [
+                              GestureDetector(
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => CreateCardScreen(
+                                      cardId: activeCard['id'],
+                                      initialData: activeCard,
+                                    ),
+                                  ),
+                                ).then((_) => _loadDashboard()),
+                                child: Text(
+                                  'Edit',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.tealDark,
+                                  ),
                                 ),
                               ),
-                            ).then((_) => _loadDashboard()),
-                            child: Text(
-                              'Edit',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.tealDark,
+                              const SizedBox(width: 12),
+                              GestureDetector(
+                                onTap: () => _deleteCard(activeCard['id']),
+                                child: Text(
+                                  'Delete',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.coralDark,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                       ],
                     ),
@@ -195,51 +334,72 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                             ),
                           ],
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.22),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Center(
+                                    child: Text('☕', style: TextStyle(fontSize: 16)),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        activeCard['title'] ?? 'Coffee Lovers Card',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 1),
+                                      Text(
+                                        '${activeCard['punchesRequired'] ?? 10} punches → ${activeCard['rewardDescription'] ?? 'Free Coffee'}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white.withValues(alpha: 0.85),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 24),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
                             Container(
-                              width: 36,
-                              height: 36,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.22),
-                                borderRadius: BorderRadius.circular(10),
+                                color: Colors.black.withValues(alpha: 0.22),
+                                borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const Center(
-                                child: Text('☕', style: TextStyle(fontSize: 16)),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    activeCard['title'] ?? 'Coffee Lovers Card',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 1),
-                                  Text(
-                                    '${activeCard['punchesRequired'] ?? 10} punches → ${activeCard['rewardDescription'] ?? 'Free Coffee'}',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white.withValues(alpha: 0.85),
-                                    ),
-                                  ),
-                                ],
+                              child: Text(
+                                '⏳ Valid till: ${_formatDate(activeCard['validUntil'])}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white.withValues(alpha: 0.95),
+                                ),
                               ),
                             ),
-                            const Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 24),
                           ],
                         ),
                       )
                     else
                       GestureDetector(
-                        onTap: () => context.push('/business/cards/new'),
+                        onTap: () => context.push('/business/cards/new').then((_) => _loadDashboard()),
                         child: Container(
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
@@ -253,7 +413,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                               const Icon(Icons.add_circle_outline_rounded, color: AppColors.tealDark),
                               const SizedBox(width: 8),
                               Text(
-                                'Create Your First Loyalty Card',
+                                'Create Your Loyalty Card (1 Active Max)',
                                 style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.ink),
                               ),
                             ],
@@ -262,7 +422,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                       ),
                     const SizedBox(height: 20),
 
-                    // Quick Actions (New Card + Customers)
+                    // Quick Actions (New Card + Staff + Customers)
                     Text(
                       'Quick actions',
                       style: GoogleFonts.plusJakartaSans(
@@ -276,31 +436,38 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                       children: [
                         Expanded(
                           child: GestureDetector(
-                            onTap: () => context.push('/business/cards/new'),
+                            onTap: () => _handleNewCardTap(activeCard),
                             child: Container(
                               height: 48,
                               decoration: BoxDecoration(
-                                color: AppColors.coral,
+                                color: activeCard == null ? AppColors.coral : AppColors.surface,
                                 borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.coral.withValues(alpha: 0.4),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
+                                border: activeCard == null ? null : Border.all(color: AppColors.line, width: 1.5),
+                                boxShadow: activeCard == null
+                                    ? [
+                                        BoxShadow(
+                                          color: AppColors.coral.withValues(alpha: 0.4),
+                                          blurRadius: 14,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ]
+                                    : null,
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.add_rounded, color: Colors.white, size: 18),
-                                  const SizedBox(width: 6),
+                                  Icon(
+                                    Icons.add_rounded,
+                                    color: activeCard == null ? Colors.white : AppColors.inkSoft,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    'New card',
+                                    activeCard == null ? 'New card' : 'Card (1/1)',
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 14,
+                                      fontSize: 12.5,
                                       fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+                                      color: activeCard == null ? Colors.white : AppColors.inkSoft,
                                     ),
                                   ),
                                 ],
@@ -308,7 +475,36 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => context.push('/business/staff'),
+                            child: Container(
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.teal.withValues(alpha: 0.5), width: 1.5),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.badge_outlined, color: AppColors.tealDark, size: 17),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Staff',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.tealDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: GestureDetector(
                             onTap: () => context.push('/business/customers'),
@@ -322,12 +518,12 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.people_outline_rounded, color: AppColors.ink, size: 18),
-                                  const SizedBox(width: 6),
+                                  const Icon(Icons.people_outline_rounded, color: AppColors.ink, size: 17),
+                                  const SizedBox(width: 4),
                                   Text(
                                     'Customers',
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 14,
+                                      fontSize: 12.5,
                                       fontWeight: FontWeight.w700,
                                       color: AppColors.ink,
                                     ),
@@ -357,9 +553,9 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: AppColors.line),
                       ),
-                      child: Column(
-                        children: recentActivity.isNotEmpty
-                            ? recentActivity.map((a) {
+                      child: recentActivity.isNotEmpty
+                          ? Column(
+                              children: recentActivity.map((a) {
                                 return Column(
                                   children: [
                                     _buildActivityRow(
@@ -370,15 +566,36 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                                     const Divider(height: 1, color: AppColors.line),
                                   ],
                                 );
-                              }).toList()
-                            : [
-                                _buildActivityRow('Ayesha K. — punch added', '2 minutes ago', Icons.qr_code_2_rounded),
-                                const Divider(height: 1, color: AppColors.line),
-                                _buildActivityRow('Bilal R. — redeemed reward', '40 minutes ago', Icons.card_giftcard_rounded),
-                                const Divider(height: 1, color: AppColors.line),
-                                _buildActivityRow('Sana M. — joined card', '1 hour ago', Icons.person_add_alt_1_rounded),
-                              ],
-                      ),
+                              }).toList(),
+                            )
+                          : Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    const Icon(Icons.history_toggle_off_rounded, size: 28, color: AppColors.inkSoft),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'No recent activity yet',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.ink,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Customer punches and redemptions will appear here live.',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11.5,
+                                        color: AppColors.inkSoft,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                     ),
                     const SizedBox(height: 20),
                   ],

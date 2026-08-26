@@ -17,6 +17,22 @@ class AuthProvider extends ChangeNotifier {
   Map<String, dynamic>? _user;
   Map<String, dynamic>? get user => _user;
 
+  bool _isSuspended = false;
+  bool get isSuspended {
+    if (_isSuspended) return true;
+    if (_user != null) {
+      if (_user!['isSuspended'] == true) return true;
+      if (_user!['isBlocked'] == true) return true;
+      if (_user!['role'] == 'BUSINESS' && _user!['businessProfile']?['status'] == 'SUSPENDED') return true;
+      if (_user!['role'] == 'STAFF' && _user!['staffBusiness']?['status'] == 'SUSPENDED') return true;
+    }
+    return false;
+  }
+
+  bool get isStaff => _user?['role'] == 'STAFF';
+  bool get isStaffActive => _user?['isStaffActive'] ?? true;
+  String? get businessName => _user?['businessName'] ?? _user?['businessProfile']?['name'] ?? _user?['staffBusiness']?['name'];
+
   AuthProvider() {
     _loadToken();
   }
@@ -35,14 +51,21 @@ class AuthProvider extends ChangeNotifier {
       final res = await _api.get('/auth/me');
       if (res != null && res['user'] != null) {
         _user = res['user'];
+        _isSuspended = _user?['isSuspended'] == true || _user?['isBlocked'] == true;
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e) {
+      if (e is ApiException && e.statusCode == 403) {
+        _isSuspended = true;
+        notifyListeners();
+      }
+    }
   }
 
   Future<bool> login(String email, String password) async {
     _isLoading = true;
     _errorMessage = null;
+    _isSuspended = false;
     notifyListeners();
     
     try {
@@ -53,6 +76,7 @@ class AuthProvider extends ChangeNotifier {
       
       _token = response['accessToken'];
       _user = response['user'];
+      _isSuspended = _user?['isSuspended'] == true || _user?['isBlocked'] == true;
       
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', _token!);
@@ -64,6 +88,9 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
       if (e is ApiException) {
         _errorMessage = e.message;
+        if (e.statusCode == 403 || e.message.toLowerCase().contains('suspend') || e.message.toLowerCase().contains('blocked')) {
+          _isSuspended = true;
+        }
       } else {
         _errorMessage = e.toString();
       }
@@ -81,6 +108,7 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _isLoading = true;
     _errorMessage = null;
+    _isSuspended = false;
     notifyListeners();
     
     try {
@@ -155,6 +183,7 @@ class AuthProvider extends ChangeNotifier {
 
       _token = response['accessToken'];
       _user = response['user'];
+      _isSuspended = _user?['isSuspended'] == true || _user?['isBlocked'] == true;
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', _token!);
@@ -169,11 +198,19 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  void setStaffActiveState(bool active) {
+    if (_user != null) {
+      _user!['isStaffActive'] = active;
+      notifyListeners();
+    }
+  }
+
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
     _token = null;
     _user = null;
+    _isSuspended = false;
     notifyListeners();
   }
 }

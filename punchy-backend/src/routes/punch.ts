@@ -25,6 +25,9 @@ router.post('/', requireAuth, requireRole('CUSTOMER'), async (req: Request, res:
 
   if (!punchMethod?.isActive) { res.status(404).json({ error: 'Invalid or inactive punch identifier' }); return; }
   if (!punchMethod.card.isActive) { res.status(400).json({ error: 'This loyalty card is no longer active' }); return; }
+  if (punchMethod.card.validUntil && new Date(punchMethod.card.validUntil) < new Date()) {
+    res.status(400).json({ error: 'This loyalty card has expired' }); return;
+  }
   if (punchMethod.card.business.status !== 'APPROVED') {
     res.status(400).json({ error: 'This business is not currently active' }); return;
   }

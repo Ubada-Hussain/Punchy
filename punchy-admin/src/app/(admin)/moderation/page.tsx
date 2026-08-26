@@ -1,68 +1,66 @@
 'use client';
-// Moderation page — content review for business logos/profiles
-// MVP: shows approved businesses that could be flagged for review
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { api, type Business } from '@/lib/api';
 
 export default function ModerationPage() {
-  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [pending, setPending] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<{ businesses: Business[] }>('/businesses?status=APPROVED&limit=50')
-      .then(d => setBusinesses(d.businesses.filter(b => b.logo)))
+    // Reusing the pending businesses endpoint for moderation review
+    api.get<{ businesses: Business[] }>('/businesses?status=PENDING&limit=10')
+      .then(res => setPending(res.businesses))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
+  async function approve(id: string) {
+    await api.patch(`/businesses/${id}`, { status: 'APPROVED' });
+    setPending(p => p.filter(b => b.id !== id));
+  }
+
   async function suspend(id: string) {
     if (!confirm('Suspend this business?')) return;
-    await api.post(`/businesses/${id}/suspend`);
-    setBusinesses(bs => bs.filter(b => b.id !== id));
+    await api.patch(`/businesses/${id}`, { status: 'SUSPENDED' });
+    setPending(p => p.filter(b => b.id !== id));
   }
 
   return (
-    <div className="page-content">
-      <div className="page-header">
-        <h1 className="page-title">Content Moderation</h1>
-        <p className="page-subtitle">Review business profile images and flag inappropriate content</p>
+    <>
+      <div className="admin-topbar">
+        <h3>Moderation</h3>
       </div>
+      <div className="admin-content">
+        <div className="panel">
+          <div className="panel-head"><h4>Pending Review (Businesses)</h4></div>
+          {loading ? (
+             <div className="loading-page" style={{ minHeight:100 }}><div className="loading-spinner"/></div>
+          ) : pending.length === 0 ? (
+            <div className="empty-state" style={{ padding:20 }}><span className="empty-state-icon">🛡️</span>Nothing to review</div>
+          ) : (
+            pending.map(b => (
+              <div key={b.id} className="mod-row">
+                <div className="mod-thumb" style={{ background:'var(--grad-teal)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800 }}>
+                  {b.logo || b.name[0]}
+                </div>
+                <div style={{ flex:1 }}>
+                  <div className="row-name">{b.name}</div>
+                  <div className="row-sub">Category: {b.category}</div>
+                </div>
+                <button className="btn btn-primary btn-xs" onClick={() => approve(b.id)}>Approve</button>
+                <button className="btn btn-danger-ghost btn-xs" onClick={() => suspend(b.id)}>Suspend</button>
+              </div>
+            ))
+          )}
+        </div>
 
-      <div className="alert alert-info mb-6">
-        <span>ℹ️</span>
-        <span>MVP moderation view shows businesses with uploaded logos for manual review. Automated AI moderation can be added in a future sprint.</span>
+        <div className="panel">
+          <div className="panel-head"><h4>Flagged Content</h4></div>
+          <div className="empty-state" style={{ padding:20 }}>
+            <span className="empty-state-icon">🚩</span>No flagged content
+          </div>
+        </div>
       </div>
-
-      {loading ? (
-        <div className="loading-page"><div className="loading-spinner" /></div>
-      ) : businesses.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">🛡️</div>
-          <div className="empty-state-title">Nothing to review</div>
-          <p>No businesses with uploaded logos at this time.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {businesses.map(b => (
-            <div key={b.id} className="card card-padded card-hover">
-              <div style={{ width: '100%', height: 120, background: '#F5F5F3', borderRadius: 8, marginBottom: 14, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {b.logo ? (
-                  <img src={b.logo} alt={b.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <span style={{ fontSize: 40 }}>🏪</span>
-                )}
-              </div>
-              <div className="font-semibold mb-1">{b.name}</div>
-              <div className="text-sm text-muted mb-3">{b.category}</div>
-              <div className="flex gap-2">
-                <Link href={`/businesses/${b.id}`} className="btn btn-secondary btn-sm flex-1">View Profile</Link>
-                <button onClick={() => suspend(b.id)} className="btn btn-danger btn-sm">Suspend</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    </>
   );
 }

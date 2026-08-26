@@ -14,8 +14,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController(text: 'demo-customer@punchy.app');
-  final _passwordController = TextEditingController(text: 'Customer1234!');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
 
@@ -27,29 +27,38 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
 
-      if (success && mounted) {
-        final role = auth.user?['role'];
-        if (role == 'BUSINESS') {
-          context.go('/business');
-        } else if (role == 'ADMIN') {
-          context.go('/admin');
-        } else {
-          context.go('/');
+      if (mounted) {
+        if (auth.isSuspended) {
+          context.go('/suspended');
+          return;
         }
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppColors.ink,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            content: Text(
-              auth.errorMessage != null && auth.errorMessage!.contains('Invalid credentials')
-                  ? 'Invalid email or password.'
-                  : 'Login failed. Please check your credentials.',
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+
+        if (success) {
+          final role = auth.user?['role'];
+          if (role == 'BUSINESS') {
+            context.go('/business');
+          } else if (role == 'STAFF') {
+            context.go('/staff');
+          } else if (role == 'ADMIN') {
+            context.go('/admin');
+          } else {
+            context.go('/');
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.ink,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              content: Text(
+                auth.errorMessage != null && auth.errorMessage!.contains('Invalid credentials')
+                    ? 'Invalid email or password.'
+                    : (auth.errorMessage ?? 'Login failed. Please check your credentials.'),
+                style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     }
   }
@@ -289,58 +298,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Quick Demo Logins
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.line),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '⚡ Quick Demo Accounts',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.inkSoft,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildDemoChip(
-                                'Customer',
-                                'demo-customer@punchy.app',
-                                'Customer1234!',
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: _buildDemoChip(
-                                'Business',
-                                'demo-business@punchy.app',
-                                'Business1234!',
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: _buildDemoChip(
-                                'Admin',
-                                'admin@punchy.app',
-                                'Admin1234!',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
                   // Sign Up Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -364,35 +321,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDemoChip(String role, String email, String password) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _emailController.text = email;
-          _passwordController.text = password;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-        decoration: BoxDecoration(
-          color: AppColors.bg,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.line),
-        ),
-        child: Center(
-          child: Text(
-            role,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.tealDark,
             ),
           ),
         ),

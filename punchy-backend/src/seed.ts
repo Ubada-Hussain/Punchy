@@ -59,6 +59,7 @@ async function main() {
         title: 'Coffee Card',
         punchesRequired: 10,
         rewardDescription: 'Free coffee of your choice!',
+        validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
         visualStyle: { primaryColor: '#FF6B35', bgColor: '#1a1a2e', iconType: 'coffee' },
       },
     });
@@ -80,6 +81,23 @@ async function main() {
       },
     });
     console.log('✅ Demo customer created: demo-customer@punchy.app / Customer1234!');
+  }
+
+  // Sample staff member (linked to demo business)
+  const staffEmail = 'demo-staff@punchy.app';
+  let staffUser = await prisma.user.findUnique({ where: { email: staffEmail } });
+  if (!staffUser) {
+    staffUser = await prisma.user.create({
+      data: {
+        email: staffEmail,
+        name: 'Sarah Connor',
+        passwordHash: await bcrypt.hash('Staff1234!', 12),
+        role: 'STAFF',
+        businessId: bizProfile.id,
+        isStaffActive: true,
+      },
+    });
+    console.log('✅ Demo staff created: demo-staff@punchy.app / Staff1234! (Active: true, Business: ' + bizProfile.name + ')');
   }
 
   // Create Businesses and Cards matching the HTML Design:
@@ -169,6 +187,7 @@ async function main() {
           title: b.cardTitle,
           punchesRequired: b.punchesRequired,
           rewardDescription: b.reward,
+          validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
           visualStyle: { theme: b.theme, icon: b.icon },
         },
       });

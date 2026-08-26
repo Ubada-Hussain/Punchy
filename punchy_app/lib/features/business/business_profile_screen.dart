@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/api/api_client.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../system_states/support_sheet.dart';
@@ -14,15 +15,63 @@ class BusinessProfileScreen extends StatefulWidget {
 }
 
 class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
+  final ApiClient _api = ApiClient();
+  Map<String, dynamic>? _profileData;
+  bool _isLoading = true;
+
   bool _notifyNewCustomer = true;
   bool _notifyCardCompleted = true;
   bool _weeklySummary = true;
 
   @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() => _isLoading = true);
+    try {
+      final res = await _api.get('/business/profile');
+      if (res is Map<String, dynamic> && mounted) {
+        setState(() {
+          _profileData = res;
+          _isLoading = false;
+        });
+        return;
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatMemberSince(dynamic dateVal) {
+    if (dateVal == null) return 'Recent';
+    try {
+      final dt = DateTime.parse(dateVal.toString());
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${months[dt.month - 1]} ${dt.year}';
+    } catch (_) {
+      return 'Recent';
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.user;
-    final email = user?['email'] ?? 'brew@punchy.app';
+    final email = user?['email'] ?? '';
+    final biz = _profileData?['business'] ?? {};
+    final bizName = biz['name'] ?? user?['name'] ?? 'My Business';
+    final bizCat = biz['category'] ?? 'Retail & Services';
+    final bizLogo = (biz['logo'] != null && biz['logo'].toString().isNotEmpty) ? biz['logo'].toString() : null;
+    final activeCardsCount = _profileData?['activeCardsCount'] as int? ?? 0;
+    final totalCustomers = _profileData?['totalCustomers'] as int? ?? 0;
+    final memberSince = _formatMemberSince(_profileData?['memberSince'] ?? user?['createdAt']);
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -59,7 +108,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () => context.push('/business/setup'),
+                    onTap: () => context.push('/business/setup').then((_) => _loadProfile()),
                     child: Container(
                       width: 34,
                       height: 34,
@@ -79,94 +128,127 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
 
             // Scrollable Content
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                children: [
-                  // Business Header Card
-                  Row(
-                    children: [
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          gradient: AppColors.gradTeal,
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.teal.withValues(alpha: 0.35),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: const Center(
-                          child: Text('☕', style: TextStyle(fontSize: 28)),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Brew & Co.',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.ink,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Cafe & Bakery • $email',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                color: AppColors.inkSoft,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.coral.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.storefront_rounded, color: AppColors.coralDark, size: 12),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'BUSINESS OWNER',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.coralDark,
-                                      letterSpacing: 0.4,
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.teal))
+                  : RefreshIndicator(
+                      color: AppColors.teal,
+                      onRefresh: _loadProfile,
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        children: [
+                          // Business Header Card
+                          Row(
+                            children: [
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  gradient: AppColors.gradTeal,
+                                  borderRadius: BorderRadius.circular(18),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.teal.withValues(alpha: 0.35),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 6),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
+                                child: Center(
+                                  child: bizLogo != null
+                                      ? (bizLogo.length <= 4
+                                          ? Text(bizLogo, style: const TextStyle(fontSize: 28))
+                                          : Text(
+                                              bizName.isNotEmpty ? bizName[0].toUpperCase() : 'B',
+                                              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white),
+                                            ))
+                                      : Text(
+                                          bizName.isNotEmpty ? bizName[0].toUpperCase() : 'B',
+                                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white),
+                                        ),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      bizName,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.ink,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '$bizCat • $email',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        color: AppColors.inkSoft,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.coral.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.storefront_rounded, color: AppColors.coralDark, size: 12),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'BUSINESS OWNER',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: AppColors.coralDark,
+                                              letterSpacing: 0.4,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
 
-                  // Summary Strip (3 Stat boxes)
-                  Row(
-                    children: [
-                      Expanded(child: _buildSummaryBox('Active Cards', '1 Card', Icons.credit_card_rounded)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildSummaryBox('Customers', '312 joined', Icons.people_alt_rounded)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildSummaryBox('Member Since', 'Aug 2026', Icons.calendar_today_rounded)),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+                          // Summary Strip (3 Stat boxes)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildSummaryBox(
+                                  'Active Cards',
+                                  '$activeCardsCount ${activeCardsCount == 1 ? "Card" : "Cards"}',
+                                  Icons.credit_card_rounded,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildSummaryBox(
+                                  'Customers',
+                                  '$totalCustomers joined',
+                                  Icons.people_alt_rounded,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildSummaryBox(
+                                  'Member Since',
+                                  memberSince,
+                                  Icons.calendar_today_rounded,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
 
                   // Business Account Settings Section
                   Text(
@@ -301,9 +383,10 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    ),
     );
   }
 

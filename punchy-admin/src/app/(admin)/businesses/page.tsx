@@ -1,162 +1,156 @@
 'use client';
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
 import { api, type Business } from '@/lib/api';
 
-const STATUSES = ['ALL', 'PENDING', 'APPROVED', 'SUSPENDED'] as const;
+const FILTERS = ['ALL', 'APPROVED', 'PENDING', 'SUSPENDED'] as const;
 
-function BusinessesList() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
+function statusBadge(s: string) {
+  const map: Record<string, string> = { APPROVED:'b-active', PENDING:'b-pending', SUSPENDED:'b-suspended' };
+  return <span className={`badge ${map[s] ?? 'b-pending'}`}>{s}</span>;
+}
+
+export default function BusinessesPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<string>(searchParams.get('status') ?? 'ALL');
-  const [page, setPage] = useState(1);
-  const limit = 20;
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      const params = new URLSearchParams({ limit: '50' });
+      if (filter !== 'ALL') params.set('status', filter);
       if (search) params.set('search', search);
-      if (status !== 'ALL') params.set('status', status);
       const data = await api.get<{ businesses: Business[]; total: number }>(`/businesses?${params}`);
       setBusinesses(data.businesses);
       setTotal(data.total);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  }, [search, status, page]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, search]);
 
   useEffect(() => { load(); }, [load]);
 
   async function approve(id: string) {
-    await api.post(`/businesses/${id}/approve`);
+    if (!confirm('Approve this business?')) return;
+    await api.patch(`/businesses/${id}`, { status: 'APPROVED' });
     load();
   }
 
   async function suspend(id: string) {
     if (!confirm('Suspend this business?')) return;
-    await api.post(`/businesses/${id}/suspend`);
+    await api.patch(`/businesses/${id}`, { status: 'SUSPENDED' });
     load();
   }
 
-  const pages = Math.ceil(total / limit);
+  const gradients = ['var(--grad-teal)','var(--grad-purple)','var(--grad-coral)','var(--grad-gold)'];
 
   return (
-    <div className="page-content">
-      <div className="page-header">
-        <h1 className="page-title">Businesses</h1>
-        <p className="page-subtitle">{total.toLocaleString()} businesses registered on the platform</p>
-      </div>
-
-      {/* Toolbar */}
-      <div className="toolbar">
-        <div className="toolbar-search input-with-icon">
-          <svg className="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-          <input
-            className="form-input"
-            placeholder="Search businesses…"
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-          />
-        </div>
-        <div className="flex gap-2">
-          {STATUSES.map(s => (
-            <button
-              key={s}
-              onClick={() => { setStatus(s); setPage(1); }}
-              className={`btn btn-sm ${status === s ? 'btn-primary' : 'btn-secondary'}`}
-            >
-              {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
-            </button>
-          ))}
+    <>
+      <div className="admin-topbar">
+        <h3>Businesses</h3>
+        <div className="top-actions">
+          <button className="top-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" style={{ stroke:'currentColor', fill:'none', strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round' }}>
+              <path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/>
+            </svg>
+          </button>
         </div>
       </div>
-
-      {/* Table */}
-      <div className="table-container">
-        {loading ? (
-          <div className="loading-page"><div className="loading-spinner" /></div>
-        ) : businesses.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">🏪</div>
-            <div className="empty-state-title">No businesses found</div>
-            <p>Try adjusting your search or filters.</p>
+      <div className="admin-content">
+        {/* Filter bar */}
+        <div className="filter-bar">
+          <div className="search-in">
+            <svg width="15" height="15" viewBox="0 0 24 24" style={{ stroke:'var(--ink-faint)', fill:'none', strokeWidth:1.8, strokeLinecap:'round' }}>
+              <circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.5-4.5"/>
+            </svg>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search businesses…"
+            />
           </div>
-        ) : (
-          <>
-            <table className="data-table">
+          <div className="chip-set">
+            {FILTERS.map(f => (
+              <button key={f} className={`fchip${filter === f ? ' on' : ''}`} onClick={() => setFilter(f)}>
+                {f === 'ALL' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="panel" style={{ padding:0 }}>
+          {loading ? (
+            <div className="loading-page"><div className="loading-spinner"/></div>
+          ) : businesses.length === 0 ? (
+            <div className="empty-state">
+              <span className="empty-state-icon">🏪</span>
+              No businesses found
+            </div>
+          ) : (
+            <table className="atable">
               <thead>
                 <tr>
                   <th>Business</th>
                   <th>Category</th>
+                  <th>Customers</th>
                   <th>Status</th>
-                  <th>Cards</th>
                   <th>Joined</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {businesses.map(b => (
+                {businesses.map((b, i) => (
                   <tr key={b.id}>
                     <td>
-                      <div className="flex items-center gap-3">
-                        <div className="avatar avatar-md">{b.name[0].toUpperCase()}</div>
+                      <div className="row-biz">
+                        <div className="row-logo" style={{ background: gradients[i % gradients.length], color:'#fff' }}>
+                          {b.logo || b.name[0]}
+                        </div>
                         <div>
-                          <div className="font-medium">{b.name}</div>
-                          <div className="text-xs text-muted">{b.user?.email}</div>
+                          <div className="row-name">{b.name}</div>
+                          <div className="row-sub">{b.locations?.[0]?.address ?? ''}</div>
                         </div>
                       </div>
                     </td>
-                    <td><span className="text-sm text-muted">{b.category}</span></td>
-                    <td>
-                      <span className={`badge badge-${b.status.toLowerCase()}`}>{b.status}</span>
+                    <td style={{ color:'var(--ink-soft)', fontSize:12 }}>{b.category}</td>
+                    <td style={{ fontWeight:700 }}>{b._count?.loyaltyCards ?? 0}</td>
+                    <td>{statusBadge(b.status)}</td>
+                    <td style={{ color:'var(--ink-soft)', fontSize:12 }}>
+                      {new Date(b.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
                     </td>
-                    <td><span className="font-medium">{b._count?.loyaltyCards ?? 0}</span></td>
-                    <td><span className="text-sm text-muted">{new Date(b.createdAt).toLocaleDateString()}</span></td>
                     <td>
-                      <div className="flex gap-2">
-                        <Link href={`/businesses/${b.id}`} className="btn btn-secondary btn-sm">View</Link>
+                      <div style={{ display:'flex', gap:6 }}>
                         {b.status === 'PENDING' && (
-                          <button onClick={() => approve(b.id)} className="btn btn-success btn-sm">Approve</button>
+                          <button className="btn btn-primary btn-xs" onClick={() => approve(b.id)}>Approve</button>
                         )}
                         {b.status === 'APPROVED' && (
-                          <button onClick={() => suspend(b.id)} className="btn btn-danger btn-sm">Suspend</button>
+                          <button className="btn btn-danger-ghost btn-xs" onClick={() => suspend(b.id)}>Suspend</button>
                         )}
+                        {b.status === 'SUSPENDED' && (
+                          <button className="btn btn-primary btn-xs" onClick={() => approve(b.id)}>Reinstate</button>
+                        )}
+                        <Link href={`/businesses/${b.id}`} className="btn btn-outline btn-xs">View</Link>
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
 
-            {/* Pagination */}
-            <div className="pagination">
-              <span className="pagination-info">
-                Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}
-              </span>
-              <div className="pagination-controls">
-                <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>←</button>
-                {Array.from({ length: Math.min(pages, 5) }, (_, i) => i + 1).map(p => (
-                  <button key={p} className={`page-btn${p === page ? ' active' : ''}`} onClick={() => setPage(p)}>{p}</button>
-                ))}
-                <button className="page-btn" disabled={page >= pages} onClick={() => setPage(p => p + 1)}>→</button>
-              </div>
-            </div>
-          </>
+        {!loading && (
+          <p style={{ fontSize:12, color:'var(--ink-faint)', fontWeight:600 }}>
+            Showing {businesses.length} of {total} businesses
+          </p>
         )}
       </div>
-    </div>
-  );
-}
-
-export default function BusinessesPage() {
-  return (
-    <Suspense fallback={<div className="loading-page"><div className="loading-spinner" /></div>}>
-      <BusinessesList />
-    </Suspense>
+    </>
   );
 }

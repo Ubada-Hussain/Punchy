@@ -42,23 +42,10 @@ class _AdminAnnouncementsScreenState extends State<AdminAnnouncementsScreen> {
       }
     } catch (_) {}
 
-    // Fallback sample announcements
+    // Fallback
     if (mounted) {
       setState(() {
-        _announcements = [
-          {
-            'title': 'Weekend Punch Multiplier Campaign ☕',
-            'body': 'Double punches active for all coffee shops this Saturday and Sunday!',
-            'targetType': 'CUSTOMERS',
-            'createdAt': DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
-          },
-          {
-            'title': 'New NFC Standee Hardware Available',
-            'body': 'Order your branded NFC counter blocks directly from your business settings.',
-            'targetType': 'BUSINESSES',
-            'createdAt': DateTime.now().subtract(const Duration(days: 6)).toIso8601String(),
-          },
-        ];
+        _announcements = [];
         _isLoading = false;
       });
     }

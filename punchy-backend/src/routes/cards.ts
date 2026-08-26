@@ -9,6 +9,7 @@ const CardSchema = z.object({
   title: z.string().min(2),
   punchesRequired: z.number().int().min(1).max(100).default(10),
   rewardDescription: z.string().min(5),
+  validUntil: z.string().nullable().optional(),
   visualStyle: z.object({
     primaryColor: z.string().default('#FF6B35'),
     bgColor: z.string().default('#1a1a2e'),
@@ -39,6 +40,13 @@ router.post('/business/:businessId', requireAuth, requireRole('BUSINESS'), async
   const business = await prisma.businessProfile.findUnique({ where: { id: businessId } });
   if (!business || business.userId !== req.user!.userId) { res.status(403).json({ error: 'Forbidden' }); return; }
 
+  // Check Single Active Card rule
+  const existingCard = await prisma.loyaltyCard.findFirst({ where: { businessId } });
+  if (existingCard) {
+    res.status(400).json({ error: 'A business can only have one active loyalty card at a time. Please delete your existing card before creating a new one.' });
+    return;
+  }
+
   const parsed = CardSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
@@ -48,6 +56,7 @@ router.post('/business/:businessId', requireAuth, requireRole('BUSINESS'), async
       title: parsed.data.title,
       punchesRequired: parsed.data.punchesRequired,
       rewardDescription: parsed.data.rewardDescription,
+      validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null,
       visualStyle: parsed.data.visualStyle ?? { primaryColor: '#FF6B35', bgColor: '#1a1a2e', iconType: 'star' },
     },
   });
@@ -81,7 +90,28 @@ router.patch('/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, 
   const parsed = CardSchema.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
-  res.json(await prisma.loyaltyCard.update({ where: { id }, data: parsed.data }));
+  const updateData: Record<string, unknown> = { ...parsed.data };
+  if (parsed.data.validUntil !== undefined) {
+    updateData.validUntil = parsed.data.validUntil ? new Date(parsed.data.validUntil) : null;
+  }
+
+  res.json(await prisma.loyaltyCard.update({ where: { id }, data: updateData }));
+});
+
+// DELETE /cards/:id
+router.delete('/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+  const id = String(req.params.id);
+  const card = await prisma.loyaltyCard.findUnique({ where: { id } });
+  if (!card) { res.status(404).json({ error: 'Card not found' }); return; }
+
+  const business = await prisma.businessProfile.findUnique({ where: { id: card.businessId } });
+  if (!business || business.userId !== req.user!.userId) { res.status(403).json({ error: 'Forbidden' }); return; }
+
+  await prisma.punchMethod.deleteMany({ where: { cardId: id } });
+  await prisma.customerCard.deleteMany({ where: { cardId: id } });
+  await prisma.loyaltyCard.delete({ where: { id } });
+
+  res.json({ message: 'Loyalty card deleted successfully' });
 });
 
 export default router;
