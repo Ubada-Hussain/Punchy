@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://129.154.252.220/api').replace(/\/$/, '');
 
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -7,7 +7,8 @@ function getToken(): string | null {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${API_BASE}${path}`, {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const res = await fetch(`${API_BASE}${normalizedPath}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
