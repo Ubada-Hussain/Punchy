@@ -6,6 +6,24 @@ import { sendNotification } from '../lib/notifications';
 
 const router = Router();
 
+// GET /admin/config — persisted platform settings
+router.get('/config', requireAuth, requireRole('ADMIN'), async (_req: Request, res: Response): Promise<void> => {
+  const rows = await prisma.adminConfig.findMany();
+  res.json(Object.fromEntries(rows.map(row => [row.key, row.value])));
+});
+
+// PATCH /admin/config — update persisted platform settings
+router.patch('/config', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  const allowed = ['maintenanceMode', 'minimumAppVersion', 'supportEmail', 'termsUrl', 'trialPeriodDays'];
+  const entries = Object.entries(req.body as Record<string, unknown>).filter(([key]) => allowed.includes(key));
+  await prisma.$transaction(entries.map(([key, value]) => prisma.adminConfig.upsert({
+    where: { key },
+    create: { key, value: value as any, updatedBy: req.user!.userId },
+    update: { value: value as any, updatedBy: req.user!.userId },
+  })));
+  res.json({ message: 'Settings saved' });
+});
+
 /**
  * GET /admin/stats — Platform-wide overview & growth metrics
  */
@@ -78,7 +96,7 @@ router.get('/businesses', requireAuth, requireRole('ADMIN'), async (req: Request
   const businesses = await prisma.businessProfile.findMany({
     where,
     include: {
-      user: { select: { email: true, createdAt: true, phone: true } },
+      user: { select: { email: true, publicId: true, createdAt: true, phone: true } },
       loyaltyCards: { select: { id: true, title: true, isActive: true } },
       _count: { select: { loyaltyCards: true } },
     },
@@ -89,11 +107,11 @@ router.get('/businesses', requireAuth, requireRole('ADMIN'), async (req: Request
 });
 
 /**
- * PUT /admin/businesses/:id/status — Approve, Reject, or Suspend a business
+ * PUT /admin/businesses/:id/status — Activate or Suspend a business
  */
 router.put('/businesses/:id/status', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
   const { status } = req.body;
-  if (!['PENDING', 'APPROVED', 'SUSPENDED'].includes(status)) {
+  if (!['APPROVED', 'SUSPENDED'].includes(status)) {
     res.status(400).json({ error: 'Invalid business status' });
     return;
   }
@@ -137,6 +155,7 @@ router.get('/customers', requireAuth, requireRole('ADMIN'), async (req: Request,
     where,
     select: {
       id: true,
+      publicId: true,
       email: true,
       phone: true,
       isBlocked: true,
@@ -157,6 +176,29 @@ router.get('/customers', requireAuth, requireRole('ADMIN'), async (req: Request,
   res.json(customers);
 });
 
+// GET /admin/customers/:id — customer detail for the admin portal
+router.get('/customers/:id', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  const customer = await prisma.user.findFirst({
+    where: { id: String(req.params.id), role: 'CUSTOMER' },
+    select: {
+      id: true, publicId: true, email: true, name: true, phone: true, isBlocked: true, createdAt: true,
+      customerCards: {
+        select: { id: true, punchCount: true, isCompleted: true, card: { select: { title: true, business: { select: { name: true } } } } },
+      },
+    },
+  });
+  if (!customer) { res.status(404).json({ error: 'Customer not found' }); return; }
+  res.json({ customer });
+});
+
+router.get('/notification-targets', requireAuth, requireRole('ADMIN'), async (_req, res) => {
+  const [customers, businesses] = await Promise.all([
+    prisma.user.findMany({ where: { role: 'CUSTOMER' }, select: { id: true, publicId: true, email: true, name: true, createdAt: true } }),
+    prisma.businessProfile.findMany({ select: { userId: true, name: true, createdAt: true, user: { select: { email: true, publicId: true } } } }),
+  ]);
+  res.json({ customers, businesses });
+});
+
 /**
  * POST /admin/customers/:id/toggle-block — Suspend or Unsuspend customer account
  */
@@ -166,6 +208,7 @@ router.post('/customers/:id/toggle-block', requireAuth, requireRole('ADMIN'), as
     res.status(404).json({ error: 'User not found' });
     return;
   }
+  if (user.role !== 'CUSTOMER') { res.status(400).json({ error: 'Only customer accounts can be suspended here' }); return; }
 
   const updated = await prisma.user.update({
     where: { id: user.id },

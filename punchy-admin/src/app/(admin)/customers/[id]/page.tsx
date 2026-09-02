@@ -16,7 +16,7 @@ export default function CustomerDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<{ customer: User }>(`/customers/${id}`)
+    api.get<{ customer: User }>(`/admin/customers/${id}`)
       .then(res => setUser(res.customer))
       .catch(console.error)
       .finally(() => setLoading(false));

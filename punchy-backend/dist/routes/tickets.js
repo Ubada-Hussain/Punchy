@@ -13,7 +13,7 @@ const TicketSchema = zod_1.z.object({
     body: zod_1.z.string().min(10),
 });
 // POST /tickets
-router.post('/', auth_1.requireAuth, async (req, res) => {
+router.post('/', auth_1.requireAuthAllowSuspended, async (req, res) => {
     const parsed = TicketSchema.safeParse(req.body);
     if (!parsed.success) {
         res.status(400).json({ error: parsed.error.flatten() });

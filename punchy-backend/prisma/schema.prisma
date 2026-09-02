@@ -52,6 +52,7 @@ enum SubscriptionTier {
 
 model User {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  publicId      String?  @unique
   email         String   @unique
   name          String?
   phone         String?
@@ -71,6 +72,7 @@ model User {
   supportTickets    SupportTicket[] @relation("TicketAuthor")
   resolvedTickets   SupportTicket[] @relation("TicketResolver")
   activityLogs      ActivityLog[]
+  fcmTokens         String[] @default([])
 }
 
 model RefreshToken {
@@ -80,6 +82,18 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+model PasswordResetOtp {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  email      String
+  otpHash    String
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  @@index([email, expiresAt])
 }
 
 // ─── Business ────────────────────────────────────────────────────────────────
@@ -183,7 +197,7 @@ model Redemption {
 model Notification {
   id          String             @id @default(auto()) @map("_id") @db.ObjectId
   targetType  NotificationTarget
-  targetId    String?            @db.ObjectId
+  targetId    String?
   title       String
   body        String
   sentAt      DateTime?

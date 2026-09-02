@@ -3,8 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiClient {
-  // Live Production Backend - trypunchy.site
-  static const String baseUrl = 'https://trypunchy.site/api';  
+  // Live Production Backend - www.trypunchy.site
+  static const String baseUrl = 'https://trypunchy.site/api';
 
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
@@ -63,7 +63,16 @@ class ApiClient {
       if (response.body.isEmpty) return null;
       return jsonDecode(response.body);
     } else {
-      throw ApiException(response.statusCode, response.body);
+      var message = response.body;
+      Map<String, dynamic>? details;
+      try {
+        final v = jsonDecode(response.body);
+        if (v is Map) {
+          details = Map<String, dynamic>.from(v);
+          if (v['error'] != null) message = v['error'].toString();
+        }
+      } catch (_) {}
+      throw ApiException(response.statusCode, message, details: details);
     }
   }
 }
@@ -71,8 +80,9 @@ class ApiClient {
 class ApiException implements Exception {
   final int statusCode;
   final String message;
+  final Map<String, dynamic>? details;
   
-  ApiException(this.statusCode, this.message);
+  ApiException(this.statusCode, this.message, {this.details});
   
   @override
   String toString() => 'ApiException: $statusCode - $message';

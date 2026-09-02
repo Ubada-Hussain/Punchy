@@ -13,7 +13,7 @@ export default function NfcQrPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    api.get<{ methods: PopulatedMethod[] }>('/methods')
+    api.get<{ methods: PopulatedMethod[] }>('/punch-methods')
       .then(res => setMethods(res.methods))
       .catch(console.error)
       .finally(() => setLoading(false));

@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers/auth_provider.dart';
-import '../../core/services/clerk_auth_service.dart';
 import '../../core/theme/app_colors.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -17,11 +16,19 @@ class _SignupScreenState extends State<SignupScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _acceptedTerms = false;
   int _roleIndex = 0; // 0 = Customer, 1 = Business
 
   void _handleSignup() async {
     if (_formKey.currentState!.validate()) {
+      if (!_acceptedTerms) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please accept the Terms & Conditions to continue.')),
+        );
+        return;
+      }
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final role = _roleIndex == 1 ? 'BUSINESS' : 'CUSTOMER';
       
@@ -34,7 +41,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
       if (success && mounted) {
         if (_roleIndex == 1) {
-          context.go('/business');
+          context.go('/business/setup');
         } else {
           context.go('/');
         }
@@ -180,7 +187,59 @@ class _SignupScreenState extends State<SignupScreen> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+
+                  // Confirm Password
+                  Text(
+                    'Confirm Password',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: true,
+                    style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
+                    decoration: const InputDecoration(
+                      hintText: 'Confirm your password',
+                      prefixIcon: Icon(Icons.lock_outline_rounded, color: AppColors.inkFaint, size: 18),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.isEmpty) return 'Please confirm your password';
+                      if (val != _passwordController.text) return "Passwords don't match";
+                      return null;
+                    },
+                  ),
                   const SizedBox(height: 24),
+
+                  // Terms acceptance (required before account creation)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Checkbox(
+                        value: _acceptedTerms,
+                        activeColor: AppColors.teal,
+                        onChanged: (value) => setState(() => _acceptedTerms = value ?? false),
+                      ),
+                      Expanded(
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          children: [
+                            Text('I agree to the ', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.inkSoft)),
+                            GestureDetector(
+                              onTap: () => context.push('/terms'),
+                              child: Text('Terms & Conditions', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.tealDark, fontWeight: FontWeight.w700)),
+                            ),
+                            Text(' and Privacy Policy', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.inkSoft)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
 
                   // Submit Button
                   Container(
@@ -216,53 +275,6 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Divider
-                  Row(
-                    children: [
-                      const Expanded(child: Divider(color: AppColors.line)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          'OR CONTINUE WITH',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.inkFaint,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      const Expanded(child: Divider(color: AppColors.line)),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Social Row (Powered by Clerk)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildSocialBtn('Google', Icons.g_mobiledata_rounded, onTap: () {
-                          ClerkAuthService.signInWithGoogle(context, role: _roleIndex == 1 ? 'BUSINESS' : 'CUSTOMER');
-                        }),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildSocialBtn('Apple', Icons.apple_rounded, onTap: () {
-                          ClerkAuthService.signInWithApple(context, role: _roleIndex == 1 ? 'BUSINESS' : 'CUSTOMER');
-                        }),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  Text(
-                    'By continuing you agree to our Terms & Privacy Policy',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      color: AppColors.inkSoft,
-                    ),
-                  ),
                   const SizedBox(height: 16),
 
                   Row(
@@ -327,42 +339,12 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  Widget _buildSocialBtn(String label, IconData icon, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 44,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.line, width: 1.5),
-        ),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 20, color: AppColors.ink),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 }

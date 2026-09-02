@@ -32,3 +32,6 @@ Thumbs.db
 
 # Database files
 mongo_data/
+
+.vercel
+.env*

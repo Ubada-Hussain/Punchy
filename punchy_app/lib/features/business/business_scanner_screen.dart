@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'dart:convert';
+import 'dart:async';
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/hardware_scanner_service.dart';
@@ -15,12 +17,14 @@ class BusinessScannerScreen extends StatefulWidget {
 
 class _BusinessScannerScreenState extends State<BusinessScannerScreen> with SingleTickerProviderStateMixin {
   final ApiClient _api = ApiClient();
-  final MobileScannerController _scannerController = MobileScannerController();
+  final MobileScannerController _scannerController = MobileScannerController(autoStart: false);
   final TextEditingController _manualInputController = TextEditingController();
 
   late AnimationController _animController;
   late Animation<double> _scanAnimation;
   bool _isProcessing = false;
+  final ValueNotifier<int> _cooldownRemaining = ValueNotifier<int>(0);
+  Timer? _cooldownTimer;
 
   @override
   void initState() {
@@ -39,42 +43,76 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
 
   Future<void> _initHardware() async {
     if (HardwareScannerService.isMobileDevice && mounted) {
-      await HardwareScannerService.requestCameraPermission(context);
+      final granted = await HardwareScannerService.requestCameraPermission(context);
+      if (granted && mounted) {
+        await _scannerController.start();
+      }
     }
   }
 
   Future<void> _processCustomerPunch(String customerIdentifier) async {
     if (_isProcessing) return;
+    await _scannerController.stop();
     setState(() => _isProcessing = true);
 
     try {
       final res = await _api.post('/business/punch', {
-        'customerIdentifier': customerIdentifier,
+        'customerIdentifier': _normalizeCustomerIdentifier(customerIdentifier),
       });
 
       if (mounted) {
+        await _scannerController.stop();
         _showSuccessSheet(
           customerEmail: res['customerEmail'] ?? customerIdentifier,
           punchCount: res['punchCount'] as int? ?? 1,
           punchesRequired: res['punchesRequired'] as int? ?? 10,
           isCompleted: res['isCompleted'] == true,
           cardTitle: res['cardTitle'] ?? 'Loyalty Card',
+          message: res['message'],
         );
       }
     } catch (e) {
-      // Offline / Simulation fallback
       if (mounted) {
-        _showSuccessSheet(
-          customerEmail: customerIdentifier.contains('@') ? customerIdentifier : 'ayesha@email.com',
-          punchCount: 9,
-          punchesRequired: 10,
-          isCompleted: false,
-          cardTitle: 'Coffee Lovers Card',
-        );
+        if (e is ApiException && e.statusCode == 429) {
+          final seconds = (e.details?['remainingSeconds'] as num?)?.toInt() ?? 180;
+          _showCooldown(seconds);
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Could not record punch.')));
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
+  }
+
+  void _showCooldown(int initialSeconds) {
+    showDialog<void>(context: context, builder: (dialogContext) {
+      var remaining = initialSeconds;
+      Timer? timer;
+      return StatefulBuilder(builder: (context, setState) {
+        timer ??= Timer.periodic(const Duration(seconds: 1), (_) { if (remaining > 0) setState(() => remaining--); else { timer?.cancel(); Navigator.of(dialogContext).pop(); } });
+        final m = remaining ~/ 60, s = remaining % 60;
+        return AlertDialog(title: const Text('Punch cooldown'), content: Text('This customer already punched this card. Try again in $m:${s.toString().padLeft(2, '0')}'), actions: [TextButton(onPressed: () { timer?.cancel(); Navigator.of(dialogContext).pop(); }, child: const Text('OK'))]);
+      });
+    });
+  }
+
+  String _normalizeCustomerIdentifier(String value) {
+    final text = value.trim();
+    if (text.startsWith('{')) {
+      try {
+        final json = jsonDecode(text);
+        for (final key in ['customerId', 'userId', 'id', 'email']) {
+          if (json[key] is String && (json[key] as String).trim().isNotEmpty) return (json[key] as String).trim();
+        }
+      } catch (_) {}
+    }
+    return text;
+  }
+
+  Future<void> _processScan(String value) async {
+    await _scannerController.stop();
+    _processCustomerPunch(value);
   }
 
   void _showSuccessSheet({
@@ -83,7 +121,13 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
     required int punchesRequired,
     required bool isCompleted,
     required String cardTitle,
+    String? message,
   }) {
+    _cooldownTimer?.cancel();
+    _cooldownRemaining.value = 180;
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_cooldownRemaining.value > 0) _cooldownRemaining.value--;
+    });
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -127,7 +171,7 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
               const SizedBox(height: 14),
 
               Text(
-                isCompleted ? '🎉 Reward Ready to Redeem!' : 'Punch Added Successfully! ☕',
+                message ?? (isCompleted ? '🎉 Card Completed — reward ready' : 'Punch Added Successfully! ☕'),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -144,6 +188,15 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
                 ),
               ),
               const SizedBox(height: 18),
+
+              ValueListenableBuilder<int>(
+                valueListenable: _cooldownRemaining,
+                builder: (_, seconds, __) => Text(
+                  'Next punch available in ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.coralDark),
+                ),
+              ),
+              const SizedBox(height: 12),
 
               // Punch Badge
               Container(
@@ -201,6 +254,8 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
+    _cooldownRemaining.dispose();
     _animController.dispose();
     _scannerController.dispose();
     _manualInputController.dispose();
@@ -264,7 +319,7 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
                             final List<Barcode> barcodes = capture.barcodes;
                             for (final barcode in barcodes) {
                               if (barcode.rawValue != null) {
-                                _processCustomerPunch(barcode.rawValue!);
+                                _processScan(barcode.rawValue!);
                                 break;
                               }
                             }
@@ -360,10 +415,11 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
                     Expanded(
                       child: TextField(
                         controller: _manualInputController,
-                        style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 13),
+                        style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 13),
+                        cursorColor: AppColors.teal,
                         decoration: InputDecoration(
                           hintText: 'Or enter customer email...',
-                          hintStyle: GoogleFonts.plusJakartaSans(color: Colors.white.withValues(alpha: 0.4), fontSize: 12.5),
+                          hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.ink.withValues(alpha: 0.45), fontSize: 12.5),
                           border: InputBorder.none,
                           isDense: true,
                         ),
@@ -374,7 +430,8 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
                           ? null
                           : () {
                               final text = _manualInputController.text.trim();
-                              _processCustomerPunch(text.isNotEmpty ? text : 'ayesha@email.com');
+                              if (text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter the customer email or ID first.'))); return; }
+                              _processScan(text);
                             },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.teal,
@@ -397,7 +454,11 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton.icon(
-                  onPressed: _isProcessing ? null : () => _processCustomerPunch('PUNCHY:CUSTOMER:u1:ayesha@email.com'),
+                  onPressed: _isProcessing ? null : () {
+                    final text = _manualInputController.text.trim();
+                    if (text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter the customer email or ID first.'))); return; }
+                    _processScan(text);
+                  },
                   icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 18),
                   label: Text('Simulate Customer Barcode Scan', style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white)),
                   style: ElevatedButton.styleFrom(

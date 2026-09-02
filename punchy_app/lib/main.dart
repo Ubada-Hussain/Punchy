@@ -6,6 +6,7 @@ import 'core/providers/auth_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_screen.dart';
+import 'features/auth/forgot_password_screen.dart';
 import 'features/customer/dashboard_screen.dart';
 import 'features/customer/explore_screen.dart';
 import 'features/customer/customer_barcode_screen.dart';
@@ -32,26 +33,34 @@ import 'features/system_states/not_found_screen.dart';
 import 'features/system_states/maintenance_screen.dart';
 import 'features/system_states/app_update_screen.dart';
 import 'features/system_states/system_states_demo_screen.dart';
+import 'features/system_states/punchy_splash_screen.dart';
 
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'core/services/notification_service.dart';
 
 void main() {
-  runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    FlutterError.onError = (FlutterErrorDetails details) {
-      FlutterError.presentError(details);
-    };
-    runApp(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ],
-        child: const PunchyApp(),
-      ),
-    );
-  }, (error, stack) {
-    debugPrint('Uncaught app error: $error\n$stack');
-  });
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      await Firebase.initializeApp();
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      await NotificationService().initialize();
+      FlutterError.onError = (FlutterErrorDetails details) {
+        FlutterError.presentError(details);
+      };
+      runApp(
+        MultiProvider(
+          providers: [ChangeNotifierProvider(create: (_) => AuthProvider())],
+          child: const PunchyApp(),
+        ),
+      );
+    },
+    (error, stack) {
+      debugPrint('Uncaught app error: $error\n$stack');
+    },
+  );
 }
 
 class PunchyApp extends StatefulWidget {
@@ -70,17 +79,7 @@ class _PunchyAppState extends State<PunchyApp> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     _router = GoRouter(
-      initialLocation: authProvider.isAuthenticated
-          ? (authProvider.isSuspended
-              ? '/suspended'
-              : authProvider.user?['role'] == 'BUSINESS'
-                  ? '/business'
-                  : authProvider.user?['role'] == 'STAFF'
-                      ? '/staff'
-                      : authProvider.user?['role'] == 'ADMIN'
-                          ? '/admin'
-                          : '/')
-          : '/login',
+      initialLocation: '/splash',
       refreshListenable: authProvider,
       errorBuilder: (context, state) => const NotFoundScreen(),
       redirect: (context, state) {
@@ -106,8 +105,11 @@ class _PunchyAppState extends State<PunchyApp> {
           return '/';
         }
 
-        final isPublic = loc == '/login' ||
+        final isPublic =
+            loc == '/login' ||
+            loc == '/splash' ||
             loc == '/signup' ||
+            loc == '/forgot-password' ||
             loc == '/terms' ||
             loc.startsWith('/system-states') ||
             loc == '/offline' ||
@@ -136,14 +138,20 @@ class _PunchyAppState extends State<PunchyApp> {
 
           // Strict Role Security: Customers cannot visit business, staff, or admin routes
           if (role == 'CUSTOMER') {
-            if (loc.startsWith('/business') || loc == '/staff' || loc.startsWith('/admin')) {
+            if (loc.startsWith('/business') ||
+                loc == '/staff' ||
+                loc.startsWith('/admin')) {
               return '/';
             }
           }
 
           // Strict Role Security: Businesses cannot visit customer wallet, staff portal, or admin routes
           if (role == 'BUSINESS') {
-            if (loc == '/' || loc == '/explore' || loc == '/barcode' || loc == '/notifications' || loc == '/staff' || loc.startsWith('/admin')) {
+            if (loc == '/' ||
+                loc == '/explore' ||
+                loc == '/barcode' ||
+                loc == '/staff' ||
+                loc.startsWith('/admin')) {
               return '/business';
             }
           }
@@ -152,6 +160,10 @@ class _PunchyAppState extends State<PunchyApp> {
         return null;
       },
       routes: [
+        GoRoute(
+          path: '/splash',
+          builder: (context, state) => const PunchySplashScreen(),
+        ),
         // Auth
         GoRoute(
           path: '/login',
@@ -160,6 +172,10 @@ class _PunchyAppState extends State<PunchyApp> {
         GoRoute(
           path: '/signup',
           builder: (context, state) => const SignupScreen(),
+        ),
+        GoRoute(
+          path: '/forgot-password',
+          builder: (context, state) => const ForgotPasswordScreen(),
         ),
 
         // Customer Routes

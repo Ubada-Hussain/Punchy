@@ -3,10 +3,10 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { api, type Business } from '@/lib/api';
 
-const FILTERS = ['ALL', 'APPROVED', 'PENDING', 'SUSPENDED'] as const;
+const FILTERS = ['ALL', 'APPROVED', 'SUSPENDED'] as const;
 
 function statusBadge(s: string) {
-  const map: Record<string, string> = { APPROVED:'b-active', PENDING:'b-pending', SUSPENDED:'b-suspended' };
+  const map: Record<string, string> = { APPROVED:'b-active', SUSPENDED:'b-suspended' };
   return <span className={`badge ${map[s] ?? 'b-pending'}`}>{s}</span>;
 }
 
@@ -35,15 +35,15 @@ export default function BusinessesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function approve(id: string) {
-    if (!confirm('Approve this business?')) return;
-    await api.patch(`/businesses/${id}`, { status: 'APPROVED' });
+  async function suspend(id: string) {
+    if (!confirm('Suspend this business?')) return;
+    await api.post(`/businesses/${id}/suspend`, {});
     load();
   }
 
-  async function suspend(id: string) {
-    if (!confirm('Suspend this business?')) return;
-    await api.patch(`/businesses/${id}`, { status: 'SUSPENDED' });
+  async function unban(id: string) {
+    if (!confirm('Unban this business?')) return;
+    await api.post(`/businesses/${id}/unban`, {});
     load();
   }
 
@@ -97,6 +97,7 @@ export default function BusinessesPage() {
               <thead>
                 <tr>
                   <th>Business</th>
+                  <th>Public ID</th>
                   <th>Category</th>
                   <th>Customers</th>
                   <th>Status</th>
@@ -118,6 +119,7 @@ export default function BusinessesPage() {
                         </div>
                       </div>
                     </td>
+                    <td>{b.user?.publicId ?? '—'}</td>
                     <td style={{ color:'var(--ink-soft)', fontSize:12 }}>{b.category}</td>
                     <td style={{ fontWeight:700 }}>{b._count?.loyaltyCards ?? 0}</td>
                     <td>{statusBadge(b.status)}</td>
@@ -126,14 +128,11 @@ export default function BusinessesPage() {
                     </td>
                     <td>
                       <div style={{ display:'flex', gap:6 }}>
-                        {b.status === 'PENDING' && (
-                          <button className="btn btn-primary btn-xs" onClick={() => approve(b.id)}>Approve</button>
-                        )}
                         {b.status === 'APPROVED' && (
                           <button className="btn btn-danger-ghost btn-xs" onClick={() => suspend(b.id)}>Suspend</button>
                         )}
                         {b.status === 'SUSPENDED' && (
-                          <button className="btn btn-primary btn-xs" onClick={() => approve(b.id)}>Reinstate</button>
+                          <button className="btn btn-primary btn-xs" onClick={() => unban(b.id)}>Unban</button>
                         )}
                         <Link href={`/businesses/${b.id}`} className="btn btn-outline btn-xs">View</Link>
                       </div>

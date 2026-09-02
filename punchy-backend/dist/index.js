@@ -17,23 +17,31 @@ const analytics_1 = __importDefault(require("./routes/analytics"));
 const notifications_1 = __importDefault(require("./routes/notifications"));
 const tickets_1 = __importDefault(require("./routes/tickets"));
 const admin_1 = __importDefault(require("./routes/admin"));
+const businessPortal_1 = __importDefault(require("./routes/businessPortal"));
 const app = (0, express_1.default)();
 app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express_1.default.json());
 // Health check
-app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
-// Routes
-app.use('/auth', auth_1.default);
-app.use('/businesses', businesses_1.default);
-app.use('/cards', cards_1.default);
-app.use('/punch-methods', punchMethods_1.default);
-app.use('/punch', punch_1.default);
-app.use('/customer', customer_1.default);
-app.use('/analytics', analytics_1.default);
-app.use('/notifications', notifications_1.default);
-app.use('/tickets', tickets_1.default);
-app.use('/admin', admin_1.default);
+app.get(['/health', '/api/health'], (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+// Register routes on both direct paths and /api prefix for clean proxying
+const apiRoutes = [
+    ['/auth', auth_1.default],
+    ['/businesses', businesses_1.default],
+    ['/business', businessPortal_1.default],
+    ['/cards', cards_1.default],
+    ['/punch-methods', punchMethods_1.default],
+    ['/punch', punch_1.default],
+    ['/customer', customer_1.default],
+    ['/analytics', analytics_1.default],
+    ['/notifications', notifications_1.default],
+    ['/tickets', tickets_1.default],
+    ['/admin', admin_1.default],
+];
+for (const [routePath, router] of apiRoutes) {
+    app.use(routePath, router);
+    app.use(`/api${routePath}`, router);
+}
 // 404 handler
 app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));
 // Global error handler

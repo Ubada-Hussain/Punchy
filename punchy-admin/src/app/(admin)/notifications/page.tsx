@@ -6,6 +6,9 @@ export default function NotificationsPage() {
   const [history, setHistory] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ title: '', body: '', targetType: 'ALL' });
+  const [targetMode, setTargetMode] = useState('ALL');
+  const [recipient, setRecipient] = useState('');
+  const [month, setMonth] = useState('');
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -20,8 +23,8 @@ export default function NotificationsPage() {
     if (!form.title || !form.body) return;
     setSending(true);
     try {
-      const res = await api.post<{ notification: Notification }>('/notifications', form);
-      setHistory(prev => [res.notification, ...prev]);
+      const res = await api.post<Notification>('/notifications', targetMode === 'USER' ? { ...form, targetType: 'USER', targetId: recipient } : form);
+      setHistory(prev => [res, ...prev]);
       setForm({ title: '', body: '', targetType: 'ALL' });
       alert('Notification sent!');
     } catch (err: unknown) {
@@ -51,6 +54,9 @@ export default function NotificationsPage() {
                 <option value="BUSINESSES">Businesses Only</option>
               </select>
             </div>
+            <div className="field"><label>Specific recipient or month</label><select value={targetMode} onChange={e => setTargetMode(e.target.value)}><option value="ALL">All selected users</option><option value="USER">Specific business/customer</option><option value="MONTH">Join month</option></select></div>
+            {targetMode === 'USER' && <div className="field"><label>User ID / Business owner ID</label><input value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="Paste recipient ID" required /></div>}
+            {targetMode === 'MONTH' && <div className="field"><label>Joined month (YYYY-MM)</label><input type="month" value={month} onChange={e => setMonth(e.target.value)} required /></div>}
             <div className="field">
               <label>Title</label>
               <input

@@ -142,6 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                          Text('ID: ${user?['publicId'] ?? '—'}', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.tealDark)),
                           const SizedBox(height: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -284,6 +285,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 24),
 
+                  _buildSettingsRow('Delete profile', Icons.delete_forever_outlined, onTap: _confirmDeleteAccount),
+                  const SizedBox(height: 20),
+
                   // Log Out Button
                   GestureDetector(
                     onTap: () {
@@ -322,6 +326,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete profile?'),
+        content: const Text('This permanently deletes your account and loyalty data.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final ok = await context.read<AuthProvider>().deleteAccount();
+    if (mounted) {
+      if (ok) {
+        context.go('/login');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not delete profile.')));
+      }
+    }
   }
 
   Widget _buildSettingsRow(String title, IconData icon, {VoidCallback? onTap}) {

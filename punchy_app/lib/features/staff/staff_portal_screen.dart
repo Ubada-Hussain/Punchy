@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'dart:convert';
+import 'dart:async';
 import '../../core/api/api_client.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -17,13 +19,16 @@ class StaffPortalScreen extends StatefulWidget {
 
 class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTickerProviderStateMixin {
   final ApiClient _api = ApiClient();
-  final MobileScannerController _scannerController = MobileScannerController();
+  final MobileScannerController _scannerController = MobileScannerController(autoStart: false);
   final TextEditingController _manualInputController = TextEditingController();
 
   late AnimationController _animController;
   late Animation<double> _scanAnimation;
   bool _isProcessing = false;
+  final ValueNotifier<int> _cooldownRemaining = ValueNotifier<int>(0);
+  Timer? _cooldownTimer;
   bool _isCheckingStatus = false;
+  bool _scannerOpen = false;
 
   @override
   void initState() {
@@ -57,6 +62,8 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
 
   Future<void> _processCustomerPunch(String customerIdentifier) async {
     if (_isProcessing) return;
+    await _scannerController.stop();
+    if (mounted) setState(() => _scannerOpen = false);
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
     if (!auth.isStaffActive) {
@@ -68,10 +75,11 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
 
     try {
       final res = await _api.post('/business/punch', {
-        'customerIdentifier': customerIdentifier,
+        'customerIdentifier': _normalizeCustomerIdentifier(customerIdentifier),
       });
 
       if (mounted) {
+        await _scannerController.stop();
         _showSuccessSheet(
           customerEmail: res['customerEmail'] ?? customerIdentifier,
           punchCount: res['punchCount'] as int? ?? 1,
@@ -83,24 +91,53 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
       }
     } catch (e) {
       if (mounted) {
+        if (e is ApiException && e.statusCode == 429) {
+          final seconds = (e.details?['remainingSeconds'] as num?)?.toInt() ?? 180;
+          _showCooldown(seconds);
+          return;
+        }
         if (e is ApiException && e.message.contains('disabled')) {
           auth.setStaffActiveState(false);
           _showInactiveWarning();
         } else {
-          // Fallback / simulation response
-          _showSuccessSheet(
-            customerEmail: customerIdentifier.contains('@') ? customerIdentifier : 'ayesha@email.com',
-            punchCount: 5,
-            punchesRequired: 10,
-            isCompleted: false,
-            cardTitle: 'Coffee Loyalty Card',
-            message: 'Punch recorded successfully!',
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Could not record punch.')));
         }
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
+  }
+
+  void _showCooldown(int initialSeconds) {
+    showDialog<void>(context: context, builder: (dialogContext) {
+      var remaining = initialSeconds;
+      Timer? timer;
+      return StatefulBuilder(builder: (context, setState) {
+        timer ??= Timer.periodic(const Duration(seconds: 1), (_) { if (remaining > 0) setState(() => remaining--); else { timer?.cancel(); Navigator.of(dialogContext).pop(); } });
+        final m = remaining ~/ 60, s = remaining % 60;
+        return AlertDialog(title: const Text('Punch cooldown'), content: Text('This customer already punched this card. Try again in $m:${s.toString().padLeft(2, '0')}'), actions: [TextButton(onPressed: () { timer?.cancel(); Navigator.of(dialogContext).pop(); }, child: const Text('OK'))]);
+      });
+    });
+  }
+
+  String _normalizeCustomerIdentifier(String value) {
+    final text = value.trim();
+    if (text.startsWith('{')) {
+      try {
+        final json = jsonDecode(text);
+        for (final key in ['customerId', 'userId', 'id', 'email']) {
+          if (json[key] is String && (json[key] as String).trim().isNotEmpty) return (json[key] as String).trim();
+        }
+      } catch (_) {}
+    }
+    return text;
+  }
+
+  Future<void> _processScan(String value) async {
+    await _scannerController.stop();
+    if (mounted) setState(() => _scannerOpen = false);
+    _processCustomerPunch(value);
+    if (mounted) setState(() => _scannerOpen = false);
   }
 
   void _showInactiveWarning() {
@@ -125,6 +162,11 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
     required String cardTitle,
     String? message,
   }) {
+    _cooldownTimer?.cancel();
+    _cooldownRemaining.value = 180;
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_cooldownRemaining.value > 0) _cooldownRemaining.value--;
+    });
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -173,6 +215,14 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                   color: AppColors.ink,
+                ),
+              ),
+              const SizedBox(height: 6),
+              ValueListenableBuilder<int>(
+                valueListenable: _cooldownRemaining,
+                builder: (_, seconds, __) => Text(
+                  'Next punch available in ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.coralDark),
                 ),
               ),
               const SizedBox(height: 6),
@@ -248,6 +298,8 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
+    _cooldownRemaining.dispose();
     _animController.dispose();
     _scannerController.dispose();
     _manualInputController.dispose();
@@ -363,6 +415,9 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
   }
 
   Widget _buildActiveScannerView() {
+    if (!_scannerOpen) {
+      return Center(child: Padding(padding: const EdgeInsets.all(32), child: SizedBox(width: double.infinity, height: 56, child: ElevatedButton.icon(onPressed: _openScanner, icon: const Icon(Icons.qr_code_scanner_rounded), label: const Text('Open Scanner')))));
+    }
     return Column(
       children: [
         // Camera Viewfinder Box
@@ -381,7 +436,7 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                         final List<Barcode> barcodes = capture.barcodes;
                         for (final barcode in barcodes) {
                           if (barcode.rawValue != null) {
-                            _processCustomerPunch(barcode.rawValue!);
+                            _processScan(barcode.rawValue!);
                             break;
                           }
                         }
@@ -485,10 +540,11 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                 Expanded(
                   child: TextField(
                     controller: _manualInputController,
-                    style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 13),
+                    style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 13),
+                    cursorColor: AppColors.teal,
                     decoration: InputDecoration(
                       hintText: 'Enter customer email or ID...',
-                      hintStyle: GoogleFonts.plusJakartaSans(color: Colors.white.withValues(alpha: 0.4), fontSize: 12.5),
+                      hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.ink.withValues(alpha: 0.45), fontSize: 12.5),
                       border: InputBorder.none,
                       isDense: true,
                     ),
@@ -499,7 +555,8 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                       ? null
                       : () {
                           final text = _manualInputController.text.trim();
-                          _processCustomerPunch(text.isNotEmpty ? text : 'ayesha@email.com');
+                          if (text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter the customer email or ID first.'))); return; }
+                          _processCustomerPunch(text);
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.teal,
@@ -522,7 +579,11 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
             width: double.infinity,
             height: 48,
             child: ElevatedButton.icon(
-              onPressed: _isProcessing ? null : () => _processCustomerPunch('PUNCHY:CUSTOMER:u1:ayesha@email.com'),
+              onPressed: _isProcessing ? null : () {
+                final text = _manualInputController.text.trim();
+                if (text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter the customer email or ID first.'))); return; }
+                _processCustomerPunch(text);
+              },
               icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 18),
               label: Text(
                 'Simulate Customer Barcode Scan',
@@ -538,6 +599,13 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
         ),
       ],
     );
+  }
+
+  Future<void> _openScanner() async {
+    final granted = await HardwareScannerService.requestCameraPermission(context);
+    if (!granted || !mounted) return;
+    setState(() => _scannerOpen = true);
+    await _scannerController.start();
   }
 
   Widget _buildInactiveLockedView() {

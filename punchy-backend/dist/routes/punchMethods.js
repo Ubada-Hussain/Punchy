@@ -13,6 +13,14 @@ const MethodSchema = zod_1.z.object({
     type: zod_1.z.enum(['QR', 'NFC']),
     label: zod_1.z.string().optional(),
 });
+// GET /punch-methods — admin inventory for the admin portal
+router.get('/', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), async (_req, res) => {
+    const methods = await prisma_1.default.punchMethod.findMany({
+        include: { card: { include: { business: { select: { name: true } } } } },
+        orderBy: { createdAt: 'desc' },
+    });
+    res.json({ methods });
+});
 // POST /punch-methods/card/:cardId
 router.post('/card/:cardId', auth_1.requireAuth, (0, auth_1.requireRole)('BUSINESS'), async (req, res) => {
     const cardId = String(req.params.cardId);

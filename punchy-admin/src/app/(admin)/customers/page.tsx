@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { api, type User } from '@/lib/api';
 
 function statusBadge(isBlocked: boolean) {
-  if (isBlocked) return <span className="badge b-suspended">BLOCKED</span>;
+  if (isBlocked) return <span className="badge b-suspended">SUSPENDED</span>;
   return <span className="badge b-active">ACTIVE</span>;
 }
 
@@ -19,9 +19,9 @@ export default function CustomersPage() {
     try {
       const params = new URLSearchParams({ limit: '50' });
       if (search) params.set('search', search);
-      const data = await api.get<{ customers: User[]; total: number }>(`/customers?${params}`);
-      setCustomers(data.customers);
-      setTotal(data.total);
+      const data = await api.get<User[] | { customers: User[]; total: number }>(`/admin/customers?${params}`);
+      if (Array.isArray(data)) { setCustomers(data); setTotal(data.length); }
+      else { setCustomers(data.customers); setTotal(data.total); }
     } catch (e) {
       console.error(e);
     } finally {
@@ -31,9 +31,9 @@ export default function CustomersPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function toggleBlock(user: User) {
-    if (!user.isBlocked && !confirm(`Block ${user.email}?`)) return;
-    await api.patch(`/customers/${user.id}`, { isBlocked: !user.isBlocked });
+  async function toggleSuspend(user: User) {
+    if (!user.isBlocked && !confirm(`Suspend ${user.email}?`)) return;
+    await api.post(`/admin/customers/${user.id}/toggle-block`, {});
     load();
   }
 
@@ -78,6 +78,7 @@ export default function CustomersPage() {
               <thead>
                 <tr>
                   <th>Customer</th>
+                  <th>Public ID</th>
                   <th>Email</th>
                   <th>Joined</th>
                   <th>Role</th>
@@ -96,6 +97,7 @@ export default function CustomersPage() {
                         <div className="row-name">{c.email.split('@')[0]}</div>
                       </div>
                     </td>
+                    <td>{c.publicId ?? '—'}</td>
                     <td className="row-sub">{c.email}</td>
                     <td>
                       {new Date(c.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
@@ -108,9 +110,9 @@ export default function CustomersPage() {
                       <div style={{ display:'flex', gap:6 }}>
                         <button
                           className={`btn btn-xs ${c.isBlocked ? 'btn-primary' : 'btn-danger-ghost'}`}
-                          onClick={() => toggleBlock(c)}
+                          onClick={() => toggleSuspend(c)}
                         >
-                          {c.isBlocked ? 'Unblock' : 'Block'}
+                          {c.isBlocked ? 'Unban' : 'Suspend'}
                         </button>
                       </div>
                     </td>

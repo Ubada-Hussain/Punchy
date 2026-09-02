@@ -11,6 +11,15 @@ const MethodSchema = z.object({
   label: z.string().optional(),
 });
 
+// GET /punch-methods — admin inventory for the admin portal
+router.get('/', requireAuth, requireRole('ADMIN'), async (_req: Request, res: Response): Promise<void> => {
+  const methods = await prisma.punchMethod.findMany({
+    include: { card: { include: { business: { select: { name: true } } } } },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json({ methods });
+});
+
 // POST /punch-methods/card/:cardId
 router.post('/card/:cardId', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
   const cardId = String(req.params.cardId);

@@ -17,8 +17,12 @@ class _AccountSuspendedScreenState extends State<AccountSuspendedScreen> {
   bool _isChecking = false;
 
   Future<void> _checkStatus() async {
-    setState(() => _isChecking = true);
     final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.user == null) {
+      if (mounted) context.go('/login');
+      return;
+    }
+    setState(() => _isChecking = true);
     await auth.fetchProfile();
     if (mounted) {
       setState(() => _isChecking = false);
