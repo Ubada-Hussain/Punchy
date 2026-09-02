@@ -41,12 +41,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
     // Fallback data if offline
     if (mounted) {
       setState(() {
-        _dashboardData = {
-          'business': {'name': 'My Business', 'category': 'Retail & Cafe'},
-          'stats': {'totalCustomers': 0, 'punchesToday': 0, 'rewardsRedeemed': 0},
-          'cards': [],
-          'recentActivity': [],
-        };
+        _dashboardData = <String, dynamic>{};
         _isLoading = false;
       });
     }
@@ -697,12 +692,12 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(0, Icons.home_rounded, 'Home', onTap: () {}),
-          _buildNavItem(1, Icons.credit_card_rounded, 'Cards', onTap: () => context.push('/business/cards/new')),
-          // Center Raised Add Punch / Scan Barcode FAB
-          GestureDetector(
+          Expanded(child: _buildNavItem(0, Icons.home_rounded, 'Home', onTap: () {})),
+          Expanded(child: _buildNavItem(1, Icons.credit_card_rounded, 'Cards', onTap: () => context.push('/business/cards/new'))),
+          // Center Raised Scanner FAB
+          Expanded(child: GestureDetector(
             onTap: () => context.push('/business/scan'),
-            child: Container(
+            child: Center(child: Container(
               width: 46,
               height: 46,
               decoration: BoxDecoration(
@@ -718,14 +713,14 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                 ],
               ),
               child: const Icon(
-                Icons.add_rounded,
+                Icons.qr_code_scanner_rounded,
                 color: Colors.white,
                 size: 26,
               ),
-            ),
-          ),
-          _buildNavItem(2, Icons.people_alt_rounded, 'Customers', onTap: () => context.push('/business/customers')),
-          _buildNavItem(3, Icons.person_outline_rounded, 'Profile', onTap: () => context.push('/business/profile')),
+            )),
+          )),
+          Expanded(child: _buildNavItem(2, Icons.notifications_none_rounded, 'Notifications', onTap: () => context.push('/notifications'))),
+          Expanded(child: _buildNavItem(3, Icons.person_outline_rounded, 'Profile', onTap: () => context.push('/business/profile'))),
         ],
       ),
     );

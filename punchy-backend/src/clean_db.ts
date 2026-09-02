@@ -20,6 +20,11 @@ async function cleanDatabase() {
     const dLoyaltyCards = await prisma.loyaltyCard.deleteMany({});
     console.log(`  🗑️  Deleted LoyaltyCards: ${dLoyaltyCards.count}`);
 
+    // Delete dependent records before users to satisfy required Mongo relations.
+    await prisma.supportTicket.deleteMany({});
+    await prisma.notification.deleteMany({});
+    await prisma.activityLog.deleteMany({});
+
     // Unlink staff relations first to satisfy MongoDB relation constraints
     await prisma.user.updateMany({
       data: { businessId: null },

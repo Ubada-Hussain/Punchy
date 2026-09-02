@@ -11,7 +11,7 @@ router.get('/cards', requireAuth, requireRole('CUSTOMER'), async (req: Request, 
     include: {
       card: {
         include: {
-          business: { select: { id: true, name: true, logo: true, category: true } },
+          business: { select: { id: true, name: true, logo: true, category: true, locations: true } },
           punchMethods: { where: { isActive: true }, select: { type: true } },
         },
       },
@@ -26,7 +26,7 @@ router.get('/cards/:id', requireAuth, requireRole('CUSTOMER'), async (req: Reque
   const card = await prisma.customerCard.findFirst({
     where: { id: String(req.params.id), customerId: req.user!.userId },
     include: {
-      card: { include: { business: { select: { id: true, name: true, logo: true, category: true } } } },
+      card: { include: { business: { select: { id: true, name: true, logo: true, category: true, locations: true } } } },
       punchTransactions: { orderBy: { timestamp: 'desc' }, take: 50 },
       redemptions: { orderBy: { redeemedAt: 'desc' } },
     },

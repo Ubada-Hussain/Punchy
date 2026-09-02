@@ -8,7 +8,7 @@ const zod_1 = require("zod");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
-const PunchSchema = zod_1.z.object({ identifier: zod_1.z.string().uuid() });
+const PunchSchema = zod_1.z.object({ identifier: zod_1.z.string().min(1) });
 /**
  * POST /punch
  *
@@ -32,6 +32,10 @@ router.post('/', auth_1.requireAuth, (0, auth_1.requireRole)('CUSTOMER'), async 
     }
     if (!punchMethod.card.isActive) {
         res.status(400).json({ error: 'This loyalty card is no longer active' });
+        return;
+    }
+    if (punchMethod.card.validUntil && new Date(punchMethod.card.validUntil) < new Date()) {
+        res.status(400).json({ error: 'This loyalty card has expired' });
         return;
     }
     if (punchMethod.card.business.status !== 'APPROVED') {

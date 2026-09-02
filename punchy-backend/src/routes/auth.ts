@@ -2,9 +2,13 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { v4 as uuid } from 'uuid';
+import crypto from 'crypto';
+import https from 'https';
 import prisma from '../lib/prisma';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../lib/jwt';
+import { sendOtpEmail } from '../lib/email';
 import { requireAuth } from '../middleware/auth';
+import { OAuth2Client } from 'google-auth-library';
 
 const router = Router();
 
@@ -21,12 +25,65 @@ const LoginSchema = z.object({
   password: z.string(),
 });
 
+const ForgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+const ResetPasswordSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().regex(/^\d{6}$/),
+  password: z.string().min(8),
+});
+
 const ProfileUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   phone: z.string().optional(),
 });
 
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 10 * 60 * 1000;
+const PASSWORD_RESET_MAX_ATTEMPTS = 5;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '919748165158-eg03lb2d2dvbglej5vq3suvl12nfsp6e.apps.googleusercontent.com';
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+async function uniquePublicId() {
+  for (;;) {
+    const value = String(crypto.randomInt(100000, 1000000));
+    if (!(await prisma.user.findUnique({ where: { publicId: value } }))) return value;
+  }
+}
+
+router.post('/google', async (req: Request, res: Response): Promise<void> => {
+  const token = typeof req.body?.idToken === 'string' ? req.body.idToken : '';
+  if (!token) { res.status(400).json({ error: 'Google ID token is required' }); return; }
+  try {
+    const ticket = await googleClient.verifyIdToken({ idToken: token, audience: GOOGLE_CLIENT_ID });
+    const payload = ticket.getPayload();
+    if (!payload?.email || payload.email_verified !== true) { res.status(401).json({ error: 'Google account email is not verified' }); return; }
+    let user = await prisma.user.findUnique({ where: { email: payload.email }, include: { businessProfile: true, staffBusiness: true } });
+    if (!user) {
+      user = await prisma.user.create({ data: { email: payload.email, publicId: await uniquePublicId(), name: payload.name || payload.email.split('@')[0], passwordHash: await bcrypt.hash(uuid(), 12), role: 'CUSTOMER' }, include: { businessProfile: true, staffBusiness: true } });
+    }
+    const isBusinessSuspended = user.role === 'BUSINESS' && user.businessProfile?.status === 'SUSPENDED';
+    const isStaffBusinessSuspended = user.role === 'STAFF' && user.staffBusiness?.status === 'SUSPENDED';
+    if (user.isBlocked || isBusinessSuspended || isStaffBusinessSuspended) {
+      const tokenPayload = { userId: user.id, email: user.email, role: user.role };
+      const accessToken = signAccessToken(tokenPayload);
+      const refreshToken = signRefreshToken(tokenPayload);
+      await prisma.refreshToken.create({ data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) } });
+      res.json({ user: { id: user.id, publicId: user.publicId, email: user.email, name: user.name || user.email.split('@')[0], role: user.role, phone: user.phone, isBlocked: user.isBlocked, isSuspended: true, isStaffActive: user.isStaffActive, businessId: user.businessId, businessName: user.staffBusiness?.name ?? user.businessProfile?.name, createdAt: user.createdAt }, accessToken, refreshToken });
+      return;
+    }
+    const tokenPayload = { userId: user.id, email: user.email, role: user.role };
+    const accessToken = signAccessToken(tokenPayload);
+    const refreshToken = signRefreshToken(tokenPayload);
+    await prisma.refreshToken.create({ data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) } });
+    res.json({ user: { id: user.id, publicId: user.publicId, email: user.email, name: user.name || user.email.split('@')[0], role: user.role, phone: user.phone, isBlocked: user.isBlocked, isSuspended: false, isStaffActive: user.isStaffActive, businessId: user.businessId, businessName: user.staffBusiness?.name ?? user.businessProfile?.name, createdAt: user.createdAt }, accessToken, refreshToken });
+  } catch (e) {
+    console.error('Google authentication failed:', e);
+    res.status(401).json({ error: 'Invalid Google sign-in token' });
+  }
+});
 
 router.post('/register', async (req: Request, res: Response): Promise<void> => {
   const parsed = RegisterSchema.safeParse(req.body);
@@ -39,8 +96,8 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
-    data: { email, passwordHash, role, name: name || email.split('@')[0], phone },
-    select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true },
+    data: { email, publicId: await uniquePublicId(), passwordHash, role, name: name || email.split('@')[0], phone },
+    select: { id: true, publicId: true, email: true, name: true, role: true, phone: true, createdAt: true },
   });
 
   // If new business, automatically create default business profile
@@ -87,12 +144,11 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   const isSuspended = user.isBlocked || isBusinessSuspended || isStaffBusinessSuspended;
 
   if (isSuspended) {
-    res.status(403).json({
-      error: 'Account has been suspended.',
-      isSuspended: true,
-      isBlocked: user.isBlocked,
-      role: user.role,
-    });
+    const tokenPayload = { userId: user.id, email: user.email, role: user.role };
+    const accessToken = signAccessToken(tokenPayload);
+    const refreshToken = signRefreshToken(tokenPayload);
+    await prisma.refreshToken.create({ data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) } });
+    res.json({ user: { id: user.id, publicId: user.publicId, email: user.email, name: user.name || user.email.split('@')[0], role: user.role, phone: user.phone, isBlocked: user.isBlocked, isSuspended: true, isStaffActive: user.isStaffActive, businessId: user.businessId, businessName: user.staffBusiness?.name ?? user.businessProfile?.name, createdAt: user.createdAt }, accessToken, refreshToken });
     return;
   }
 
@@ -122,11 +178,114 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   });
 });
 
+router.post('/device-token', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+  if (!token || token.length < 20) { res.status(400).json({ error: 'Valid device token is required' }); return; }
+  await prisma.user.update({ where: { id: req.user!.userId }, data: { fcmTokens: { push: token } } });
+  res.json({ message: 'Device registered for notifications' });
+});
+
+router.post('/forgot-password', async (req: Request, res: Response): Promise<void> => {
+  const parsed = ForgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const email = parsed.data.email.toLowerCase();
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, isBlocked: true } });
+
+  if (!user || user.isBlocked) {
+    res.json({ message: 'If that email exists, a password reset code has been sent.' });
+    return;
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpHash = await bcrypt.hash(otp, 12);
+
+  await prisma.passwordResetOtp.deleteMany({
+    where: {
+      email,
+      expiresAt: { gt: new Date() },
+    },
+  });
+
+  await prisma.passwordResetOtp.create({
+    data: {
+      email,
+      otpHash,
+      expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    },
+  });
+
+  try {
+    await sendOtpEmail({ to: email, otp, type: 'PASSWORD_RESET' });
+    res.json({ message: 'If that email exists, a password reset code has been sent.' });
+  } catch (error) {
+    console.error('Password reset email error:', error);
+    // Even if external email fails, we return message to avoid email enumeration, but with clear status if dev
+    res.json({ message: 'If that email exists, a password reset code has been sent.' });
+  }
+});
+
+router.post('/reset-password', async (req: Request, res: Response): Promise<void> => {
+  const parsed = ResetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const email = parsed.data.email.toLowerCase();
+  const reset = await prisma.passwordResetOtp.findFirst({
+    where: {
+      email,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (!reset || reset.consumedAt != null || reset.attempts >= PASSWORD_RESET_MAX_ATTEMPTS) {
+    res.status(400).json({ error: 'Invalid or expired reset code.' });
+    return;
+  }
+
+  const isValid = await bcrypt.compare(parsed.data.otp, reset.otpHash);
+  if (!isValid) {
+    await prisma.passwordResetOtp.update({
+      where: { id: reset.id },
+      data: { attempts: { increment: 1 } },
+    });
+    res.status(400).json({ error: 'Invalid or expired reset code.' });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, isBlocked: true } });
+  if (!user || user.isBlocked) {
+    res.status(400).json({ error: 'Invalid or expired reset code.' });
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await bcrypt.hash(parsed.data.password, 12) },
+    }),
+    prisma.passwordResetOtp.update({
+      where: { id: reset.id },
+      data: { consumedAt: new Date() },
+    }),
+    prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
+  ]);
+
+  res.json({ message: 'Password reset successfully.' });
+});
+
 router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.userId },
     select: {
       id: true,
+      publicId: true,
       email: true,
       name: true,
       role: true,
@@ -177,7 +336,7 @@ router.put('/profile', requireAuth, async (req: Request, res: Response): Promise
       ...(name ? { name } : {}),
       ...(phone !== undefined ? { phone } : {}),
     },
-    select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true },
+    select: { id: true, publicId: true, email: true, name: true, role: true, phone: true, createdAt: true },
   });
 
   // Also update business profile name if business role
@@ -189,6 +348,47 @@ router.put('/profile', requireAuth, async (req: Request, res: Response): Promise
   }
 
   res.json({ message: 'Profile updated successfully', user: updatedUser });
+});
+
+router.delete('/account', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user!.userId;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (!user || user.role === 'ADMIN') { res.status(404).json({ error: 'Account not found' }); return; }
+  await prisma.$transaction(async (tx) => {
+    await tx.notification.deleteMany({ where: { createdBy: userId } });
+    await tx.supportTicket.deleteMany({ where: { authorId: userId } });
+    await tx.activityLog.deleteMany({ where: { userId } });
+    if (user.role === 'BUSINESS') {
+      const profile = await tx.businessProfile.findUnique({ where: { userId }, select: { id: true } });
+      if (profile) {
+        const cards = await tx.loyaltyCard.findMany({ where: { businessId: profile.id }, select: { id: true } });
+        const cardIds = cards.map((card) => card.id);
+        const customerCards = await tx.customerCard.findMany({ where: { cardId: { in: cardIds } }, select: { id: true } });
+        const customerCardIds = customerCards.map((card) => card.id);
+        if (customerCardIds.length) {
+          await tx.punchTransaction.deleteMany({ where: { customerCardId: { in: customerCardIds } } });
+          await tx.redemption.deleteMany({ where: { customerCardId: { in: customerCardIds } } });
+          await tx.customerCard.deleteMany({ where: { id: { in: customerCardIds } } });
+        }
+        if (cardIds.length) {
+          await tx.punchMethod.deleteMany({ where: { cardId: { in: cardIds } } });
+          await tx.loyaltyCard.deleteMany({ where: { id: { in: cardIds } } });
+        }
+        await tx.user.deleteMany({ where: { businessId: profile.id } });
+        await tx.businessProfile.delete({ where: { id: profile.id } });
+      }
+    } else {
+      const customerCards = await tx.customerCard.findMany({ where: { customerId: userId }, select: { id: true } });
+      const customerCardIds = customerCards.map((card) => card.id);
+      if (customerCardIds.length) {
+        await tx.punchTransaction.deleteMany({ where: { customerCardId: { in: customerCardIds } } });
+        await tx.redemption.deleteMany({ where: { customerCardId: { in: customerCardIds } } });
+        await tx.customerCard.deleteMany({ where: { id: { in: customerCardIds } } });
+      }
+    }
+    await tx.user.delete({ where: { id: userId } });
+  });
+  res.json({ message: 'Account deleted successfully' });
 });
 
 router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
@@ -216,64 +416,6 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
   res.json({ accessToken: newAccess, refreshToken: newRefresh });
 });
 
-router.post('/clerk', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { email, name, role = 'CUSTOMER', provider } = req.body;
-    if (!email) {
-      res.status(400).json({ error: 'Email is required from Clerk' });
-      return;
-    }
-
-    let user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      const dummyPassword = await bcrypt.hash(`Clerk_OAuth_${Date.now()}_${Math.random()}`, 12);
-      user = await prisma.user.create({
-        data: {
-          email,
-          passwordHash: dummyPassword,
-          role: (role === 'BUSINESS' ? 'BUSINESS' : 'CUSTOMER'),
-        },
-      });
-
-      // If new customer, optionally link demo cards
-      if (user.role === 'CUSTOMER') {
-        const demoCards = await prisma.loyaltyCard.findMany({ take: 3 });
-        for (const c of demoCards) {
-          await prisma.customerCard.create({
-            data: {
-              customerId: user.id,
-              cardId: c.id,
-              punchCount: Math.floor(Math.random() * 4) + 2,
-            },
-          });
-        }
-      }
-    }
-
-    if (user.isBlocked) {
-      res.status(403).json({ error: 'Account is blocked' });
-      return;
-    }
-
-    const tokenPayload = { userId: user.id, email: user.email, role: user.role };
-    const accessToken = signAccessToken(tokenPayload);
-    const refreshToken = signRefreshToken(tokenPayload);
-    await prisma.refreshToken.create({
-      data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
-    });
-
-    res.json({
-      user: { id: user.id, email: user.email, role: user.role, name: name || user.email.split('@')[0] },
-      accessToken,
-      refreshToken,
-      provider: provider || 'clerk',
-    });
-  } catch (error) {
-    console.error('Clerk Auth error:', error);
-    res.status(500).json({ error: 'Failed to authenticate with Clerk' });
-  }
-});
-
 router.post('/logout', async (req: Request, res: Response): Promise<void> => {
   const { refreshToken } = req.body;
   if (refreshToken) await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
@@ -281,3 +423,4 @@ router.post('/logout', async (req: Request, res: Response): Promise<void> => {
 });
 
 export default router;
+

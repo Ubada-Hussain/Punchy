@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/api/api_client.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class SupportSheet extends StatelessWidget {
+class SupportSheet extends StatefulWidget {
   const SupportSheet({super.key});
 
   static void show(BuildContext context) {
@@ -14,6 +16,59 @@ class SupportSheet extends StatelessWidget {
       ),
       builder: (_) => const SupportSheet(),
     );
+  }
+
+  @override
+  State<SupportSheet> createState() => _SupportSheetState();
+}
+
+class _SupportSheetState extends State<SupportSheet> {
+  final _subject = TextEditingController();
+  final _body = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() { _subject.dispose(); _body.dispose(); super.dispose(); }
+
+  Future<void> _openChat() async {
+    final subject = _subject.text.trim();
+    final body = _body.text.trim();
+    if (subject.length < 5 || body.length < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a subject and describe your issue.')));
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      await ApiClient().post('/tickets', {'subject': subject, 'body': body});
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Support request submitted. An agent will respond soon.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Could not submit support request.')));
+    } finally { if (mounted) setState(() => _sending = false); }
+  }
+
+  Future<void> _showChatForm() async {
+    await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
+      title: const Text('Live Chat with Agent'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: _subject, decoration: const InputDecoration(labelText: 'Subject')),
+        TextField(controller: _body, maxLines: 4, decoration: const InputDecoration(labelText: 'Describe your issue')),
+      ]),
+      actions: [TextButton(onPressed: _sending ? null : () => Navigator.pop(dialogContext), child: const Text('Cancel')), ElevatedButton(onPressed: _sending ? null : _openChat, child: Text(_sending ? 'Sending…' : 'Send'))],
+    ));
+  }
+
+  Future<void> _openEmailSupport() async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'ubadahussain23@gmail.com',
+      queryParameters: {'subject': 'Punchy Support Request'},
+    );
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No email app is available on this device.')));
+    }
   }
 
   @override
@@ -71,41 +126,15 @@ class SupportSheet extends StatelessWidget {
             _buildOption(
               icon: Icons.mail_outline_rounded,
               title: 'Email Support',
-              subtitle: 'support@punchy.app',
-              onTap: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    backgroundColor: AppColors.ink,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    content: Text(
-                      'Opening email to support@punchy.app...',
-                      style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                );
-              },
+              subtitle: 'ubadahussain23@gmail.com',
+              onTap: _openEmailSupport,
             ),
             const SizedBox(height: 10),
             _buildOption(
               icon: Icons.chat_bubble_outline_rounded,
               title: 'Live Chat with Agent',
               subtitle: 'Average response time: 2 mins',
-              onTap: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    backgroundColor: AppColors.ink,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    content: Text(
-                      'Connecting with Punchy Support Desk...',
-                      style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                );
-              },
+              onTap: () { _showChatForm(); },
             ),
             const SizedBox(height: 10),
             _buildOption(

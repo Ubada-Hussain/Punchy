@@ -32,12 +32,6 @@ const Icons = {
       <path d="M4 20V10M10 20V4M16 20v-7M20 20H4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   ),
-  flag: (
-    <svg className="icon" width="16" height="16" viewBox="0 0 24 24">
-      <path d="M5 21V4" strokeLinecap="round"/>
-      <path d="M5 4h11l-2.5 3.5L16 11H5" strokeLinejoin="round"/>
-    </svg>
-  ),
   nfc: (
     <svg className="icon" width="16" height="16" viewBox="0 0 24 24">
       <path d="M6 16a8 8 0 0 1 0-8" strokeLinecap="round"/>
@@ -83,7 +77,6 @@ const NAV = [
   { href: '/businesses',    label: 'Businesses',     icon: 'store'    },
   { href: '/customers',     label: 'Customers',      icon: 'users'    },
   { href: '/analytics',     label: 'Analytics',      icon: 'chart'    },
-  { href: '/moderation',    label: 'Moderation',     icon: 'flag'     },
   { href: '/nfc-qr',        label: 'NFC & QR',       icon: 'nfc'      },
   { href: '/notifications', label: 'Notifications',  icon: 'bell'     },
   { href: '/support',       label: 'Support',        icon: 'ticket'   },

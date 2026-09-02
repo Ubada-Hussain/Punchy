@@ -18,6 +18,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _isLoading = true;
   int _selectedFilter = 0; // 0 = All Updates, 1 = Broadcasts, 2 = Direct
 
+  Future<void> _deleteNotification(String id) async {
+    try {
+      await _api.delete('/notifications/$id');
+      await _loadNotifications();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Could not delete notification.')));
+    }
+  }
+
+  Future<void> _deleteAllNotifications() async {
+    final ids = _notifications.map((n) => n['id']?.toString()).whereType<String>().toList();
+    for (final id in ids) { await _deleteNotification(id); }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -104,7 +118,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       color: AppColors.ink,
                     ),
                   ),
-                  const SizedBox(width: 34),
+                  IconButton(
+                    tooltip: 'Delete all notifications',
+                    onPressed: _notifications.isEmpty ? null : () async {
+                      final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+                        title: const Text('Delete notifications?'),
+                        content: const Text('Delete all notifications?'),
+                        actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete all'))],
+                      ));
+                      if (ok == true) await _deleteAllNotifications();
+                    },
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
                 ],
               ),
             ),
@@ -172,6 +197,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       // Top row with creator and time
                                       Row(
                                         children: [
+                                          IconButton(
+                                            tooltip: 'Delete notification',
+                                            onPressed: () => _deleteNotification(notif['id'].toString()),
+                                            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                                          ),
                                           Container(
                                             width: 36,
                                             height: 36,

@@ -700,15 +700,25 @@ router.post('/punch', requireAuth, requireRole('BUSINESS', 'STAFF'), async (req:
     }
 
     // Find customer in database
-    let customer = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { id: targetUserId },
-          { email: targetUserId },
-          { email: cleanIdentifier },
-        ],
-      },
-    });
+    const lookupOr: any[] = [
+      { email: targetUserId.toLowerCase() },
+      { email: cleanIdentifier.toLowerCase() },
+      { publicId: targetUserId },
+    ];
+    if (/^[a-f0-9]{24}$/i.test(targetUserId)) lookupOr.unshift({ id: targetUserId });
+    let customer = await prisma.user.findFirst({ where: { OR: lookupOr } });
+
+    // Customer pass barcodes use the human-readable PUN-NAME-8492 format.
+    // Resolve that code to the matching customer email before processing.
+    if (!customer && cleanIdentifier.toUpperCase().startsWith('PUN-')) {
+      const code = cleanIdentifier.split('-');
+      const namePart = code.slice(1, -1).join('-').toLowerCase();
+      if (namePart) {
+        customer = await prisma.user.findFirst({
+          where: { role: 'CUSTOMER', email: { startsWith: namePart } },
+        });
+      }
+    }
 
     if (!customer) {
       // Fallback for simulation testing
@@ -738,6 +748,27 @@ router.post('/punch', requireAuth, requireRole('BUSINESS', 'STAFF'), async (req:
           punchCount: 0,
         },
       });
+    }
+
+    // A scan on an already-full card is the reward visit. Redeem and reset
+    // atomically so the count can never become N+1 or be partially updated.
+    if (customerCard.punchCount >= targetCard.punchesRequired) {
+      await prisma.$transaction([
+        prisma.redemption.create({ data: { customerCardId: customerCard.id, verifiedBy: req.user!.userId } }),
+        prisma.customerCard.update({ where: { id: customerCard.id }, data: { punchCount: 0, isCompleted: false } }),
+        prisma.activityLog.create({ data: { userId: customer.id, action: 'REWARD_REDEEMED_BY_STAFF', metadata: { businessId: business.id, cardId: targetCard.id, cardTitle: targetCard.title, verifiedBy: req.user!.userId, rewardDescription: targetCard.rewardDescription } } }),
+      ]);
+      await sendNotification({ userId: customer.id, title: 'Reward redeemed! 🎉', body: `Enjoy your free ${targetCard.rewardDescription}! Your card has been reset.` });
+      res.json({ success: true, rewardEarned: true, rewardDescription: targetCard.rewardDescription, customerEmail: customer.email, cardTitle: targetCard.title, punchCount: 0, punchesRequired: targetCard.punchesRequired, isCompleted: false, message: `🎉 Reward earned! Give them ${targetCard.rewardDescription} — free. Card has been reset.` });
+      return;
+    }
+
+    // updatedAt is written by the punch update and acts as this card's last-punch timestamp.
+    const cooldownExpiresAt = customerCard.updatedAt.getTime() + 3 * 60 * 1000;
+    if (customerCard.punchCount > 0 && cooldownExpiresAt > Date.now()) {
+      const remainingSeconds = Math.ceil((cooldownExpiresAt - Date.now()) / 1000);
+      res.status(429).json({ error: 'Punch cooldown active', cooldown: true, remainingSeconds });
+      return;
     }
 
     const newPunchCount = customerCard.punchCount + 1;

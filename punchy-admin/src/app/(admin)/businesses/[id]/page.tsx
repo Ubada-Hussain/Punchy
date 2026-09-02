@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { api, type Business } from '@/lib/api';
 
 function statusBadge(s: string) {
-  const map: Record<string, string> = { APPROVED:'b-active', ACTIVE:'b-active', PENDING:'b-pending', SUSPENDED:'b-suspended' };
+  const map: Record<string, string> = { APPROVED:'b-active', ACTIVE:'b-active', SUSPENDED:'b-suspended' };
   return <span className={`badge ${map[s] ?? 'b-pending'}`}>{s.replace('_', ' ')}</span>;
 }
 
@@ -15,9 +15,17 @@ export default function BusinessDetailPage() {
   const [biz, setBiz] = useState<Business | null>(null);
   const [loading, setLoading] = useState(true);
 
+  async function changeStatus() {
+    if (!biz) return;
+    const suspended = biz.status === 'SUSPENDED';
+    if (!confirm(suspended ? 'Unban this business?' : 'Suspend this business?')) return;
+    await api.post(`/businesses/${id}/${suspended ? 'unban' : 'suspend'}`, {});
+    setBiz({ ...biz, status: suspended ? 'APPROVED' : 'SUSPENDED' });
+  }
+
   useEffect(() => {
-    api.get<{ business: Business }>(`/businesses/${id}`)
-      .then(res => setBiz(res.business))
+    api.get<Business | { business: Business }>(`/businesses/${id}`)
+      .then(res => setBiz('business' in res ? res.business : res))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
@@ -46,11 +54,7 @@ export default function BusinessDetailPage() {
           <h3>{biz.name}</h3>
         </div>
         <div className="top-actions">
-          {biz.status === 'APPROVED' ? (
-            <button className="btn btn-danger-ghost btn-xs">Suspend</button>
-          ) : (
-            <button className="btn btn-primary btn-xs">Approve</button>
-          )}
+          <button className={`btn btn-xs ${biz.status === 'SUSPENDED' ? 'btn-primary' : 'btn-danger-ghost'}`} onClick={changeStatus}>{biz.status === 'SUSPENDED' ? 'Unban' : 'Suspend'}</button>
         </div>
       </div>
       <div className="admin-content">

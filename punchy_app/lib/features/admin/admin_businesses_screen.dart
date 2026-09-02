@@ -99,7 +99,7 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
                     ),
                   ),
                   Text(
-                    'Business Approvals',
+                    'Businesses',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -145,8 +145,6 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
                 children: [
                   _buildFilterChip('ALL', 'All'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('PENDING', 'Pending Review'),
-                  const SizedBox(width: 8),
                   _buildFilterChip('APPROVED', 'Approved'),
                   const SizedBox(width: 8),
                   _buildFilterChip('SUSPENDED', 'Suspended'),
@@ -175,17 +173,12 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
                           separatorBuilder: (_, index) => const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final b = _businesses[index];
-                            final status = (b['status'] ?? 'PENDING').toString().toUpperCase();
-                            final isApproved = status == 'APPROVED';
-                            final isPending = status == 'PENDING';
+                            final status = (b['status'] ?? 'APPROVED').toString().toUpperCase();
                             final isSuspended = status == 'SUSPENDED';
 
                             Color badgeBg = AppColors.teal.withValues(alpha: 0.15);
                             Color badgeText = AppColors.tealDark;
-                            if (isPending) {
-                              badgeBg = AppColors.gold.withValues(alpha: 0.2);
-                              badgeText = AppColors.goldDark;
-                            } else if (isSuspended) {
+                            if (isSuspended) {
                               badgeBg = AppColors.coral.withValues(alpha: 0.15);
                               badgeText = AppColors.coralDark;
                             }
@@ -258,30 +251,18 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
                                   // Action Buttons Row
                                   Row(
                                     children: [
-                                      if (!isApproved)
+                                      if (isSuspended)
                                         Expanded(
                                           child: SizedBox(
                                             height: 36,
                                             child: ElevatedButton(
                                               onPressed: () => _updateStatus(b['id'], 'APPROVED'),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: AppColors.teal,
-                                                elevation: 0,
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                              ),
-                                              child: Text(
-                                                'Approve Profile',
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
+                                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                                              child: Text('Unban', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
                                             ),
                                           ),
-                                        ),
-                                      if (!isApproved && !isSuspended) const SizedBox(width: 8),
-                                      if (!isSuspended)
+                                        )
+                                      else
                                         Expanded(
                                           child: SizedBox(
                                             height: 36,

@@ -12,12 +12,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const user = api.getSession();
-    if (!user || user.role !== 'ADMIN') {
-      setAuthorized(false);
-      router.replace('/login');
-    } else {
-      setAuthorized(true);
-    }
+    if (!user || user.role !== 'ADMIN') { setAuthorized(false); router.replace('/login'); return; }
+    api.get<{ user: { role: string } }>('/auth/me')
+      .then(({ user: liveUser }) => {
+        if (liveUser.role === 'ADMIN') setAuthorized(true);
+        else { api.clearSession(); setAuthorized(false); router.replace('/login'); }
+      })
+      .catch(() => setAuthorized(false));
   }, [pathname, router]);
 
   if (!authorized) {

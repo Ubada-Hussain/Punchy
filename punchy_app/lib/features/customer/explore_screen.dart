@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../core/api/api_client.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/punchy_empty_state.dart';
 
@@ -116,6 +118,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userName = context.watch<AuthProvider>().user?['name']?.toString() ?? '';
+    final nameParts = userName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final initials = nameParts.length > 1
+        ? '${nameParts.first[0]}${nameParts.last[0]}'.toUpperCase()
+        : (userName.isNotEmpty ? userName.substring(0, userName.length >= 2 ? 2 : 1).toUpperCase() : 'P');
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
@@ -157,9 +164,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         gradient: AppColors.gradPurple,
                         shape: BoxShape.circle,
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Text(
-                          'AK',
+                          initials,
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
                         ),
                       ),
@@ -276,6 +283,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (theme == 'coral') cardGrad = AppColors.gradCoral;
     if (theme == 'purple') cardGrad = AppColors.gradPurple;
     if (theme == 'gold') cardGrad = AppColors.gradGold;
+    final locations = business['locations'] is List ? business['locations'] as List : const [];
+    final address = locations.isNotEmpty && locations.first is Map
+        ? (locations.first['address']?.toString() ?? '')
+        : (business['address']?.toString() ?? '');
 
     return Container(
       decoration: BoxDecoration(
@@ -339,6 +350,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           color: AppColors.tealDark,
                         ),
                       ),
+                      if (address.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.location_on_outlined, size: 14, color: AppColors.inkSoft),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                address,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.inkSoft, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),

@@ -31,7 +31,7 @@ router.get('/', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), async (req
     const [businesses, total] = await Promise.all([
         prisma_1.default.businessProfile.findMany({
             where, skip, take: Number(limit),
-            include: { user: { select: { email: true, createdAt: true } }, _count: { select: { loyaltyCards: true } } },
+            include: { user: { select: { email: true, publicId: true, createdAt: true } }, _count: { select: { loyaltyCards: true } } },
             orderBy: { createdAt: 'desc' },
         }),
         prisma_1.default.businessProfile.count({ where }),
@@ -50,7 +50,7 @@ router.post('/', auth_1.requireAuth, (0, auth_1.requireRole)('BUSINESS'), async 
         return;
     }
     const business = await prisma_1.default.businessProfile.create({
-        data: { userId: req.user.userId, ...parsed.data, locations: parsed.data.locations ?? [] },
+        data: { userId: req.user.userId, ...parsed.data, locations: parsed.data.locations ?? [], status: 'APPROVED' },
     });
     res.status(201).json(business);
 });
@@ -106,15 +106,6 @@ router.patch('/:id', auth_1.requireAuth, async (req, res) => {
     }
     res.json(await prisma_1.default.businessProfile.update({ where: { id: String(req.params.id) }, data: parsed.data }));
 });
-// POST /businesses/:id/approve
-router.post('/:id/approve', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), async (req, res) => {
-    const b = await prisma_1.default.businessProfile.findUnique({ where: { id: String(req.params.id) } });
-    if (!b) {
-        res.status(404).json({ error: 'Business not found' });
-        return;
-    }
-    res.json(await prisma_1.default.businessProfile.update({ where: { id: String(req.params.id) }, data: { status: 'APPROVED' } }));
-});
 // POST /businesses/:id/suspend
 router.post('/:id/suspend', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), async (req, res) => {
     const b = await prisma_1.default.businessProfile.findUnique({ where: { id: String(req.params.id) } });
@@ -123,6 +114,15 @@ router.post('/:id/suspend', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN')
         return;
     }
     res.json(await prisma_1.default.businessProfile.update({ where: { id: String(req.params.id) }, data: { status: 'SUSPENDED' } }));
+});
+// POST /businesses/:id/unban — only an admin can restore a suspended business
+router.post('/:id/unban', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), async (req, res) => {
+    const b = await prisma_1.default.businessProfile.findUnique({ where: { id: String(req.params.id) } });
+    if (!b) {
+        res.status(404).json({ error: 'Business not found' });
+        return;
+    }
+    res.json(await prisma_1.default.businessProfile.update({ where: { id: String(req.params.id) }, data: { status: 'APPROVED' } }));
 });
 exports.default = router;
 //# sourceMappingURL=businesses.js.map

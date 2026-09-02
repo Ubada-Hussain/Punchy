@@ -11,12 +11,11 @@ const router = (0, express_1.Router)();
 router.get('/platform', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), async (req, res) => {
     const days = parseInt(String(req.query.period ?? '30'));
     const since = new Date(Date.now() - days * 86400000);
-    const [totalBusinesses, totalCustomers, totalPunches, totalRedemptions, pendingBusinesses, newBusinesses, newCustomers, recentPunches] = await Promise.all([
+    const [totalBusinesses, totalCustomers, totalPunches, totalRedemptions, newBusinesses, newCustomers, recentPunches] = await Promise.all([
         prisma_1.default.businessProfile.count(),
         prisma_1.default.user.count({ where: { role: 'CUSTOMER' } }),
         prisma_1.default.punchTransaction.count(),
         prisma_1.default.redemption.count(),
-        prisma_1.default.businessProfile.count({ where: { status: 'PENDING' } }),
         prisma_1.default.businessProfile.count({ where: { createdAt: { gte: since } } }),
         prisma_1.default.user.count({ where: { role: 'CUSTOMER', createdAt: { gte: since } } }),
         prisma_1.default.punchTransaction.count({ where: { timestamp: { gte: since } } }),
@@ -36,7 +35,7 @@ router.get('/platform', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), as
         },
     });
     res.json({
-        totals: { totalBusinesses, totalCustomers, totalPunches, totalRedemptions, pendingBusinesses },
+        totals: { totalBusinesses, totalCustomers, totalPunches, totalRedemptions },
         period: { days, newBusinesses, newCustomers, recentPunches },
         topBusinesses: topBusinesses
             .map(b => ({

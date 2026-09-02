@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/providers/auth_provider.dart';
-import '../../core/services/clerk_auth_service.dart';
 import '../../core/theme/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -19,6 +19,24 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
 
+  void _navigateAfterAuth(AuthProvider auth) {
+    if (auth.isSuspended) {
+      context.go('/suspended');
+      return;
+    }
+
+    final role = auth.user?['role'];
+    if (role == 'BUSINESS') {
+      context.go('/business');
+    } else if (role == 'STAFF') {
+      context.go('/staff');
+    } else if (role == 'ADMIN') {
+      context.go('/admin');
+    } else {
+      context.go('/');
+    }
+  }
+
   void _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -28,33 +46,26 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (mounted) {
-        if (auth.isSuspended) {
-          context.go('/suspended');
-          return;
-        }
-
         if (success) {
-          final role = auth.user?['role'];
-          if (role == 'BUSINESS') {
-            context.go('/business');
-          } else if (role == 'STAFF') {
-            context.go('/staff');
-          } else if (role == 'ADMIN') {
-            context.go('/admin');
-          } else {
-            context.go('/');
-          }
+          _navigateAfterAuth(auth);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: AppColors.ink,
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               content: Text(
-                auth.errorMessage != null && auth.errorMessage!.contains('Invalid credentials')
+                auth.errorMessage != null &&
+                        auth.errorMessage!.contains('Invalid credentials')
                     ? 'Invalid email or password.'
-                    : (auth.errorMessage ?? 'Login failed. Please check your credentials.'),
-                style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+                    : (auth.errorMessage ??
+                          'Login failed. Please check your credentials.'),
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           );
@@ -72,7 +83,10 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 20.0,
+            ),
             child: Form(
               key: _formKey,
               child: Column(
@@ -95,11 +109,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ],
                       ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.star_rounded,
-                          size: 32,
-                          color: Colors.white,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Image.asset(
+                          'assets/punchy_app_icon.png',
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
@@ -141,10 +155,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: const InputDecoration(
                       hintText: 'ayesha@email.com',
-                      prefixIcon: Icon(Icons.mail_outline_rounded, color: AppColors.inkFaint, size: 18),
+                      prefixIcon: Icon(
+                        Icons.mail_outline_rounded,
+                        color: AppColors.inkFaint,
+                        size: 18,
+                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -171,13 +193,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: InputDecoration(
                       hintText: '••••••••',
-                      prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.inkFaint, size: 18),
+                      prefixIcon: const Icon(
+                        Icons.lock_outline_rounded,
+                        color: AppColors.inkFaint,
+                        size: 18,
+                      ),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
                           color: AppColors.inkFaint,
                           size: 18,
                         ),
@@ -198,7 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: () => context.push('/forgot-password'),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         minimumSize: Size.zero,
@@ -242,7 +274,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   width: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
                                   ),
                                 )
                               : Text(
@@ -259,52 +293,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Divider
-                  Row(
-                    children: [
-                      const Expanded(child: Divider(color: AppColors.line)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          'OR CONTINUE WITH',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.inkFaint,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      const Expanded(child: Divider(color: AppColors.line)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Social Row (Powered by Clerk)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildSocialBtn('Google', Icons.g_mobiledata_rounded, onTap: () {
-                          ClerkAuthService.signInWithGoogle(context);
-                        }),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildSocialBtn('Apple', Icons.apple_rounded, onTap: () {
-                          ClerkAuthService.signInWithApple(context);
-                        }),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
                   // Sign Up Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         'New here? ',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.inkSoft),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: AppColors.inkSoft,
+                        ),
                       ),
                       GestureDetector(
                         onTap: () => context.push('/signup'),
@@ -322,37 +320,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSocialBtn(String label, IconData icon, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 44,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.line, width: 1.5),
-        ),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 20, color: AppColors.ink),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.ink,
-                ),
-              ),
-            ],
           ),
         ),
       ),

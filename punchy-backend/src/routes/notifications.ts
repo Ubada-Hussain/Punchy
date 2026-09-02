@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
+import { sendNotification } from '../lib/notifications';
 
 const router = Router();
 
@@ -21,10 +22,19 @@ router.post('/', requireAuth, async (req: Request, res: Response): Promise<void>
   if (req.user!.role !== 'ADMIN' && parsed.data.targetType !== 'CUSTOMERS') {
     res.status(403).json({ error: 'Business accounts can only target customers' }); return;
   }
+  let targetId = parsed.data.targetId;
+  if (parsed.data.targetType === 'USER' && targetId) {
+    const candidates = [{ publicId: targetId } as any];
+    if (/^[a-f0-9]{24}$/i.test(targetId)) candidates.unshift({ id: targetId } as any);
+    const target = await prisma.user.findFirst({ where: { OR: candidates }, select: { id: true } });
+    if (!target) { res.status(404).json({ error: 'Recipient not found for that ID' }); return; }
+    targetId = target.id;
+  }
 
   const notification = await prisma.notification.create({
-    data: { ...parsed.data, createdBy: req.user!.userId, sentAt: parsed.data.scheduledAt ? undefined : new Date() },
+    data: { ...parsed.data, targetId, createdBy: req.user!.userId, sentAt: parsed.data.scheduledAt ? undefined : new Date() },
   });
+  await sendNotification({ userId: parsed.data.targetType === 'USER' ? targetId : undefined, targetRole: parsed.data.targetType === 'CUSTOMERS' ? 'CUSTOMER' : parsed.data.targetType === 'BUSINESSES' ? 'BUSINESS' : 'ALL', title: parsed.data.title, body: parsed.data.body });
   res.status(201).json(notification);
 });
 
@@ -64,6 +74,20 @@ router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> 
     prisma.notification.count({ where }),
   ]);
   res.json({ notifications, total });
+});
+
+router.delete('/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const existing = await prisma.notification.findUnique({ where: { id: String(req.params.id) } });
+  if (!existing) { res.status(404).json({ error: 'Notification not found' }); return; }
+  const visibleToUser = existing.targetType === 'ALL' ||
+    (existing.targetType === 'USER' && existing.targetId === req.user!.userId) ||
+    (existing.targetType === 'CUSTOMERS' && req.user!.role === 'CUSTOMER') ||
+    (existing.targetType === 'BUSINESSES' && req.user!.role === 'BUSINESS');
+  if (req.user!.role !== 'ADMIN' && existing.createdBy !== req.user!.userId && !visibleToUser) {
+    res.status(403).json({ error: 'Not allowed to delete this notification' }); return;
+  }
+  await prisma.notification.delete({ where: { id: existing.id } });
+  res.json({ message: 'Notification deleted' });
 });
 
 export default router;

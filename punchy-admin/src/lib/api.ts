@@ -19,6 +19,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
+      localStorage.removeItem('punchy_admin_token');
+      localStorage.removeItem('punchy_admin_user');
+      if (!window.location.pathname.startsWith('/login')) window.location.replace('/login');
+    }
     throw new Error(body.error || `HTTP ${res.status}`);
   }
 
@@ -63,16 +68,17 @@ export interface AdminUser {
 
 export interface Business {
   id: string;
+  publicId?: string;
   name: string;
   category: string;
   logo?: string;
   description?: string;
   website?: string;
-  status: 'PENDING' | 'APPROVED' | 'SUSPENDED';
+  status: 'APPROVED' | 'SUSPENDED';
   subscriptionTier: 'FREE' | 'PREMIUM';
   locations: { address: string; lat?: number; lng?: number }[];
   createdAt: string;
-  user?: { email: string; phone?: string; createdAt: string };
+  user?: { email: string; phone?: string; createdAt: string; publicId?: string };
   loyaltyCards?: LoyaltyCard[];
   _count?: { loyaltyCards: number };
 }
@@ -103,6 +109,7 @@ export interface PunchMethod {
 
 export interface User {
   id: string;
+  publicId?: string;
   email: string;
   phone?: string;
   role: 'CUSTOMER' | 'BUSINESS' | 'ADMIN' | 'STAFF';
@@ -140,7 +147,6 @@ export interface PlatformAnalytics {
     totalCustomers: number;
     totalPunches: number;
     totalRedemptions: number;
-    pendingBusinesses: number;
   };
   period: { days: number; newBusinesses: number; newCustomers: number; recentPunches: number };
   topBusinesses: { id: string; name: string; category: string; logo?: string; totalPunches: number }[];

@@ -53,8 +53,8 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     if (dateVal == null) return 'Recent';
     try {
       final dt = DateTime.parse(dateVal.toString());
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return '${months[dt.month - 1]} ${dt.year}';
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
     } catch (_) {
       return 'Recent';
     }
@@ -189,6 +189,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
+                                    Text('ID: ${user?['publicId'] ?? '—'}', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.tealDark)),
                                     const SizedBox(height: 6),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -310,6 +311,9 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                   ),
                   const SizedBox(height: 20),
 
+                  _buildSettingsRow('Delete profile', 'Permanently delete this business account', Icons.delete_forever_outlined, onTap: _confirmDeleteAccount),
+                  const SizedBox(height: 20),
+
                   // Business Notification Preferences
                   Text(
                     'Merchant Notifications',
@@ -388,6 +392,29 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       ),
     ),
     );
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete profile?'),
+        content: const Text('This permanently deletes your business account and loyalty data.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final ok = await context.read<AuthProvider>().deleteAccount();
+    if (mounted) {
+      if (ok) {
+        context.go('/login');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not delete profile.')));
+      }
+    }
   }
 
   Widget _buildSummaryBox(String title, String value, IconData icon) {

@@ -19,7 +19,7 @@ class CustomerBarcodeScreen extends StatelessWidget {
     final qrData = 'PUNCHY:CUSTOMER:$userId:$email';
 
     // Format a nice human-readable customer barcode ID
-    final barcodeId = 'PUN-${email.split('@').first.toUpperCase()}-8492';
+    final barcodeId = user?['publicId']?.toString() ?? '000000';
 
     return Scaffold(
       backgroundColor: AppColors.bg,

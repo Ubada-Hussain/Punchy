@@ -50,102 +50,14 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     } catch (_) {}
   }
 
-  Future<void> _recordPunch(String method) async {
-    final cardInfo = _card['card'] ?? {};
-    final punchMethods = (cardInfo['punchMethods'] as List?) ?? [];
-    
-    // Find matching method or first available identifier
-    String? identifier;
-    for (final pm in punchMethods) {
-      if (pm['type'] == method && pm['identifier'] != null) {
-        identifier = pm['identifier'].toString();
-        break;
-      }
-    }
-    if (identifier == null && punchMethods.isNotEmpty) {
-      identifier = punchMethods.first['identifier']?.toString();
-    }
-    identifier ??= 'qr-${_card['cardId'] ?? _card['id']}';
-
-    try {
-      final res = await _api.post('/punch', {'identifier': identifier});
-      final msg = res?['message'] ?? 'Punch recorded! +1 🌟';
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppColors.ink,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            content: Text(
-              msg,
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ),
-        );
-        _fetchFullDetails();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppColors.ink,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            content: Text(
-              e is ApiException ? e.message : 'Could not record punch.',
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _redeemReward() async {
-    final customerCardId = _card['id'];
-    if (customerCardId == null) return;
-
-    try {
-      final res = await _api.post('/customer/cards/$customerCardId/redeem', {});
-      final msg = res?['message'] ?? 'Reward redeemed! Enjoy! 🎉';
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppColors.ink,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            content: Text(
-              msg,
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ),
-        );
-        _fetchFullDetails();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppColors.ink,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            content: Text(
-              'Could not redeem reward. Please check with the merchant.',
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final cardInfo = _card['card'] ?? {};
     final biz = cardInfo['business'] ?? {};
     final bizName = biz['name'] ?? cardInfo['title'] ?? 'Business';
     final bizCat = biz['category'] ?? '';
+    final bizLocations = (biz['locations'] is List) ? biz['locations'] as List : const [];
+    final bizAddress = bizLocations.isNotEmpty && bizLocations.first is Map ? (bizLocations.first['address'] ?? '').toString() : '';
     final bizLogo = (biz['logo'] != null && biz['logo'].toString().isNotEmpty)
         ? biz['logo'].toString()
         : (cardInfo['visualStyle']?['icon'] ?? '🎟️');
@@ -239,8 +151,9 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
+                            Expanded(child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                                 Container(
                                   width: 34,
                                   height: 34,
@@ -253,7 +166,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 9),
-                                Column(
+                                Expanded(child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
@@ -272,11 +185,13 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                                         color: Colors.white.withValues(alpha: 0.85),
                                       ),
                                     ),
+                                    if (bizAddress.isNotEmpty) Text('📍 $bizAddress', maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.white.withValues(alpha: 0.95))),
                                   ],
-                                ),
+                                )),
                               ],
-                            ),
-                            Column(
+                            )),
+                            const SizedBox(width: 6),
+                            Flexible(child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Container(
@@ -314,7 +229,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                                   ),
                                 ],
                               ],
-                            ),
+                            )),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -386,113 +301,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Redeem Button (if completed) or Action Buttons
-                  if (isCompleted)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: GestureDetector(
-                        onTap: _redeemReward,
-                        child: Container(
-                          height: 52,
-                          decoration: BoxDecoration(
-                            gradient: AppColors.gradCoral,
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.coral.withValues(alpha: 0.45),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.celebration_rounded, color: Colors.white, size: 20),
-                              const SizedBox(width: 8),
-                              Text(
-                                '🎁 Redeem Free Reward Now',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // Action Buttons Row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => context.push('/scanner'),
-                          child: Container(
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: AppColors.teal,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.teal.withValues(alpha: 0.45),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 16),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Scan QR',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => _recordPunch('NFC'),
-                          child: Container(
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.line, width: 1.5),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.nfc_rounded, color: AppColors.ink, size: 16),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Tap NFC',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.ink,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 4),
 
                   // Recent Activity Title
                   Text(
