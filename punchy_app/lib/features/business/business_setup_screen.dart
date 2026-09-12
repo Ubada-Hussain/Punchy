@@ -179,12 +179,14 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
         '/business/logo',
         File(picked.path),
       );
-      if (result is Map && result['logo'] is String)
+      if (result is Map && result['logo'] is String) {
         setState(() => _selectedLogo = result['logo']);
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Logo upload failed: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isUploadingLogo = false);
     }

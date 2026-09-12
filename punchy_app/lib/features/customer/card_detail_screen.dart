@@ -215,7 +215,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                                                 width: 34,
                                                 height: 34,
                                                 fit: BoxFit.cover,
-                                                errorBuilder: (_, __, ___) =>
+                                                errorBuilder: (_, _, _) =>
                                                     const Text(
                                                       '🏪',
                                                       style: TextStyle(
@@ -453,7 +453,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                         ),
                         const SizedBox(height: 7),
                         Text(
-                          'Visit $bizName and get a punch for every qualifying purchase. ${punchesRequired} punches unlock the listed reward.',
+                          'Visit $bizName and get a punch for every qualifying purchase. $punchesRequired punches unlock the listed reward.',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12.5,
                             height: 1.45,

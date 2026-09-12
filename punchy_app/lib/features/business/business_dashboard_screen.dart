@@ -575,7 +575,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: actions.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
               final action = actions[index];
               return GestureDetector(

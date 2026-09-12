@@ -11,7 +11,8 @@
     "clean": "tsx src/clean_db.ts",
     "create-admin": "tsx src/create_admin.ts",
     "db:generate": "prisma generate --schema=./prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma"
+    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
+    "test": "tsx --test test/**/*.test.ts"
   },
   "keywords": [],
   "author": "",

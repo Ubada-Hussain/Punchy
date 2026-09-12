@@ -3,8 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+
 import 'dart:convert';
 import 'dart:async';
+
 import '../../core/api/api_client.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -17,9 +19,12 @@ class StaffPortalScreen extends StatefulWidget {
   State<StaffPortalScreen> createState() => _StaffPortalScreenState();
 }
 
-class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTickerProviderStateMixin {
+class _StaffPortalScreenState extends State<StaffPortalScreen>
+    with SingleTickerProviderStateMixin {
   final ApiClient _api = ApiClient();
-  final MobileScannerController _scannerController = MobileScannerController(autoStart: false);
+  final MobileScannerController _scannerController = MobileScannerController(
+    autoStart: false,
+  );
   final TextEditingController _manualInputController = TextEditingController();
 
   late AnimationController _animController;
@@ -63,6 +68,7 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
   Future<void> _processCustomerPunch(String customerIdentifier) async {
     if (_isProcessing) return;
     await _scannerController.stop();
+    if (!mounted) return;
     if (mounted) setState(() => _scannerOpen = false);
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -92,7 +98,8 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
     } catch (e) {
       if (mounted) {
         if (e is ApiException && e.statusCode == 429) {
-          final seconds = (e.details?['remainingSeconds'] as num?)?.toInt() ?? 180;
+          final seconds =
+              (e.details?['remainingSeconds'] as num?)?.toInt() ?? 180;
           _showCooldown(seconds);
           return;
         }
@@ -100,7 +107,13 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
           auth.setStaffActiveState(false);
           _showInactiveWarning();
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Could not record punch.')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                e is ApiException ? e.message : 'Could not record punch.',
+              ),
+            ),
+          );
         }
       }
     } finally {
@@ -109,15 +122,41 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
   }
 
   void _showCooldown(int initialSeconds) {
-    showDialog<void>(context: context, builder: (dialogContext) {
-      var remaining = initialSeconds;
-      Timer? timer;
-      return StatefulBuilder(builder: (context, setState) {
-        timer ??= Timer.periodic(const Duration(seconds: 1), (_) { if (remaining > 0) setState(() => remaining--); else { timer?.cancel(); Navigator.of(dialogContext).pop(); } });
-        final m = remaining ~/ 60, s = remaining % 60;
-        return AlertDialog(title: const Text('Punch cooldown'), content: Text('This customer already punched this card. Try again in $m:${s.toString().padLeft(2, '0')}'), actions: [TextButton(onPressed: () { timer?.cancel(); Navigator.of(dialogContext).pop(); }, child: const Text('OK'))]);
-      });
-    });
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        var remaining = initialSeconds;
+        Timer? timer;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+              if (remaining > 0) {
+                setState(() => remaining--);
+              } else {
+                timer?.cancel();
+                Navigator.of(dialogContext).pop();
+              }
+            });
+            final m = remaining ~/ 60, s = remaining % 60;
+            return AlertDialog(
+              title: const Text('Punch cooldown'),
+              content: Text(
+                'This customer already punched this card. Try again in $m:${s.toString().padLeft(2, '0')}',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    timer?.cancel();
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   String _normalizeCustomerIdentifier(String value) {
@@ -126,7 +165,9 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
       try {
         final json = jsonDecode(text);
         for (final key in ['customerId', 'userId', 'id', 'email']) {
-          if (json[key] is String && (json[key] as String).trim().isNotEmpty) return (json[key] as String).trim();
+          if (json[key] is String && (json[key] as String).trim().isNotEmpty) {
+            return (json[key] as String).trim();
+          }
         }
       } catch (_) {}
     }
@@ -148,7 +189,10 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         content: Text(
           '⛔ Scanner access is deactivated by business owner.',
-          style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w700),
+          style: GoogleFonts.plusJakartaSans(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );
@@ -196,13 +240,18 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: (isCompleted ? AppColors.coral : AppColors.teal).withValues(alpha: 0.15),
+                  color: (isCompleted ? AppColors.coral : AppColors.teal)
+                      .withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
                   child: Icon(
-                    isCompleted ? Icons.celebration_rounded : Icons.check_circle_rounded,
-                    color: isCompleted ? AppColors.coralDark : AppColors.tealDark,
+                    isCompleted
+                        ? Icons.celebration_rounded
+                        : Icons.check_circle_rounded,
+                    color: isCompleted
+                        ? AppColors.coralDark
+                        : AppColors.tealDark,
                     size: 34,
                   ),
                 ),
@@ -210,7 +259,9 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
               const SizedBox(height: 14),
 
               Text(
-                isCompleted ? '🎉 Card Completed! Reward Ready' : 'Punch Recorded! ☕',
+                isCompleted
+                    ? '🎉 Card Completed! Reward Ready'
+                    : 'Punch Recorded! ☕',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -220,9 +271,13 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
               const SizedBox(height: 6),
               ValueListenableBuilder<int>(
                 valueListenable: _cooldownRemaining,
-                builder: (_, seconds, __) => Text(
+                builder: (_, seconds, _) => Text(
                   'Next punch available in ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.coralDark),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.coralDark,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
@@ -239,7 +294,10 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
 
               // Customer Stamp Progress
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceAlt,
                   borderRadius: BorderRadius.circular(14),
@@ -257,11 +315,15 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                       ),
                     ),
                     Text(
-                      isCompleted ? 'COMPLETE ($punchCount/$punchesRequired)' : '$punchCount of $punchesRequired punches',
+                      isCompleted
+                          ? 'COMPLETE ($punchCount/$punchesRequired)'
+                          : '$punchCount of $punchesRequired punches',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        color: isCompleted ? AppColors.coralDark : AppColors.tealDark,
+                        color: isCompleted
+                            ? AppColors.coralDark
+                            : AppColors.tealDark,
                       ),
                     ),
                   ],
@@ -281,11 +343,17 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.teal,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: Text(
                     'Ready for Next Customer',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -310,7 +378,8 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final isStaffActive = auth.isStaffActive;
-    final staffName = auth.user?['name'] ?? auth.user?['email']?.split('@')[0] ?? 'Staff';
+    final staffName =
+        auth.user?['name'] ?? auth.user?['email']?.split('@')[0] ?? 'Staff';
     final businessName = auth.businessName ?? 'Punchy Merchant';
 
     return Scaffold(
@@ -329,10 +398,16 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                     decoration: BoxDecoration(
                       color: AppColors.teal.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.teal.withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: AppColors.teal.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: const Center(
-                      child: Icon(Icons.badge_outlined, color: AppColors.teal, size: 20),
+                      child: Icon(
+                        Icons.badge_outlined,
+                        color: AppColors.teal,
+                        size: 20,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -355,11 +430,16 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                             ),
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: isStaffActive
                                     ? AppColors.teal.withValues(alpha: 0.25)
-                                    : AppColors.coralDark.withValues(alpha: 0.25),
+                                    : AppColors.coralDark.withValues(
+                                        alpha: 0.25,
+                                      ),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -367,7 +447,9 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 9.5,
                                   fontWeight: FontWeight.w800,
-                                  color: isStaffActive ? AppColors.teal : AppColors.coralDark,
+                                  color: isStaffActive
+                                      ? AppColors.teal
+                                      : AppColors.coralDark,
                                   letterSpacing: 0.5,
                                 ),
                               ),
@@ -393,7 +475,11 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                       await auth.logout();
                       if (context.mounted) context.go('/login');
                     },
-                    icon: const Icon(Icons.logout_rounded, color: Colors.white70, size: 20),
+                    icon: const Icon(
+                      Icons.logout_rounded,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
                   ),
                 ],
               ),
@@ -416,7 +502,20 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
 
   Widget _buildActiveScannerView() {
     if (!_scannerOpen) {
-      return Center(child: Padding(padding: const EdgeInsets.all(32), child: SizedBox(width: double.infinity, height: 56, child: ElevatedButton.icon(onPressed: _openScanner, icon: const Icon(Icons.qr_code_scanner_rounded), label: const Text('Open Scanner')))));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: _openScanner,
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+              label: const Text('Open Scanner'),
+            ),
+          ),
+        ),
+      );
     }
     return Column(
       children: [
@@ -447,7 +546,9 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                       decoration: BoxDecoration(
                         color: const Color(0xFF14201C),
                         borderRadius: BorderRadius.circular(26),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
                       ),
                       child: Center(
                         child: Column(
@@ -481,10 +582,26 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                     ),
 
                   // Corner Brackets
-                  Positioned(top: 24, left: 24, child: _buildCorner(isTop: true, isLeft: true)),
-                  Positioned(top: 24, right: 24, child: _buildCorner(isTop: true, isLeft: false)),
-                  Positioned(bottom: 24, left: 24, child: _buildCorner(isTop: false, isLeft: true)),
-                  Positioned(bottom: 24, right: 24, child: _buildCorner(isTop: false, isLeft: false)),
+                  Positioned(
+                    top: 24,
+                    left: 24,
+                    child: _buildCorner(isTop: true, isLeft: true),
+                  ),
+                  Positioned(
+                    top: 24,
+                    right: 24,
+                    child: _buildCorner(isTop: true, isLeft: false),
+                  ),
+                  Positioned(
+                    bottom: 24,
+                    left: 24,
+                    child: _buildCorner(isTop: false, isLeft: true),
+                  ),
+                  Positioned(
+                    bottom: 24,
+                    right: 24,
+                    child: _buildCorner(isTop: false, isLeft: false),
+                  ),
 
                   // Animated Laser Line
                   AnimatedBuilder(
@@ -540,11 +657,17 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                 Expanded(
                   child: TextField(
                     controller: _manualInputController,
-                    style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 13),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: AppColors.ink,
+                      fontSize: 13,
+                    ),
                     cursorColor: AppColors.teal,
                     decoration: InputDecoration(
                       hintText: 'Enter customer email or ID...',
-                      hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.ink.withValues(alpha: 0.45), fontSize: 12.5),
+                      hintStyle: GoogleFonts.plusJakartaSans(
+                        color: AppColors.ink.withValues(alpha: 0.45),
+                        fontSize: 12.5,
+                      ),
                       border: InputBorder.none,
                       isDense: true,
                     ),
@@ -555,17 +678,45 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
                       ? null
                       : () {
                           final text = _manualInputController.text.trim();
-                          if (text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter the customer email or ID first.'))); return; }
+                          if (text.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Enter the customer email or ID first.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
                           _processCustomerPunch(text);
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.teal,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                   ),
                   child: _isProcessing
-                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text('Give Punch', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Give Punch',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -579,20 +730,41 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
             width: double.infinity,
             height: 48,
             child: ElevatedButton.icon(
-              onPressed: _isProcessing ? null : () {
-                final text = _manualInputController.text.trim();
-                if (text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter the customer email or ID first.'))); return; }
-                _processCustomerPunch(text);
-              },
-              icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 18),
+              onPressed: _isProcessing
+                  ? null
+                  : () {
+                      final text = _manualInputController.text.trim();
+                      if (text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Enter the customer email or ID first.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      _processCustomerPunch(text);
+                    },
+              icon: const Icon(
+                Icons.qr_code_scanner_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
               label: Text(
                 'Simulate Customer Barcode Scan',
-                style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.coral,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -602,7 +774,9 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
   }
 
   Future<void> _openScanner() async {
-    final granted = await HardwareScannerService.requestCameraPermission(context);
+    final granted = await HardwareScannerService.requestCameraPermission(
+      context,
+    );
     if (!granted || !mounted) return;
     setState(() => _scannerOpen = true);
     await _scannerController.start();
@@ -621,10 +795,17 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.05),
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.coralDark.withValues(alpha: 0.4), width: 2),
+                border: Border.all(
+                  color: AppColors.coralDark.withValues(alpha: 0.4),
+                  width: 2,
+                ),
               ),
               child: const Center(
-                child: Icon(Icons.lock_clock_rounded, size: 42, color: AppColors.coralDark),
+                child: Icon(
+                  Icons.lock_clock_rounded,
+                  size: 42,
+                  color: AppColors.coralDark,
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -657,15 +838,34 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
               child: ElevatedButton.icon(
                 onPressed: _isCheckingStatus ? null : _refreshStatus,
                 icon: _isCheckingStatus
-                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.refresh_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                 label: Text(
-                  _isCheckingStatus ? 'Checking Status...' : 'Check Activation Status',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+                  _isCheckingStatus
+                      ? 'Checking Status...'
+                      : 'Check Activation Status',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.teal,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
@@ -681,16 +881,26 @@ class _StaffPortalScreenState extends State<StaffPortalScreen> with SingleTicker
       height: 26,
       decoration: BoxDecoration(
         border: Border(
-          top: isTop ? const BorderSide(color: AppColors.teal, width: 3) : BorderSide.none,
-          bottom: !isTop ? const BorderSide(color: AppColors.teal, width: 3) : BorderSide.none,
-          left: isLeft ? const BorderSide(color: AppColors.teal, width: 3) : BorderSide.none,
-          right: !isLeft ? const BorderSide(color: AppColors.teal, width: 3) : BorderSide.none,
+          top: isTop
+              ? const BorderSide(color: AppColors.teal, width: 3)
+              : BorderSide.none,
+          bottom: !isTop
+              ? const BorderSide(color: AppColors.teal, width: 3)
+              : BorderSide.none,
+          left: isLeft
+              ? const BorderSide(color: AppColors.teal, width: 3)
+              : BorderSide.none,
+          right: !isLeft
+              ? const BorderSide(color: AppColors.teal, width: 3)
+              : BorderSide.none,
         ),
         borderRadius: BorderRadius.only(
           topLeft: isTop && isLeft ? const Radius.circular(8) : Radius.zero,
           topRight: isTop && !isLeft ? const Radius.circular(8) : Radius.zero,
           bottomLeft: !isTop && isLeft ? const Radius.circular(8) : Radius.zero,
-          bottomRight: !isTop && !isLeft ? const Radius.circular(8) : Radius.zero,
+          bottomRight: !isTop && !isLeft
+              ? const Radius.circular(8)
+              : Radius.zero,
         ),
       ),
     );

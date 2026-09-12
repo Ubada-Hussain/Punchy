@@ -90,7 +90,9 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
       var remaining = initialSeconds;
       Timer? timer;
       return StatefulBuilder(builder: (context, setState) {
-        timer ??= Timer.periodic(const Duration(seconds: 1), (_) { if (remaining > 0) setState(() => remaining--); else { timer?.cancel(); Navigator.of(dialogContext).pop(); } });
+        timer ??= Timer.periodic(const Duration(seconds: 1), (_) { if (remaining > 0) {
+          setState(() => remaining--);
+        } else { timer?.cancel(); Navigator.of(dialogContext).pop(); } });
         final m = remaining ~/ 60, s = remaining % 60;
         return AlertDialog(title: const Text('Punch cooldown'), content: Text('This customer already punched this card. Try again in $m:${s.toString().padLeft(2, '0')}'), actions: [TextButton(onPressed: () { timer?.cancel(); Navigator.of(dialogContext).pop(); }, child: const Text('OK'))]);
       });
@@ -191,7 +193,7 @@ class _BusinessScannerScreenState extends State<BusinessScannerScreen> with Sing
 
               ValueListenableBuilder<int>(
                 valueListenable: _cooldownRemaining,
-                builder: (_, seconds, __) => Text(
+                builder: (_, seconds, _) => Text(
                   'Next punch available in ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
                   style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.coralDark),
                 ),

@@ -485,7 +485,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           child: Image.network(
                             logo,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(
+                            errorBuilder: (_, _, _) => const Icon(
                               Icons.storefront,
                               color: Colors.white,
                               size: 30,
@@ -684,6 +684,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
+  // Kept as a compatibility renderer for older deep links; the current list
+  // uses the themed card renderer below.
+  // ignore: unused_element
   Widget _buildBusinessCard(dynamic business, dynamic card) {
     final theme = card?['visualStyle']?['theme']?.toString() ?? 'teal';
     LinearGradient cardGrad = AppColors.gradTeal;
@@ -736,7 +739,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               width: 44,
                               height: 44,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
+                              errorBuilder: (_, _, _) =>
                                   _businessCategoryIcon(business),
                             ),
                           )
@@ -961,7 +964,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Widget _businessCategoryIcon(dynamic business) {
-    final name = business['name']?.toString() ?? '';
     return const Icon(
       Icons.storefront_rounded,
       color: AppColors.tealDark,

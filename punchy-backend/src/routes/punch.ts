@@ -3,8 +3,10 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { notifyPunchEarned, notifyProgressMilestone } from '../lib/automatedNotifications';
+import { PunchDomainError, PunchService } from '../services/punchService';
 
 const router = Router();
+const punchService = new PunchService(prisma);
 
 const PunchSchema = z.object({ identifier: z.string().min(1) });
 
@@ -19,58 +21,12 @@ router.post('/', requireAuth, requireRole('CUSTOMER'), async (req: Request, res:
   const parsed = PunchSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
-  const punchMethod = await prisma.punchMethod.findUnique({
-    where: { identifier: parsed.data.identifier },
-    include: { card: { include: { business: true } } },
-  });
-
-  if (!punchMethod?.isActive) { res.status(404).json({ error: 'Invalid or inactive punch identifier' }); return; }
-  if (!punchMethod.card.isActive) { res.status(400).json({ error: 'This loyalty card is no longer active' }); return; }
-  if (punchMethod.card.validUntil && new Date(punchMethod.card.validUntil) < new Date()) {
-    res.status(400).json({ error: 'This loyalty card has expired' }); return;
-  }
-  if (punchMethod.card.business.status !== 'APPROVED') {
-    res.status(400).json({ error: 'This business is not currently active' }); return;
-  }
-
   const customerId = req.user!.userId;
-  const card = punchMethod.card;
+  let result;
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      let customerCard = await tx.customerCard.findUnique({
-        where: { customerId_cardId: { customerId, cardId: card.id } },
-      });
-
-      if (customerCard?.isCompleted) throw new Error('CARD_ALREADY_COMPLETED');
-
-      const isFirstVisit = !customerCard;
-      if (!customerCard) {
-        customerCard = await tx.customerCard.create({ data: { customerId, cardId: card.id } });
-      }
-
-      const newCount = customerCard.punchCount + 1;
-      const isNowComplete = newCount >= card.punchesRequired;
-
-      const updated = await tx.customerCard.update({
-        where: { id: customerCard.id },
-        data: { punchCount: newCount, isCompleted: isNowComplete },
-      });
-
-      await tx.punchTransaction.create({
-        data: { customerCardId: customerCard.id, punchMethodId: punchMethod.id, method: punchMethod.type },
-      });
-
-      await tx.activityLog.create({
-        data: {
-          userId: customerId,
-          action: isFirstVisit ? 'CARD_JOINED_AND_PUNCHED' : 'PUNCH_RECORDED',
-          metadata: { cardId: card.id, businessId: card.businessId, punchCount: newCount, punchesRequired: card.punchesRequired, isCompleted: isNowComplete },
-        },
-      });
-
-      return { updated, isFirstVisit, newCount, isNowComplete };
-    });
+    result = await punchService.record(customerId, parsed.data.identifier);
+    const card = result.card;
 
     try {
       await notifyPunchEarned(customerId, result.newCount, card.punchesRequired);
@@ -98,9 +54,7 @@ router.post('/', requireAuth, requireRole('CUSTOMER'), async (req: Request, res:
       customerCard: result.updated,
     });
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === 'CARD_ALREADY_COMPLETED') {
-      res.status(400).json({ error: 'Card is already complete. Please redeem your reward first.' }); return;
-    }
+    if (err instanceof PunchDomainError) { res.status(err.statusCode).json({ error: err.message }); return; }
     throw err;
   }
 });

@@ -167,7 +167,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                                             width: 64,
                                             height: 64,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => _businessInitial(bizName),
+                                            errorBuilder: (_, _, _) => _businessInitial(bizName),
                                           ),
                                         )
                                       : _businessInitial(bizName),

@@ -10,11 +10,11 @@ import { sendOtpEmail } from '../lib/email';
 import { requireAuth } from '../middleware/auth';
 import { OAuth2Client } from 'google-auth-library';
 import { authRateLimiter, otpRateLimiter } from '../middleware/rateLimit';
+import { strongPassword } from '../lib/passwordPolicy';
 
 const router = Router();
 router.use(authRateLimiter);
 
-const strongPassword = z.string().min(8).regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/, 'Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and symbol.');
 const RegisterSchema = z.object({
   email: z.string().email(),
   password: strongPassword,

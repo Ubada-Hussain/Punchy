@@ -405,7 +405,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                               width: 32,
                               height: 32,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Text(
+                              errorBuilder: (_, _, _) => const Text(
                                 '🏪',
                                 style: TextStyle(fontSize: 15),
                               ),

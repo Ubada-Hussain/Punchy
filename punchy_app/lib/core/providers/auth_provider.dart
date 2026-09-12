@@ -5,8 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../api/api_client.dart';
+import '../data/auth_repository.dart';
 
 class AuthProvider extends ChangeNotifier {
+  final AuthRepository _auth = AuthRepository();
+  final TokenStore _tokenStore = const SecureTokenStore();
   final ApiClient _api = ApiClient();
 
   bool _isLoading = false;
@@ -57,7 +60,7 @@ class AuthProvider extends ChangeNotifier {
     FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
       if (isAuthenticated && token.isNotEmpty) {
         try {
-          await _api.post('/auth/device-token', {'token': token});
+          await _auth.registerDeviceToken(token);
         } catch (e) {
           debugPrint('FCM token refresh registration failed: $e');
         }
@@ -67,8 +70,18 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> _loadToken() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _token = prefs.getString('token');
+      _token = await _tokenStore.read();
+      if (_token == null) {
+        // One-time migration for users upgrading from the legacy plaintext
+        // SharedPreferences token. The legacy value is removed immediately.
+        final legacyPrefs = await SharedPreferences.getInstance();
+        final legacyToken = legacyPrefs.getString('token');
+        if (legacyToken != null && legacyToken.isNotEmpty) {
+          await _tokenStore.write(legacyToken);
+          await legacyPrefs.remove('token');
+          _token = legacyToken;
+        }
+      }
       if (_token != null) {
         await fetchProfile();
         if (_token != null) await _registerDeviceToken();
@@ -93,13 +106,13 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> setPushNotificationsEnabled(bool enabled) async {
-    await _api.post('/auth/notification-preference', {'enabled': enabled});
+    await _auth.setNotificationPreference(enabled);
   }
 
   Future<void> fetchProfile() async {
     try {
-      final res = await _api.get('/auth/me');
-      if (res != null && res['user'] != null) {
+      final res = await _auth.profile();
+      if (res['user'] != null) {
         _user = res['user'];
         _isMaintenance = false;
         _isSuspended =
@@ -109,8 +122,7 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('AuthProvider fetchProfile error: $e');
       if (e is ApiException && e.statusCode == 401) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('token');
+        await _tokenStore.delete();
         _token = null;
         _user = null;
         _isSuspended = false;
@@ -137,18 +149,14 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _api.post('/auth/login', {
-        'email': email,
-        'password': password,
-      });
+      final response = await _auth.login(email, password);
 
       _token = response['accessToken'];
       _user = response['user'];
       _isSuspended =
           _user?['isSuspended'] == true || _user?['isBlocked'] == true;
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', _token!);
+      await _tokenStore.write(_token!);
       // Refresh the complete server profile so generated fields (including
       // the immutable public ID) are available immediately after sign-in.
       await fetchProfile();
@@ -177,8 +185,9 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _registerDeviceToken() async {
     try {
       final token = await FirebaseMessaging.instance.getToken();
-      if (token != null && token.isNotEmpty)
-        await _api.post('/auth/device-token', {'token': token});
+      if (token != null && token.isNotEmpty) {
+        await _auth.registerDeviceToken(token);
+      }
     } catch (e) {
       debugPrint('FCM token registration failed: $e');
     }
@@ -190,7 +199,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _api.post('/auth/forgot-password', {'email': email});
+      await _auth.requestPasswordReset(email);
       _isLoading = false;
       notifyListeners();
       return true;
@@ -214,11 +223,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _api.post('/auth/reset-password', {
-        'email': email,
-        'otp': otp,
-        'password': password,
-      });
+      await _auth.resetPassword(email: email, otp: otp, password: password);
       _isLoading = false;
       notifyListeners();
       return true;
@@ -245,13 +250,13 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _api.post('/auth/register', {
-        'email': email,
-        'password': password,
-        'role': role,
-        if (name != null && name.isNotEmpty) 'name': name,
-        if (phone != null && phone.isNotEmpty) 'phone': phone,
-      });
+      final response = await _auth.register(
+        email: email,
+        password: password,
+        role: role,
+        name: name,
+        phone: phone,
+      );
 
       if (response['verificationRequired'] == true) {
         _pendingSignup = {'email': email};
@@ -263,8 +268,7 @@ class AuthProvider extends ChangeNotifier {
       _token = response['accessToken'];
       _user = response['user'];
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', _token!);
+      await _tokenStore.write(_token!);
       await _registerDeviceToken();
 
       _isLoading = false;
@@ -289,15 +293,11 @@ class AuthProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      final response = await _api.post('/auth/verify-signup', {
-        'email': email,
-        'otp': otp,
-      });
+      final response = await _auth.verifySignup(email, otp);
       _token = response['accessToken'];
       _user = response['user'];
       _pendingSignup = null;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', _token!);
+      await _tokenStore.write(_token!);
       await _registerDeviceToken();
       _isLoading = false;
       notifyListeners();
@@ -315,12 +315,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await _api.put('/auth/profile', {
-        'name': name,
-        ...?phone != null ? {'phone': phone} : null,
-      });
+      final res = await _auth.updateProfile(name: name, phone: phone);
 
-      if (res != null && res['user'] != null) {
+      if (res['user'] != null) {
         _user = res['user'];
       }
       _isLoading = false;
@@ -341,8 +338,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
+    await _tokenStore.delete();
     _token = null;
     _user = null;
     _isSuspended = false;
@@ -351,7 +347,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> requestDeleteAccountOtp() async {
     try {
-      await _api.post('/auth/account/delete-request', {});
+      await _auth.requestDeleteAccountOtp();
       return true;
     } catch (e) {
       _errorMessage = e is ApiException
@@ -364,7 +360,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> deleteAccount(String otp) async {
     try {
-      await _api.deleteWithBody('/auth/account', {'otp': otp});
+      await _auth.deleteAccount(otp);
       await logout();
       return true;
     } catch (_) {
