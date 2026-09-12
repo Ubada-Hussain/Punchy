@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
+import { notifyPunchEarned, notifyProgressMilestone } from '../lib/automatedNotifications';
 
 const router = Router();
 
@@ -70,6 +71,21 @@ router.post('/', requireAuth, requireRole('CUSTOMER'), async (req: Request, res:
 
       return { updated, isFirstVisit, newCount, isNowComplete };
     });
+
+    try {
+      await notifyPunchEarned(customerId, result.newCount, card.punchesRequired);
+      await notifyProgressMilestone(
+        result.updated.id,
+        customerId,
+        card.business.name,
+        card.business.category,
+        card.rewardDescription,
+        result.newCount,
+        card.punchesRequired,
+      );
+    } catch (notificationError) {
+      console.error('[Punch] push notification failed', notificationError);
+    }
 
     res.json({
       message: result.isNowComplete

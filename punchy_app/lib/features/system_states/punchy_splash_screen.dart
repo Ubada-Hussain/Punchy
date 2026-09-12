@@ -1,7 +1,9 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/providers/auth_provider.dart';
 
 class PunchySplashScreen extends StatefulWidget {
@@ -21,7 +23,7 @@ class _PunchySplashScreenState extends State<PunchySplashScreen>
     super.initState();
     _progress = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2100),
+      duration: const Duration(milliseconds: 900),
     )..forward();
     _progress.addStatusListener((status) {
       if (status == AnimationStatus.completed) _navigateWhenReady();
@@ -79,15 +81,41 @@ class _PunchySplashScreenState extends State<PunchySplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Image.asset('assets/punchy_splash_mark.png', width: width * .46, height: width * .46, fit: BoxFit.contain),
+                      Image.asset(
+                        'assets/punchy_splash_mark.png',
+                        width: width * .46,
+                        height: width * .46,
+                        fit: BoxFit.contain,
+                      ),
                       const SizedBox(height: 22),
-                      const Text('Punchy', style: TextStyle(color: Color(0xFF0EA893), fontSize: 54, fontWeight: FontWeight.w800, letterSpacing: -2)),
+                      const Text(
+                        'Punchy',
+                        style: TextStyle(
+                          color: Color(0xFF0EA893),
+                          fontSize: 54,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -2,
+                        ),
+                      ),
                       const SizedBox(height: 14),
-                      RichText(text: const TextSpan(style: TextStyle(color: Color(0xFF202124), fontSize: 14, letterSpacing: 3.1, fontWeight: FontWeight.w500), children: [
-                        TextSpan(text: 'THE ULTIMATE '),
-                        TextSpan(text: 'LOYALTY', style: TextStyle(color: Color(0xFF0EA893))),
-                        TextSpan(text: ' APP'),
-                      ])),
+                      RichText(
+                        text: const TextSpan(
+                          style: TextStyle(
+                            color: Color(0xFF202124),
+                            fontSize: 14,
+                            letterSpacing: 3.1,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          children: [
+                            TextSpan(text: 'THE ULTIMATE '),
+                            TextSpan(
+                              text: 'LOYALTY',
+                              style: TextStyle(color: Color(0xFF0EA893)),
+                            ),
+                            TextSpan(text: ' APP'),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -98,7 +126,16 @@ class _PunchySplashScreenState extends State<PunchySplashScreen>
                 bottom: 92,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
-                  child: SizedBox(height: 14, child: LinearProgressIndicator(value: _progress.value, backgroundColor: const Color(0xFFD7E9E5), valueColor: const AlwaysStoppedAnimation(Color(0xFF0EA893)))),
+                  child: SizedBox(
+                    height: 14,
+                    child: LinearProgressIndicator(
+                      value: _progress.value,
+                      backgroundColor: const Color(0xFFD7E9E5),
+                      valueColor: const AlwaysStoppedAnimation(
+                        Color(0xFF0EA893),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],

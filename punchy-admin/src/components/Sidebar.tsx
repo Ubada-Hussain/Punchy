@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import Image from 'next/image';
 
 const Icons = {
   grid: (
@@ -90,7 +91,7 @@ export default function Sidebar() {
 
   function handleLogout() {
     api.clearSession();
-    router.replace('/login');
+    router.replace('/punchy-control-center-7f3c9b-2026');
   }
 
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? 'AD';
@@ -99,7 +100,7 @@ export default function Sidebar() {
     <aside className="admin-sidebar">
       {/* Logo */}
       <div className="side-logo">
-        <div className="side-logo-mark">{Icons.star}</div>
+        <div className="side-logo-mark"><Image src="/punchy-mark.png" alt="Punchy" width={38} height={38} /></div>
         <b>Punchy Admin</b>
       </div>
 

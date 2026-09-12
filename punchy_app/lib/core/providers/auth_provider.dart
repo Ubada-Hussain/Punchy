@@ -1,9 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../api/api_client.dart';
-
 
 class AuthProvider extends ChangeNotifier {
   final ApiClient _api = ApiClient();
@@ -14,7 +15,9 @@ class AuthProvider extends ChangeNotifier {
   bool get isReady => _isReady;
 
   String? _errorMessage;
+  Map<String, dynamic>? _pendingSignup;
   String? get errorMessage => _errorMessage;
+  Map<String, dynamic>? get pendingSignup => _pendingSignup;
 
   String? _token;
   bool get isAuthenticated => _token != null;
@@ -23,6 +26,8 @@ class AuthProvider extends ChangeNotifier {
   Map<String, dynamic>? get user => _user;
 
   bool _isSuspended = false;
+  bool _isMaintenance = false;
+  bool get isMaintenance => _isMaintenance;
   bool get isSuspended {
     if (_isSuspended) return true;
     if (_user != null) {
@@ -51,8 +56,11 @@ class AuthProvider extends ChangeNotifier {
     _loadToken();
     FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
       if (isAuthenticated && token.isNotEmpty) {
-        try { await _api.post('/auth/device-token', {'token': token}); }
-        catch (e) { debugPrint('FCM token refresh registration failed: $e'); }
+        try {
+          await _api.post('/auth/device-token', {'token': token});
+        } catch (e) {
+          debugPrint('FCM token refresh registration failed: $e');
+        }
       }
     });
   }
@@ -65,6 +73,9 @@ class AuthProvider extends ChangeNotifier {
         await fetchProfile();
         if (_token != null) await _registerDeviceToken();
       }
+      // Health/maintenance is supplemental and must not delay login or the
+      // first route when no session exists.
+      unawaited(checkMaintenance());
     } catch (e) {
       debugPrint('AuthProvider _loadToken error: $e');
     } finally {
@@ -73,11 +84,24 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> checkMaintenance() async {
+    try {
+      final res = await _api.get('/health');
+      _isMaintenance = res is Map && res['maintenance'] == true;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> setPushNotificationsEnabled(bool enabled) async {
+    await _api.post('/auth/notification-preference', {'enabled': enabled});
+  }
+
   Future<void> fetchProfile() async {
     try {
       final res = await _api.get('/auth/me');
       if (res != null && res['user'] != null) {
         _user = res['user'];
+        _isMaintenance = false;
         _isSuspended =
             _user?['isSuspended'] == true || _user?['isBlocked'] == true;
         notifyListeners();
@@ -95,6 +119,12 @@ class AuthProvider extends ChangeNotifier {
       }
       if (e is ApiException && e.statusCode == 403) {
         _isSuspended = true;
+        notifyListeners();
+      }
+      if (e is ApiException && e.statusCode == 503) {
+        _isMaintenance =
+            e.details?['maintenance'] == true ||
+            e.message.toLowerCase().contains('maintenance');
         notifyListeners();
       }
     }
@@ -147,8 +177,11 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _registerDeviceToken() async {
     try {
       final token = await FirebaseMessaging.instance.getToken();
-      if (token != null && token.isNotEmpty) await _api.post('/auth/device-token', {'token': token});
-    } catch (e) { debugPrint('FCM token registration failed: $e'); }
+      if (token != null && token.isNotEmpty)
+        await _api.post('/auth/device-token', {'token': token});
+    } catch (e) {
+      debugPrint('FCM token registration failed: $e');
+    }
   }
 
   Future<bool> requestPasswordReset(String email) async {
@@ -220,6 +253,13 @@ class AuthProvider extends ChangeNotifier {
         if (phone != null && phone.isNotEmpty) 'phone': phone,
       });
 
+      if (response['verificationRequired'] == true) {
+        _pendingSignup = {'email': email};
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+
       _token = response['accessToken'];
       _user = response['user'];
 
@@ -237,6 +277,34 @@ class AuthProvider extends ChangeNotifier {
       } else {
         _errorMessage = e.toString();
       }
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> verifySignup(String otp) async {
+    final email = _pendingSignup?['email']?.toString();
+    if (email == null) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final response = await _api.post('/auth/verify-signup', {
+        'email': email,
+        'otp': otp,
+      });
+      _token = response['accessToken'];
+      _user = response['user'];
+      _pendingSignup = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', _token!);
+      await _registerDeviceToken();
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = e is ApiException ? e.message : 'Verification failed.';
       notifyListeners();
       return false;
     }
@@ -281,9 +349,22 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> deleteAccount() async {
+  Future<bool> requestDeleteAccountOtp() async {
     try {
-      await _api.delete('/auth/account');
+      await _api.post('/auth/account/delete-request', {});
+      return true;
+    } catch (e) {
+      _errorMessage = e is ApiException
+          ? e.message
+          : 'Could not send verification code.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteAccount(String otp) async {
+    try {
+      await _api.deleteWithBody('/auth/account', {'otp': otp});
       await logout();
       return true;
     } catch (_) {

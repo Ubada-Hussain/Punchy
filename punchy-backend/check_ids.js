@@ -1,0 +1,2 @@
+const {PrismaClient}=require('@prisma/client'); const crypto=require('crypto'); const p=new PrismaClient();
+(async()=>{const users=await p.user.findMany({select:{id:true,email:true,publicId:true}}); console.log('TOTAL',users.length,'MISSING',users.filter(x=>!x.publicId).length); for(const u of users.filter(x=>!x.publicId)){let id; do{id=String(crypto.randomInt(100000,1000000));}while(await p.user.findUnique({where:{publicId:id}})); await p.user.update({where:{id:u.id},data:{publicId:id}}); console.log(u.email,id);} await p.$disconnect();})();

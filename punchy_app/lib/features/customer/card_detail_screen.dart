@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -29,7 +31,20 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     if (dateVal == null) return 'No expiry';
     try {
       final dt = DateTime.parse(dateVal.toString());
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
     } catch (_) {
       return dateVal.toString();
@@ -50,30 +65,45 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     } catch (_) {}
   }
 
+  Future<void> _openBusinessLocation(String address) async {
+    if (address.isEmpty) return;
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(address)}',
+    );
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   @override
   Widget build(BuildContext context) {
     final cardInfo = _card['card'] ?? {};
     final biz = cardInfo['business'] ?? {};
     final bizName = biz['name'] ?? cardInfo['title'] ?? 'Business';
     final bizCat = biz['category'] ?? '';
-    final bizLocations = (biz['locations'] is List) ? biz['locations'] as List : const [];
-    final bizAddress = bizLocations.isNotEmpty && bizLocations.first is Map ? (bizLocations.first['address'] ?? '').toString() : '';
+    final bizLocations = (biz['locations'] is List)
+        ? biz['locations'] as List
+        : const [];
+    final bizAddress = bizLocations.isNotEmpty && bizLocations.first is Map
+        ? (bizLocations.first['address'] ?? '').toString()
+        : '';
     final bizLogo = (biz['logo'] != null && biz['logo'].toString().isNotEmpty)
         ? biz['logo'].toString()
         : (cardInfo['visualStyle']?['icon'] ?? '🎟️');
     final punchCount = _card['punchCount'] as int? ?? 0;
     final punchesRequired = cardInfo['punchesRequired'] as int? ?? 10;
     final reward = cardInfo['rewardDescription'] ?? 'Reward';
-    final isCompleted = _card['isCompleted'] == true || punchCount >= punchesRequired;
+    final isCompleted =
+        _card['isCompleted'] == true || punchCount >= punchesRequired;
 
-    final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal').toString().toLowerCase();
+    final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal')
+        .toString()
+        .toLowerCase();
     final gradient = themeStr == 'coral'
         ? AppColors.gradCoral
         : themeStr == 'purple'
-            ? AppColors.gradPurple
-            : themeStr == 'gold'
-                ? AppColors.gradGold
-                : AppColors.gradTeal;
+        ? AppColors.gradPurple
+        : themeStr == 'gold'
+        ? AppColors.gradGold
+        : AppColors.gradTeal;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -97,7 +127,11 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Center(
-                        child: Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: AppColors.ink),
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                   ),
@@ -118,7 +152,11 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       borderRadius: BorderRadius.circular(11),
                     ),
                     child: const Center(
-                      child: Icon(Icons.settings_outlined, size: 16, color: AppColors.ink),
+                      child: Icon(
+                        Icons.settings_outlined,
+                        size: 16,
+                        color: AppColors.ink,
+                      ),
                     ),
                   ),
                 ],
@@ -128,7 +166,10 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
             // Scrollable Content
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 6,
+                ),
                 children: [
                   // Signature Punch Card with Tear Line
                   Container(
@@ -151,85 +192,167 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Expanded(child: Row(
+                            Expanded(
+                              child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                Container(
-                                  width: 34,
-                                  height: 34,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.22),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Center(
-                                    child: Text(bizLogo, style: const TextStyle(fontSize: 15)),
-                                  ),
-                                ),
-                                const SizedBox(width: 9),
-                                Expanded(child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      bizName,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    Text(
-                                      bizCat,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white.withValues(alpha: 0.85),
-                                      ),
-                                    ),
-                                    if (bizAddress.isNotEmpty) Text('📍 $bizAddress', maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.white.withValues(alpha: 0.95))),
-                                  ],
-                                )),
-                              ],
-                            )),
-                            const SizedBox(width: 6),
-                            Flexible(child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.22),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: Text(
-                                    isCompleted ? 'REWARD READY' : 'ACTIVE',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                      letterSpacing: 0.3,
-                                    ),
-                                  ),
-                                ),
-                                if (cardInfo['validUntil'] != null) ...[
-                                  const SizedBox(height: 4),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    width: 34,
+                                    height: 34,
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.25),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      '⏳ Valid: ${_formatDate(cardInfo['validUntil'])}',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white.withValues(alpha: 0.9),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.22,
                                       ),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Center(
+                                      child: bizLogo.startsWith('http')
+                                          ? ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              child: Image.network(
+                                                bizLogo,
+                                                width: 34,
+                                                height: 34,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) =>
+                                                    const Text(
+                                                      '🏪',
+                                                      style: TextStyle(
+                                                        fontSize: 15,
+                                                      ),
+                                                    ),
+                                              ),
+                                            )
+                                          : Text(
+                                              bizLogo,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 9),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          bizName,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        Text(
+                                          bizCat,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white.withValues(
+                                              alpha: 0.85,
+                                            ),
+                                          ),
+                                        ),
+                                        if (bizAddress.isNotEmpty)
+                                          GestureDetector(
+                                            onTap: () => _openBusinessLocation(
+                                              bizAddress,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.location_on_rounded,
+                                                  size: 13,
+                                                  color: Colors.white,
+                                                ),
+                                                const SizedBox(width: 3),
+                                                Expanded(
+                                                  child: Text(
+                                                    bizAddress,
+                                                    maxLines: 2,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style:
+                                                        GoogleFonts.plusJakartaSans(
+                                                          fontSize: 11,
+                                                          color: Colors.white
+                                                              .withValues(
+                                                                alpha: 0.95,
+                                                              ),
+                                                        ),
+                                                  ),
+                                                ),
+                                                const Icon(
+                                                  Icons.open_in_new_rounded,
+                                                  size: 12,
+                                                  color: Colors.white,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
                                 ],
-                              ],
-                            )),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.22,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      isCompleted ? 'REWARD READY' : 'ACTIVE',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ),
+                                  if (cardInfo['validUntil'] != null) ...[
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.25,
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        '⏳ Valid: ${_formatDate(cardInfo['validUntil'])}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.9,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -260,23 +383,33 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                               height: 28,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: isFilled ? Colors.white : Colors.transparent,
+                                color: isFilled
+                                    ? Colors.white
+                                    : Colors.transparent,
                                 border: isFilled
                                     ? null
                                     : Border.all(
-                                        color: Colors.white.withValues(alpha: 0.55),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.55,
+                                        ),
                                         width: 1.6,
                                       ),
                               ),
                               child: Center(
                                 child: isFilled
-                                    ? Icon(Icons.check_rounded, color: gradient.colors.last, size: 16)
+                                    ? Icon(
+                                        Icons.check_rounded,
+                                        color: gradient.colors.last,
+                                        size: 16,
+                                      )
                                     : Text(
                                         '${i + 1}',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w700,
-                                          color: Colors.white.withValues(alpha: 0.8),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.8,
+                                          ),
                                         ),
                                       ),
                               ),
@@ -295,6 +428,63 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                             fontWeight: FontWeight.w700,
                             color: Colors.white.withValues(alpha: 0.9),
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.line),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'About this card',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          'Visit $bizName and get a punch for every qualifying purchase. ${punchesRequired} punches unlock the listed reward.',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            height: 1.45,
+                            color: AppColors.inkSoft,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _detailStat(
+                                Icons.calendar_today_outlined,
+                                'Valid till',
+                                _formatDate(cardInfo['validUntil']),
+                              ),
+                            ),
+                            Expanded(
+                              child: _detailStat(
+                                Icons.sell_outlined,
+                                'Minimum order',
+                                '${cardInfo['currency'] ?? 'PKR'} ${cardInfo['pricePerPunch'] ?? 'Not set'}',
+                              ),
+                            ),
+                            Expanded(
+                              child: _detailStat(
+                                Icons.stars_outlined,
+                                'Punches required',
+                                '$punchesRequired',
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -323,7 +513,10 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                     ),
                     child: _transactions.isEmpty
                         ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 24,
+                              horizontal: 16,
+                            ),
                             child: Center(
                               child: Text(
                                 'No punches recorded yet.\nScan QR or Tap NFC to collect your first stamp!',
@@ -337,12 +530,25 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                             ),
                           )
                         : Column(
-                            children: _transactions.asMap().entries.map((entry) {
+                            children: _transactions.asMap().entries.map((
+                              entry,
+                            ) {
                               final idx = entry.key;
                               final tx = entry.value;
                               final method = tx['method'] ?? 'QR';
                               final ts = tx['timestamp'] != null
-                                  ? tx['timestamp'].toString().substring(0, tx['timestamp'].toString().length >= 16 ? 16 : tx['timestamp'].toString().length).replaceAll('T', ' ')
+                                  ? tx['timestamp']
+                                        .toString()
+                                        .substring(
+                                          0,
+                                          tx['timestamp'].toString().length >=
+                                                  16
+                                              ? 16
+                                              : tx['timestamp']
+                                                    .toString()
+                                                    .length,
+                                        )
+                                        .replaceAll('T', ' ')
                                   : 'Just now';
                               return Column(
                                 children: [
@@ -350,15 +556,54 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                                     'Punch via $method',
                                     ts,
                                     '+1',
-                                    method == 'NFC' ? Icons.nfc_rounded : Icons.check_rounded,
+                                    method == 'NFC'
+                                        ? Icons.nfc_rounded
+                                        : Icons.check_rounded,
                                   ),
                                   if (idx < _transactions.length - 1)
-                                    const Divider(height: 1, color: AppColors.line),
+                                    const Divider(
+                                      height: 1,
+                                      color: AppColors.line,
+                                    ),
                                 ],
                               );
                             }).toList(),
                           ),
                   ),
+                  if (bizAddress.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.line),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            color: AppColors.tealDark,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              bizAddress,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: AppColors.inkSoft,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => _openBusinessLocation(bizAddress),
+                            child: const Text('Map'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -386,7 +631,9 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: CustomPaint(
-                  painter: DashedLinePainter(color: Colors.white.withValues(alpha: 0.55)),
+                  painter: DashedLinePainter(
+                    color: Colors.white.withValues(alpha: 0.55),
+                  ),
                   size: const Size(double.infinity, 2),
                 ),
               ),
@@ -406,7 +653,47 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     );
   }
 
-  Widget _buildActivityRow(String title, String sub, String meta, IconData icon) {
+  Widget _detailStat(IconData icon, String label, String value) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+    decoration: BoxDecoration(
+      color: AppColors.surfaceAlt,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: AppColors.tealDark),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 9.5,
+            color: AppColors.inkSoft,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: AppColors.ink,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildActivityRow(
+    String title,
+    String sub,
+    String meta,
+    IconData icon,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       child: Row(
@@ -472,7 +759,11 @@ class DashedLinePainter extends CustomPainter {
     var dashSpace = 5.0;
     double currentX = 0;
     while (currentX < max) {
-      canvas.drawLine(Offset(currentX, 0), Offset(currentX + dashWidth, 0), paint);
+      canvas.drawLine(
+        Offset(currentX, 0),
+        Offset(currentX + dashWidth, 0),
+        paint,
+      );
       currentX += dashWidth + dashSpace;
     }
   }

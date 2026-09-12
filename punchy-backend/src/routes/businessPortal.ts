@@ -2,11 +2,21 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { v4 as uuid } from 'uuid';
 import bcrypt from 'bcryptjs';
+import multer from 'multer';
+import sharp from 'sharp';
+import fs from 'fs/promises';
+import path from 'path';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { sendNotification } from '../lib/notifications';
+import { notifyPunchEarned, notifyProgressMilestone } from '../lib/automatedNotifications';
 
 const router = Router();
+const logoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => cb(null, file.mimetype.startsWith('image/')),
+});
 
 // Business Onboarding Schema
 const SetupSchema = z.object({
@@ -27,6 +37,8 @@ const CardSchema = z.object({
   rewardDescription: z.string().min(2),
   visualStyle: z.record(z.string(), z.any()).default({}),
   validUntil: z.string().nullable().optional(),
+  pricePerPunch: z.number().min(0).optional().default(0),
+  currency: z.string().min(1).max(10).optional().default('PKR'),
   enableQR: z.boolean().default(true),
   enableNFC: z.boolean().default(true),
 });
@@ -39,9 +51,23 @@ const CreateStaffSchema = z.object({
   phone: z.string().optional(),
 });
 
+function calculateTrend(curr7: number, prev7: number) {
+  if (prev7 === 0) {
+    if (curr7 > 0) return { pct: 100, isPositive: true, label: '+100%' };
+    return { pct: 0, isPositive: true, label: '+0%' };
+  }
+  const diff = curr7 - prev7;
+  const pct = Math.round((diff / prev7) * 100);
+  return {
+    pct: Math.abs(pct),
+    isPositive: pct >= 0,
+    label: `${pct >= 0 ? '+' : '-'}${Math.abs(pct)}%`,
+  };
+}
+
 /**
  * GET /business/dashboard
- * Return total customers, punches today, rewards redeemed, card preview, recent activity
+ * Return total customers, punches, rewards, real 7-day stats, card preview, unified recent activity
  */
 router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
   try {
@@ -62,9 +88,10 @@ router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Reque
       business = await prisma.businessProfile.create({
         data: {
           userId: req.user!.userId,
-          name: 'My Business',
-          category: 'Retail & Cafe',
+          name: 'The Cozy Spot',
+          category: 'Food & Beverages',
           status: 'APPROVED',
+          locations: [{ address: '12 Maple Street, Gulberg III, Lahore, Pakistan' }],
         },
         include: {
           loyaltyCards: {
@@ -79,15 +106,6 @@ router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Reque
 
     const cardIds = business.loyaltyCards.map(c => c.id);
 
-    // Total unique customers who joined cards
-    const totalCustomers = await prisma.customerCard.count({
-      where: { cardId: { in: cardIds } },
-    });
-
-    // Punches today
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-
     const customerCardIds = (
       await prisma.customerCard.findMany({
         where: { cardId: { in: cardIds } },
@@ -95,32 +113,145 @@ router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Reque
       })
     ).map(c => c.id);
 
-    const punchesToday = await prisma.punchTransaction.count({
-      where: {
-        customerCardId: { in: customerCardIds },
-        timestamp: { gte: startOfDay },
-      },
-    });
+    const now = new Date();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 86_400_000);
 
-    // Total redeemed
-    const redeemedCount = await prisma.redemption.count({
-      where: { customerCardId: { in: customerCardIds } },
-    });
+    const [
+      totalCustomers,
+      customersLast7,
+      customersPrev7,
+      totalPunches,
+      punchesLast7,
+      punchesPrev7,
+      punchesToday,
+      totalRewards,
+      rewardsLast7,
+      rewardsPrev7,
+      unreadNotificationsCount,
+    ] = await Promise.all([
+      prisma.customerCard.count({ where: { cardId: { in: cardIds } } }),
+      prisma.customerCard.count({ where: { cardId: { in: cardIds }, joinedAt: { gte: sevenDaysAgo } } }),
+      prisma.customerCard.count({ where: { cardId: { in: cardIds }, joinedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } } }),
 
-    // Recent activity
-    const recentPunches = await prisma.punchTransaction.findMany({
-      where: { customerCardId: { in: customerCardIds } },
-      include: {
-        customerCard: {
-          include: {
-            customer: { select: { email: true } },
-            card: { select: { title: true } },
+      prisma.punchTransaction.count({ where: { customerCardId: { in: customerCardIds } } }),
+      prisma.punchTransaction.count({ where: { customerCardId: { in: customerCardIds }, timestamp: { gte: sevenDaysAgo } } }),
+      prisma.punchTransaction.count({ where: { customerCardId: { in: customerCardIds }, timestamp: { gte: fourteenDaysAgo, lt: sevenDaysAgo } } }),
+      prisma.punchTransaction.count({ where: { customerCardId: { in: customerCardIds }, timestamp: { gte: startOfDay } } }),
+
+      prisma.redemption.count({ where: { customerCardId: { in: customerCardIds } } }),
+      prisma.redemption.count({ where: { customerCardId: { in: customerCardIds }, redeemedAt: { gte: sevenDaysAgo } } }),
+      prisma.redemption.count({ where: { customerCardId: { in: customerCardIds }, redeemedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } } }),
+
+      prisma.notification.count({
+        where: {
+          OR: [
+            { targetType: 'ALL' },
+            { targetType: 'BUSINESSES' },
+            { targetType: 'USER', targetId: req.user!.userId },
+          ],
+        },
+      }),
+    ]);
+
+    const customersTrend = calculateTrend(customersLast7, customersPrev7);
+    const punchesTrend = calculateTrend(punchesLast7, punchesPrev7);
+    const rewardsTrend = calculateTrend(rewardsLast7, rewardsPrev7);
+
+    // Query unified recent events: Punches, Redemptions, Joins
+    const [recentPunches, recentRedemptions, recentJoins] = await Promise.all([
+      prisma.punchTransaction.findMany({
+        where: { customerCardId: { in: customerCardIds } },
+        include: {
+          customerCard: {
+            include: {
+              customer: { select: { id: true, name: true, email: true } },
+              card: { select: { title: true } },
+            },
           },
         },
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 10,
-    });
+        orderBy: { timestamp: 'desc' },
+        take: 10,
+      }),
+      prisma.redemption.findMany({
+        where: { customerCardId: { in: customerCardIds } },
+        include: {
+          customerCard: {
+            include: {
+              customer: { select: { id: true, name: true, email: true } },
+              card: { select: { title: true, punchesRequired: true, rewardDescription: true } },
+            },
+          },
+        },
+        orderBy: { redeemedAt: 'desc' },
+        take: 10,
+      }),
+      prisma.customerCard.findMany({
+        where: { cardId: { in: cardIds } },
+        include: {
+          customer: { select: { id: true, name: true, email: true } },
+          card: { select: { title: true } },
+        },
+        orderBy: { joinedAt: 'desc' },
+        take: 10,
+      }),
+    ]);
+
+    interface ActivityItem {
+      id: string;
+      type: 'PUNCH' | 'REDEMPTION' | 'JOIN';
+      customerName: string;
+      customerEmail: string;
+      action: string;
+      cardTitle: string;
+      timestamp: Date;
+      resultBadge: string;
+      badgeColor: 'green' | 'red' | 'teal';
+    }
+
+    const activityList: ActivityItem[] = [
+      ...recentPunches.map(p => ({
+        id: p.id,
+        type: 'PUNCH' as const,
+        customerName: p.customerCard.customer.name || p.customerCard.customer.email.split('@')[0],
+        customerEmail: p.customerCard.customer.email,
+        action: 'Earned 1 punch',
+        cardTitle: p.customerCard.card.title,
+        timestamp: p.timestamp,
+        resultBadge: '+1 punch',
+        badgeColor: 'green' as const,
+      })),
+      ...recentRedemptions.map(r => ({
+        id: r.id,
+        type: 'REDEMPTION' as const,
+        customerName: r.customerCard.customer.name || r.customerCard.customer.email.split('@')[0],
+        customerEmail: r.customerCard.customer.email,
+        action: `Redeemed reward (${r.customerCard.card.rewardDescription || 'Free Reward'})`,
+        cardTitle: r.customerCard.card.title,
+        timestamp: r.redeemedAt,
+        resultBadge: `-${r.customerCard.card.punchesRequired} punches`,
+        badgeColor: 'red' as const,
+      })),
+      ...recentJoins.map(j => ({
+        id: j.id,
+        type: 'JOIN' as const,
+        customerName: j.customer.name || j.customer.email.split('@')[0],
+        customerEmail: j.customer.email,
+        action: 'Joined loyalty card',
+        cardTitle: j.card.title,
+        timestamp: j.joinedAt,
+        resultBadge: '+0 punch',
+        badgeColor: 'teal' as const,
+      })),
+    ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 15);
+
+    let address = '';
+    if (business.locations && Array.isArray(business.locations) && business.locations.length > 0) {
+      const loc = business.locations[0] as any;
+      if (loc && loc.address) address = loc.address;
+    }
 
     res.json({
       business: {
@@ -129,20 +260,26 @@ router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Reque
         category: business.category,
         logo: business.logo,
         status: business.status,
+        address,
       },
+      hasUnreadNotifications: unreadNotificationsCount > 0,
       stats: {
         totalCustomers,
+        customersChangePct: customersTrend.label,
+        customersIsPositive: customersTrend.isPositive,
+
+        totalPunches,
+        punchesChangePct: punchesTrend.label,
+        punchesIsPositive: punchesTrend.isPositive,
         punchesToday,
-        rewardsRedeemed: redeemedCount,
+
+        totalRewardsGiven: totalRewards,
+        rewardsChangePct: rewardsTrend.label,
+        rewardsIsPositive: rewardsTrend.isPositive,
+        rewardsRedeemed: totalRewards,
       },
       cards: business.loyaltyCards,
-      recentActivity: recentPunches.map(p => ({
-        id: p.id,
-        customerEmail: p.customerCard.customer.email,
-        cardTitle: p.customerCard.card.title,
-        method: p.method,
-        timestamp: p.timestamp,
-      })),
+      recentActivity: activityList,
     });
   } catch (error) {
     console.error('Business Dashboard error:', error);
@@ -236,6 +373,35 @@ router.post('/setup', requireAuth, requireRole('BUSINESS'), async (req: Request,
   res.json({ message: 'Business setup complete! 🎉', business });
 });
 
+/** Upload a lightweight business logo; only its public URL is stored in MongoDB. */
+router.post('/logo', requireAuth, requireRole('BUSINESS'), logoUpload.single('logo'), async (req: Request, res: Response): Promise<void> => {
+  const file = req.file;
+  if (!file) { res.status(400).json({ error: 'Please select a valid image file.' }); return; }
+  try {
+    const image = sharp(file.buffer, { failOn: 'error' });
+    const metadata = await image.metadata();
+    if (!metadata.width || !metadata.height || metadata.width < 32 || metadata.height < 32 || metadata.width > 10000 || metadata.height > 10000) {
+      res.status(400).json({ error: 'Logo dimensions must be between 32px and 10000px.' }); return;
+    }
+    const outputDir = path.resolve(process.env.UPLOAD_DIR || '/var/www/punchy-backend/uploads', 'business-logos');
+    await fs.mkdir(outputDir, { recursive: true });
+    const filename = `${req.user!.userId}-${uuid()}.webp`;
+    const outputPath = path.join(outputDir, filename);
+    const output = await image.resize(512, 512, { fit: 'cover' }).webp({ quality: 82, effort: 4 }).toFile(outputPath);
+    if (output.size > 300 * 1024) {
+      await fs.unlink(outputPath).catch(() => undefined);
+      res.status(400).json({ error: 'Logo could not be compressed below 300KB. Please choose a simpler image.' }); return;
+    }
+    const baseUrl = (process.env.PUBLIC_BASE_URL || 'https://trypunchy.site').replace(/\/$/, '');
+    const logoUrl = `${baseUrl}/uploads/business-logos/${filename}`;
+    const business = await prisma.businessProfile.update({ where: { userId: req.user!.userId }, data: { logo: logoUrl } });
+    res.json({ logo: business.logo, sizeBytes: output.size, width: output.width, height: output.height });
+  } catch (error) {
+    console.error('Business logo upload failed:', error);
+    res.status(400).json({ error: 'The selected file is not a supported image.' });
+  }
+});
+
 /**
  * GET /business/cards
  */
@@ -292,7 +458,7 @@ router.post('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request,
     return;
   }
 
-  const { title, punchesRequired, rewardDescription, visualStyle, validUntil, enableQR, enableNFC } = parsed.data;
+  const { title, punchesRequired, rewardDescription, visualStyle, validUntil, pricePerPunch, currency, enableQR, enableNFC } = parsed.data;
 
   const card = await prisma.loyaltyCard.create({
     data: {
@@ -302,6 +468,8 @@ router.post('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request,
       rewardDescription,
       visualStyle: (visualStyle ?? {}) as any,
       validUntil: validUntil ? new Date(validUntil) : null,
+      pricePerPunch: pricePerPunch ?? 0,
+      currency: currency ?? 'PKR',
       punchMethods: {
         create: [
           ...(enableQR ? [{ type: 'QR' as const, identifier: uuid(), label: `${title} QR Code` }] : []),
@@ -347,6 +515,8 @@ router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
       punchesRequired: parsed.data.punchesRequired,
       rewardDescription: parsed.data.rewardDescription,
       ...(parsed.data.visualStyle !== undefined ? { visualStyle: parsed.data.visualStyle as any } : {}),
+      ...(parsed.data.pricePerPunch !== undefined ? { pricePerPunch: parsed.data.pricePerPunch } : {}),
+      ...(parsed.data.currency !== undefined ? { currency: parsed.data.currency } : {}),
       ...(parsed.data.validUntil !== undefined
         ? { validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null }
         : {}),
@@ -706,7 +876,10 @@ router.post('/punch', requireAuth, requireRole('BUSINESS', 'STAFF'), async (req:
       { publicId: targetUserId },
     ];
     if (/^[a-f0-9]{24}$/i.test(targetUserId)) lookupOr.unshift({ id: targetUserId });
-    let customer = await prisma.user.findFirst({ where: { OR: lookupOr } });
+    // A punch identifier must always resolve to a CUSTOMER account. In
+    // particular, never allow a business/staff public ID to be treated as a
+    // customer, and never fall back to an arbitrary customer for bad input.
+    let customer = await prisma.user.findFirst({ where: { role: 'CUSTOMER', OR: lookupOr } });
 
     // Customer pass barcodes use the human-readable PUN-NAME-8492 format.
     // Resolve that code to the matching customer email before processing.
@@ -721,12 +894,7 @@ router.post('/punch', requireAuth, requireRole('BUSINESS', 'STAFF'), async (req:
     }
 
     if (!customer) {
-      // Fallback for simulation testing
-      customer = await prisma.user.findFirst({ where: { role: 'CUSTOMER' } });
-    }
-
-    if (!customer) {
-      res.status(404).json({ error: 'Customer not found' });
+      res.status(404).json({ error: 'Wrong ID. Please enter a valid customer ID or scan the customer barcode.' });
       return;
     }
 
@@ -758,8 +926,8 @@ router.post('/punch', requireAuth, requireRole('BUSINESS', 'STAFF'), async (req:
         prisma.customerCard.update({ where: { id: customerCard.id }, data: { punchCount: 0, isCompleted: false } }),
         prisma.activityLog.create({ data: { userId: customer.id, action: 'REWARD_REDEEMED_BY_STAFF', metadata: { businessId: business.id, cardId: targetCard.id, cardTitle: targetCard.title, verifiedBy: req.user!.userId, rewardDescription: targetCard.rewardDescription } } }),
       ]);
-      await sendNotification({ userId: customer.id, title: 'Reward redeemed! 🎉', body: `Enjoy your free ${targetCard.rewardDescription}! Your card has been reset.` });
-      res.json({ success: true, rewardEarned: true, rewardDescription: targetCard.rewardDescription, customerEmail: customer.email, cardTitle: targetCard.title, punchCount: 0, punchesRequired: targetCard.punchesRequired, isCompleted: false, message: `🎉 Reward earned! Give them ${targetCard.rewardDescription} — free. Card has been reset.` });
+      await sendNotification({ userId: customer.id, title: 'Reward redeemed! 🎉', body: 'Your reward was redeemed successfully and your card has been reset. Start collecting punches again!' });
+      res.json({ success: true, rewardEarned: true, rewardDescription: targetCard.rewardDescription, customerEmail: customer.email, cardTitle: targetCard.title, punchCount: 0, punchesRequired: targetCard.punchesRequired, isCompleted: false, message: '🎉 Reward earned! Give them their reward — free. Card has been reset.' });
       return;
     }
 
@@ -814,14 +982,18 @@ router.post('/punch', requireAuth, requireRole('BUSINESS', 'STAFF'), async (req:
       },
     });
 
-    // Send push notification to customer
-    await sendNotification({
-      userId: customer.id,
-      title: isNowComplete ? '🎉 Loyalty Card Complete!' : '☕ Punch Added!',
-      body: isNowComplete
-        ? `Congratulations! You completed ${targetCard.title}. Redeem your ${targetCard.rewardDescription}!`
-        : `You earned 1 punch at ${business.name}. (${newPunchCount}/${targetCard.punchesRequired})`,
-    });
+    // Send a generic, professional punch notification; reward-specific copy
+    // is intentionally reserved for the actual redemption event.
+    await notifyPunchEarned(customer.id, newPunchCount, targetCard.punchesRequired);
+    await notifyProgressMilestone(
+      customerCard.id,
+      customer.id,
+      business.name,
+      business.category,
+      targetCard.rewardDescription,
+      newPunchCount,
+      targetCard.punchesRequired,
+    );
 
     res.json({
       success: true,

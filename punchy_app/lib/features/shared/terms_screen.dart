@@ -115,7 +115,7 @@ class TermsScreen extends StatelessWidget {
 
                         const SizedBox(height: 8),
                         Text(
-                          'Questions about our Terms? Contact us at support@punchy.app.',
+                          'Questions about our Terms? Contact us at support.punchy@gmail.com.',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,

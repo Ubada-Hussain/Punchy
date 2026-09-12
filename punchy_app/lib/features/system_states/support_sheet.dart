@@ -51,7 +51,7 @@ class _SupportSheetState extends State<SupportSheet> {
 
   Future<void> _showChatForm() async {
     await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
-      title: const Text('Live Chat with Agent'),
+      title: const Text('Submit Complaint'),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: _subject, decoration: const InputDecoration(labelText: 'Subject')),
         TextField(controller: _body, maxLines: 4, decoration: const InputDecoration(labelText: 'Describe your issue')),
@@ -63,7 +63,7 @@ class _SupportSheetState extends State<SupportSheet> {
   Future<void> _openEmailSupport() async {
     final uri = Uri(
       scheme: 'mailto',
-      path: 'ubadahussain23@gmail.com',
+      path: 'support.punchy@gmail.com',
       queryParameters: {'subject': 'Punchy Support Request'},
     );
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) {
@@ -126,14 +126,14 @@ class _SupportSheetState extends State<SupportSheet> {
             _buildOption(
               icon: Icons.mail_outline_rounded,
               title: 'Email Support',
-              subtitle: 'ubadahussain23@gmail.com',
+              subtitle: 'support.punchy@gmail.com',
               onTap: _openEmailSupport,
             ),
             const SizedBox(height: 10),
             _buildOption(
               icon: Icons.chat_bubble_outline_rounded,
-              title: 'Live Chat with Agent',
-              subtitle: 'Average response time: 2 mins',
+              title: 'Submit Complaint',
+              subtitle: 'Send an issue to the Punchy support team',
               onTap: () { _showChatForm(); },
             ),
             const SizedBox(height: 10),
@@ -141,15 +141,30 @@ class _SupportSheetState extends State<SupportSheet> {
               icon: Icons.article_outlined,
               title: 'Help Center & FAQs',
               subtitle: 'Troubleshooting guides and policies',
-              onTap: () {
-                Navigator.of(context).pop();
-              },
+              onTap: () => _showFaqs(),
             ),
             const SizedBox(height: 16),
           ],
         ),
       ),
     );
+  }
+
+  void _showFaqs() {
+    showDialog<void>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Help Center & FAQs'),
+      content: const SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('How do I earn a punch?', style: TextStyle(fontWeight: FontWeight.w800)),
+        Text('Show your Punchy barcode to a participating business or use an enabled NFC tap.'),
+        SizedBox(height: 12), Text('Why is my punch blocked?', style: TextStyle(fontWeight: FontWeight.w800)),
+        Text('A three-minute cooldown prevents duplicate punches for the same customer and card.'),
+        SizedBox(height: 12), Text('How do I delete my account?', style: TextStyle(fontWeight: FontWeight.w800)),
+        Text('Open Profile, choose Delete profile, then confirm using the code sent to your email.'),
+        SizedBox(height: 12), Text('How can I contact support?', style: TextStyle(fontWeight: FontWeight.w800)),
+        Text('Use Submit Complaint or email support.punchy@gmail.com.'),
+      ])),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+    ));
   }
 
   Widget _buildOption({

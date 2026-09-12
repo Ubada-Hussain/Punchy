@@ -60,6 +60,7 @@ model User {
   role          Role     @default(CUSTOMER)
   isBlocked     Boolean  @default(false)
   isStaffActive Boolean  @default(true) // Controlled by parent business owner
+  pushNotificationsEnabled Boolean @default(true)
   businessId    String?  @db.ObjectId   // Link for STAFF role to parent business
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -92,8 +93,22 @@ model PasswordResetOtp {
   consumedAt DateTime?
   expiresAt  DateTime
   createdAt  DateTime  @default(now())
+  purpose    String    @default("PASSWORD_RESET")
 
   @@index([email, expiresAt])
+}
+
+model SignupVerification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  otpHash   String
+  passwordHash String
+  role      Role
+  name      String?
+  phone     String?
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 // ─── Business ────────────────────────────────────────────────────────────────
@@ -128,6 +143,8 @@ model LoyaltyCard {
   rewardDescription String
   visualStyle       Json            @default("{}")
   validUntil        DateTime?       // Validity expiration date
+  pricePerPunch     Float?          @default(0)
+  currency          String?         @default("PKR")
   isActive          Boolean         @default(true)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt

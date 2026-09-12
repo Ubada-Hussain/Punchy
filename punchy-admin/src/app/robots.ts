@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/dashboard', '/businesses', '/customers', '/analytics', '/nfc-qr', '/notifications', '/settings', '/support', '/login'],
+      disallow: ['/dashboard', '/businesses', '/customers', '/analytics', '/nfc-qr', '/notifications', '/settings', '/support', '/login', '/secure-access-portal', '/punchy-control-center-7f3c9b-2026'],
     },
     sitemap: 'https://trypunchy.site/sitemap.xml',
     host: 'https://trypunchy.site',

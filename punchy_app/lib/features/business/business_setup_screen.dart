@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'dart:io';
+
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -26,6 +31,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   bool _enableNFC = true;
   bool _isSaving = false;
   bool _isLoading = true;
+  bool _isUploadingLogo = false;
 
   final List<String> _categories = [
     'Cafe & Bakery',
@@ -39,7 +45,22 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   ];
 
   final List<String> _logoPresets = [
-    '🏪', '☕', '💇', '🏋️', '🍕', '🍰', '🍔', '🛍️', '💈', '🚗', '🧼', '🥐', '🍣', '✨', '🏷️', '🎯'
+    '🏪',
+    '☕',
+    '💇',
+    '🏋️',
+    '🍕',
+    '🍰',
+    '🍔',
+    '🛍️',
+    '💈',
+    '🚗',
+    '🧼',
+    '🥐',
+    '🍣',
+    '✨',
+    '🏷️',
+    '🎯',
   ];
 
   @override
@@ -93,13 +114,20 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
               child: Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(color: AppColors.line, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                  color: AppColors.line,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
             const SizedBox(height: 16),
             Text(
               'Select Business Icon / Logo',
-              style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink,
+              ),
             ),
             const SizedBox(height: 14),
             Wrap(
@@ -116,7 +144,9 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: isSelected ? AppColors.teal.withValues(alpha: 0.15) : AppColors.surfaceAlt,
+                      color: isSelected
+                          ? AppColors.teal.withValues(alpha: 0.15)
+                          : AppColors.surfaceAlt,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isSelected ? AppColors.teal : AppColors.line,
@@ -135,6 +165,29 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _uploadLogo() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _isUploadingLogo = true);
+    try {
+      final result = await _api.uploadImage(
+        '/business/logo',
+        File(picked.path),
+      );
+      if (result is Map && result['logo'] is String)
+        setState(() => _selectedLogo = result['logo']);
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Logo upload failed: $e')));
+    } finally {
+      if (mounted) setState(() => _isUploadingLogo = false);
+    }
   }
 
   Future<void> _handleSave() async {
@@ -160,15 +213,34 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
         SnackBar(
           backgroundColor: AppColors.ink,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           content: Text(
             'Business Profile Saved! 🎉',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+            style: GoogleFonts.plusJakartaSans(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       );
       context.go('/business');
     }
+  }
+
+  Future<void> _openLocationPicker() async {
+    final address = _addressController.text.trim();
+    if (address.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your business address first.')),
+      );
+      return;
+    }
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeQueryComponent(address)}',
+    );
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -195,7 +267,11 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Center(
-                        child: Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: AppColors.ink),
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                   ),
@@ -215,11 +291,16 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             // Form Content
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.teal))
+                  ? const Center(
+                      child: CircularProgressIndicator(color: AppColors.teal),
+                    )
                   : Form(
                       key: _formKey,
                       child: ListView(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 8,
+                        ),
                         children: [
                           // Logo Picker
                           Center(
@@ -233,11 +314,28 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                                     decoration: BoxDecoration(
                                       color: AppColors.surfaceAlt,
                                       shape: BoxShape.circle,
-                                      border: Border.all(color: AppColors.line, width: 2),
+                                      border: Border.all(
+                                        color: AppColors.line,
+                                        width: 2,
+                                      ),
                                     ),
-                                    child: Center(
-                                      child: Text(_selectedLogo, style: const TextStyle(fontSize: 32)),
-                                    ),
+                                    child: _selectedLogo.startsWith('http')
+                                        ? ClipOval(
+                                            child: Image.network(
+                                              _selectedLogo,
+                                              fit: BoxFit.cover,
+                                              width: 72,
+                                              height: 72,
+                                            ),
+                                          )
+                                        : Center(
+                                            child: Text(
+                                              _selectedLogo,
+                                              style: const TextStyle(
+                                                fontSize: 32,
+                                              ),
+                                            ),
+                                          ),
                                   ),
                                   Positioned(
                                     bottom: 0,
@@ -249,7 +347,19 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                                         color: AppColors.teal,
                                         shape: BoxShape.circle,
                                       ),
-                                      child: const Icon(Icons.edit_rounded, size: 14, color: Colors.white),
+                                      child: _isUploadingLogo
+                                          ? const Padding(
+                                              padding: EdgeInsets.all(6),
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.edit_rounded,
+                                              size: 14,
+                                              color: Colors.white,
+                                            ),
                                     ),
                                   ),
                                 ],
@@ -259,8 +369,20 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                           const SizedBox(height: 6),
                           Center(
                             child: Text(
-                              'Tap to choose icon',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.inkSoft, fontWeight: FontWeight.w600),
+                              'Tap to choose icon or upload image',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: AppColors.inkSoft,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Center(
+                            child: TextButton.icon(
+                              onPressed: _isUploadingLogo ? null : _uploadLogo,
+                              icon: const Icon(Icons.upload_rounded),
+                              label: const Text('Upload logo image'),
                             ),
                           ),
                           const SizedBox(height: 18),
@@ -268,21 +390,37 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                           // Business Name
                           Text(
                             'Business Name',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.inkSoft,
+                            ),
                           ),
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _nameController,
-                            validator: (v) => v == null || v.isEmpty ? 'Business name is required' : null,
-                            style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 13.5, fontWeight: FontWeight.w600),
-                            decoration: const InputDecoration(hintText: 'e.g. My Cafe, Urban Salon, FitClub'),
+                            validator: (v) => v == null || v.isEmpty
+                                ? 'Business name is required'
+                                : null,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: AppColors.ink,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'e.g. My Cafe, Urban Salon, FitClub',
+                            ),
                           ),
                           const SizedBox(height: 16),
 
                           // Category Dropdown
                           Text(
                             'Business Category',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.inkSoft,
+                            ),
                           ),
                           const SizedBox(height: 6),
                           Container(
@@ -290,152 +428,217 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                             decoration: BoxDecoration(
                               color: AppColors.surface,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.line, width: 1.5),
+                              border: Border.all(
+                                color: AppColors.line,
+                                width: 1.5,
+                              ),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
-                          value: _selectedCategory,
-                          isExpanded: true,
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.inkSoft),
-                          items: _categories.map((cat) {
-                            return DropdownMenuItem(
-                              value: cat,
-                              child: Text(
-                                cat,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.ink,
+                                value: _selectedCategory,
+                                isExpanded: true,
+                                icon: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: AppColors.inkSoft,
+                                ),
+                                items: _categories.map((cat) {
+                                  return DropdownMenuItem(
+                                    value: cat,
+                                    child: Text(
+                                      cat,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.ink,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (v) => setState(
+                                  () => _selectedCategory =
+                                      v ?? _selectedCategory,
                                 ),
                               ),
-                            );
-                          }).toList(),
-                          onChanged: (v) => setState(() => _selectedCategory = v ?? _selectedCategory),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Description
-                    Text(
-                      'Short Description',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
-                    ),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _descController,
-                      maxLines: 2,
-                      style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 13.5, fontWeight: FontWeight.w600),
-                      decoration: const InputDecoration(hintText: 'What makes your business special?'),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Address / Location
-                    Text(
-                      'Store Address / Location',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft),
-                    ),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _addressController,
-                      style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 13.5, fontWeight: FontWeight.w600),
-                      decoration: const InputDecoration(
-                        hintText: 'e.g. 142 Market Street',
-                        prefixIcon: Icon(Icons.location_on_outlined, size: 18, color: AppColors.inkFaint),
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-
-                    // Punch Method Hardware Setup
-                    Text(
-                      'Punch Hardware & Verification',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Column(
-                        children: [
-                          SwitchListTile.adaptive(
-                            title: Text(
-                              'Counter QR Code Display',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.ink),
                             ),
-                            subtitle: Text(
-                              'Auto-generates print-ready counter QR standee',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.inkSoft),
-                            ),
-                            value: _enableQR,
-                            activeTrackColor: AppColors.teal,
-                            activeThumbColor: Colors.white,
-                            onChanged: (v) => setState(() => _enableQR = v),
                           ),
-                          const Divider(height: 1, color: AppColors.line),
-                          SwitchListTile.adaptive(
-                            title: Text(
-                              'NFC Tap Tag Integration',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.ink),
-                            ),
-                            subtitle: Text(
-                              'Enable fast phone-tap punches via NFC tags',
-                              style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.inkSoft),
-                            ),
-                            value: _enableNFC,
-                            activeTrackColor: AppColors.teal,
-                            activeThumbColor: Colors.white,
-                            onChanged: (v) => setState(() => _enableNFC = v),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 26),
+                          const SizedBox(height: 16),
 
-                    // Continue Button
-                    Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: AppColors.teal,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.teal.withValues(alpha: 0.4),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
+                          // Description
+                          Text(
+                            'Short Description',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.inkSoft,
+                            ),
                           ),
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _isSaving ? null : _handleSave,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Center(
-                            child: _isSaving
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                  )
-                                : Text(
-                                    'Save & Continue to Dashboard',
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _descController,
+                            maxLines: 2,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: AppColors.ink,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'What makes your business special?',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Address / Location
+                          Text(
+                            'Store Address / Location',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.inkSoft,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _addressController,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: AppColors.ink,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'e.g. 142 Market Street',
+                              prefixIcon: Icon(
+                                Icons.location_on_outlined,
+                                size: 18,
+                                color: AppColors.inkFaint,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: OutlinedButton.icon(
+                              onPressed: _openLocationPicker,
+                              icon: const Icon(Icons.map_outlined, size: 17),
+                              label: const Text(
+                                'Open live location in Google Maps',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+
+                          // Punch Method Hardware Setup
+                          Text(
+                            'Punch Hardware & Verification',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.line),
+                            ),
+                            child: Column(
+                              children: [
+                                SwitchListTile.adaptive(
+                                  title: Text(
+                                    'Counter QR Code Display',
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 14.5,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+                                      color: AppColors.ink,
                                     ),
                                   ),
+                                  subtitle: Text(
+                                    'Auto-generates print-ready counter QR standee',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      color: AppColors.inkSoft,
+                                    ),
+                                  ),
+                                  value: _enableQR,
+                                  activeTrackColor: AppColors.teal,
+                                  activeThumbColor: Colors.white,
+                                  onChanged: (v) =>
+                                      setState(() => _enableQR = v),
+                                ),
+                                const Divider(height: 1, color: AppColors.line),
+                                SwitchListTile.adaptive(
+                                  title: Text(
+                                    'NFC Tap Tag Integration',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.ink,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    'Enable fast phone-tap punches via NFC tags',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      color: AppColors.inkSoft,
+                                    ),
+                                  ),
+                                  value: _enableNFC,
+                                  activeTrackColor: AppColors.teal,
+                                  activeThumbColor: Colors.white,
+                                  onChanged: (v) =>
+                                      setState(() => _enableNFC = v),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 26),
+
+                          // Continue Button
+                          Container(
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: AppColors.teal,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.teal.withValues(alpha: 0.4),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _isSaving ? null : _handleSave,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Center(
+                                  child: _isSaving
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : Text(
+                                          'Save & Continue to Dashboard',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 18),
-                  ],
-                ),
-              ),
             ),
           ],
         ),

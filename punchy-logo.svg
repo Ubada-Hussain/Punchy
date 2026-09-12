@@ -1,0 +1,78 @@
+<svg viewBox="0 0 1200 620" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradTeal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14C1A6"/>
+      <stop offset="100%" stop-color="#076B5D"/>
+    </linearGradient>
+    <linearGradient id="gradHero" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0EA893"/>
+      <stop offset="100%" stop-color="#7C6FF0"/>
+    </linearGradient>
+    <style>
+      .wordmark{ font-family:'Plus Jakarta Sans', Arial, sans-serif; font-weight:800; }
+      .label{ font-family:'Plus Jakarta Sans', Arial, sans-serif; font-weight:700; font-size:15px; fill:#93A29B; letter-spacing:.04em; text-transform:uppercase; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="620" fill="#F5F9F6"/>
+
+  <!-- ============ PRIMARY APP ICON ============ -->
+  <text x="70" y="50" class="label">App Icon</text>
+  <g>
+    <rect x="70" y="70" width="180" height="180" rx="46" fill="url(#gradTeal)"/>
+    <!-- punch-hole ring -->
+    <circle cx="160" cy="160" r="52" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="4" stroke-dasharray="6 8"/>
+    <!-- star mark -->
+    <path d="M160 122 L172 150 L202 154 L180 175 L186 205 L160 190 L134 205 L140 175 L118 154 L148 150 Z" fill="#FFFFFF"/>
+  </g>
+
+  <!-- ============ ICON ON DARK ============ -->
+  <text x="300" y="50" class="label">On Dark</text>
+  <g>
+    <rect x="300" y="70" width="180" height="180" rx="46" fill="#0E1A17"/>
+    <circle cx="390" cy="160" r="52" fill="none" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="4" stroke-dasharray="6 8"/>
+    <path d="M390 122 L402 150 L432 154 L410 175 L416 205 L390 190 L364 205 L370 175 L348 154 L378 150 Z" fill="url(#gradHero)"/>
+  </g>
+
+  <!-- ============ MONOCHROME ============ -->
+  <text x="530" y="50" class="label">Monochrome</text>
+  <g>
+    <rect x="530" y="70" width="180" height="180" rx="46" fill="#142420"/>
+    <path d="M620 122 L632 150 L662 154 L640 175 L646 205 L620 190 L594 205 L600 175 L578 154 L608 150 Z" fill="#FFFFFF"/>
+  </g>
+
+  <!-- ============ FAVICON / SIMPLIFIED ============ -->
+  <text x="760" y="50" class="label">Favicon</text>
+  <g>
+    <circle cx="850" cy="160" r="90" fill="url(#gradTeal)"/>
+    <path d="M850 124 L861 149 L888 153 L868 173 L873 200 L850 187 L827 200 L832 173 L812 153 L839 149 Z" fill="#FFFFFF"/>
+  </g>
+
+  <!-- ============ WORDMARK LOCKUP (light bg) ============ -->
+  <text x="70" y="340" class="label">Wordmark — Light Background</text>
+  <g>
+    <rect x="70" y="360" width="92" height="92" rx="24" fill="url(#gradTeal)"/>
+    <circle cx="116" cy="406" r="27" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="2.5" stroke-dasharray="4 5"/>
+    <path d="M116 388 L122 402 L137 404 L126 414 L129 429 L116 421 L103 429 L106 414 L95 404 L110 402 Z" fill="#FFFFFF"/>
+    <text x="180" y="424" class="wordmark" font-size="58" fill="#142420">Punchy</text>
+  </g>
+
+  <!-- ============ WORDMARK LOCKUP (dark bg) ============ -->
+  <text x="70" y="500" class="label">Wordmark — Dark Background</text>
+  <g>
+    <rect x="70" y="520" width="640" height="92" rx="20" fill="#0E1A17"/>
+    <rect x="94" y="536" width="60" height="60" rx="16" fill="url(#gradTeal)"/>
+    <path d="M124 552 L129 563 L141 565 L132 573 L135 585 L124 579 L113 585 L116 573 L107 565 L119 563 Z" fill="#FFFFFF"/>
+    <text x="172" y="580" class="wordmark" font-size="42" fill="#FFFFFF">Punchy</text>
+  </g>
+
+  <!-- ============ COLOR PALETTE ============ -->
+  <text x="800" y="500" class="label">Palette</text>
+  <g>
+    <rect x="800" y="520" width="46" height="46" rx="12" fill="#0EA893"/>
+    <rect x="856" y="520" width="46" height="46" rx="12" fill="#FF6B57"/>
+    <rect x="912" y="520" width="46" height="46" rx="12" fill="#7C6FF0"/>
+    <rect x="968" y="520" width="46" height="46" rx="12" fill="#FFC145"/>
+    <rect x="1024" y="520" width="46" height="46" rx="12" fill="#142420"/>
+  </g>
+</svg>

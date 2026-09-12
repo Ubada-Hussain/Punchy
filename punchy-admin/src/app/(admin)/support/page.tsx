@@ -29,7 +29,10 @@ export default function SupportPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   async function updateStatus(id: string, s: string) {
     await api.patch(`/tickets/${id}`, { status: s });

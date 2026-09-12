@@ -6,7 +6,7 @@ export default function SettingsPage() {
   const [maintenance, setMaintenance] = useState(false);
   const [supportEmail, setSupportEmail] = useState('ubadahussain23@gmail.com');
   const [minimumAppVersion, setMinimumAppVersion] = useState('2.1.0');
-  const [termsUrl, setTermsUrl] = useState('https://www.trypunchy.site/terms');
+  const [termsUrl, setTermsUrl] = useState('https://trypunchy.site/terms');
   const [trialPeriodDays, setTrialPeriodDays] = useState('30');
   const [saving, setSaving] = useState(false);
   useEffect(() => { api.get<Record<string, unknown>>('/admin/config').then(c => { if (typeof c.maintenanceMode === 'boolean') setMaintenance(c.maintenanceMode); if (typeof c.supportEmail === 'string') setSupportEmail(c.supportEmail); if (typeof c.minimumAppVersion === 'string') setMinimumAppVersion(c.minimumAppVersion); if (typeof c.termsUrl === 'string') setTermsUrl(c.termsUrl); if (typeof c.trialPeriodDays === 'number' || typeof c.trialPeriodDays === 'string') setTrialPeriodDays(String(c.trialPeriodDays)); }).catch(console.error); }, []);
@@ -48,7 +48,7 @@ export default function SettingsPage() {
           <div className="settings-row">
             <div>
               <div className="st">Support email</div>
-              <div className="ss">Shown in the app's contact support sheet</div>
+              <div className="ss">Shown in the app&apos;s contact support sheet</div>
             </div>
               <input value={supportEmail} onChange={e => setSupportEmail(e.target.value)} style={{ width:240 }} />
           </div>

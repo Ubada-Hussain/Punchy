@@ -10,6 +10,8 @@ const CardSchema = z.object({
   punchesRequired: z.number().int().min(1).max(100).default(10),
   rewardDescription: z.string().min(5),
   validUntil: z.string().nullable().optional(),
+  pricePerPunch: z.number().min(0).optional().default(0),
+  currency: z.string().min(1).max(10).optional().default('PKR'),
   visualStyle: z.object({
     primaryColor: z.string().default('#FF6B35'),
     bgColor: z.string().default('#1a1a2e'),
@@ -57,6 +59,8 @@ router.post('/business/:businessId', requireAuth, requireRole('BUSINESS'), async
       punchesRequired: parsed.data.punchesRequired,
       rewardDescription: parsed.data.rewardDescription,
       validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null,
+      pricePerPunch: parsed.data.pricePerPunch,
+      currency: parsed.data.currency,
       visualStyle: parsed.data.visualStyle ?? { primaryColor: '#FF6B35', bgColor: '#1a1a2e', iconType: 'star' },
     },
   });

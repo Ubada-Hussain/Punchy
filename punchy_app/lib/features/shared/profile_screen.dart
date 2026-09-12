@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/services/notification_service.dart';
 import '../system_states/support_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -16,6 +17,14 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _pushNotifications = true;
   bool _emailUpdates = false;
+
+  @override
+  void initState() {
+    super.initState();
+    NotificationService().isPushEnabled().then((enabled) {
+      if (mounted) setState(() => _pushNotifications = enabled);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -194,14 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const Divider(height: 1, color: AppColors.line),
                         _buildSettingsRow('Explore Businesses', Icons.explore_outlined, onTap: () => context.push('/explore')),
                         const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow('Privacy & security', Icons.shield_outlined, onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              backgroundColor: AppColors.ink,
-                              content: Text('Your data and punches are encrypted & secure 🔒', style: GoogleFonts.plusJakartaSans(color: Colors.white)),
-                            ),
-                          );
-                        }),
+                        _buildSettingsRow('Privacy & security', Icons.shield_outlined, onTap: () => context.push('/privacy')),
                         const Divider(height: 1, color: AppColors.line),
                         _buildSettingsRow('Terms & Conditions', Icons.description_outlined, onTap: () => context.push('/terms')),
                         const Divider(height: 1, color: AppColors.line),
@@ -247,7 +249,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 value: _pushNotifications,
                                 activeTrackColor: AppColors.teal,
                                 activeThumbColor: Colors.white,
-                                onChanged: (v) => setState(() => _pushNotifications = v),
+                                onChanged: (v) async {
+                                  setState(() => _pushNotifications = v);
+                                  await NotificationService().setPushEnabled(v);
+                                  try {
+                                    await authProvider.setPushNotificationsEnabled(v);
+                                  } catch (_) {
+                                    // Keep the local setting responsive if the API is offline.
+                                  }
+                                },
                               ),
                             ],
                           ),
@@ -341,7 +351,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
     if (confirm != true || !mounted) return;
-    final ok = await context.read<AuthProvider>().deleteAccount();
+    final auth = context.read<AuthProvider>();
+    if (!await auth.requestDeleteAccountOtp() || !mounted) return;
+    final otpController = TextEditingController();
+    final otp = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(title: const Text('Enter email code'), content: TextField(controller: otpController, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: '6-digit OTP')), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')), ElevatedButton(onPressed: () => Navigator.pop(ctx, otpController.text.trim()), child: const Text('Confirm deletion'))]));
+    otpController.dispose();
+    if (otp == null || otp.isEmpty || !mounted) return;
+    final ok = await auth.deleteAccount(otp);
     if (mounted) {
       if (ok) {
         context.go('/login');

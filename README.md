@@ -188,7 +188,7 @@ Punchy/
    ```env
    PORT=4000
    DATABASE_URL="mongodb://127.0.0.1:27018/punchy?replicaSet=rs0"
-   JWT_SECRET="punchy-super-secret-jwt-key"
+   JWT_SECRET="generate-a-long-random-secret"
    CLERK_SECRET_KEY="sk_test_..."
    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
    ```

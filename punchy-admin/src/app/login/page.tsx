@@ -2,6 +2,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,11 +42,7 @@ export default function LoginPage() {
     <div className="login-wrap">
       <div className="login-card">
         {/* Logo mark */}
-        <div className="login-mark">
-          <svg width="22" height="22" viewBox="0 0 24 24" style={{ fill:'#fff', stroke:'none' }}>
-            <path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8Z"/>
-          </svg>
-        </div>
+        <div className="login-mark"><Image src="/punchy-mark.png" alt="Punchy" width={64} height={64} priority /></div>
 
         {/* Title */}
         <div style={{ textAlign:'center' }}>

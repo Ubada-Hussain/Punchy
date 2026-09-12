@@ -1,0 +1,8 @@
+punchy_app/
+punchy-backend/
+**/node_modules/
+**/.dart_tool/
+**/build/
+*.apk
+*.png
+*.xml

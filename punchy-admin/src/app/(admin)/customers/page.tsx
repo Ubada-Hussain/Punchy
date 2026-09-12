@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
 import { api, type User } from '@/lib/api';
 
 function statusBadge(isBlocked: boolean) {
@@ -29,7 +28,10 @@ export default function CustomersPage() {
     }
   }, [search]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   async function toggleSuspend(user: User) {
     if (!user.isBlocked && !confirm(`Suspend ${user.email}?`)) return;

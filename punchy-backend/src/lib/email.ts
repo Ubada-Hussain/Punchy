@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 export interface SendOtpEmailOptions {
   to: string;
   otp: string;
-  type?: 'PASSWORD_RESET' | 'SIGNUP_VERIFICATION';
+  type?: 'PASSWORD_RESET' | 'SIGNUP_VERIFICATION' | 'DELETE_ACCOUNT';
 }
 
 /**
@@ -18,14 +18,18 @@ export async function sendOtpEmail({ to, otp, type = 'PASSWORD_RESET' }: SendOtp
   const smtpHost = process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
   const smtpPort = parseInt(process.env.BREVO_SMTP_PORT || '587', 10);
 
-  const subject = type === 'PASSWORD_RESET' 
+  const subject = type === 'PASSWORD_RESET'
     ? `🔐 ${otp} is your Punchy password reset code`
-    : `✨ ${otp} is your Punchy verification code`;
+    : type === 'DELETE_ACCOUNT'
+      ? `⚠️ ${otp} is your Punchy account deletion code`
+      : `✨ ${otp} is your Punchy verification code`;
 
-  const titleText = type === 'PASSWORD_RESET' ? 'Reset Your Password' : 'Verify Your Email';
-  const descText = type === 'PASSWORD_RESET' 
-    ? 'We received a request to reset the password for your Punchy account. Enter the 6-digit code below to proceed:' 
-    : 'Welcome to Punchy! Please use the 6-digit code below to verify your email address:';
+  const titleText = type === 'PASSWORD_RESET' ? 'Reset Your Password' : type === 'DELETE_ACCOUNT' ? 'Confirm Account Deletion' : 'Verify Your Email';
+  const descText = type === 'PASSWORD_RESET'
+    ? 'We received a request to reset the password for your Punchy account. Enter the 6-digit code below to proceed:'
+    : type === 'DELETE_ACCOUNT'
+      ? 'Enter the 6-digit code below to confirm permanent deletion of your Punchy account and associated data:'
+      : 'Welcome to Punchy! Please use the 6-digit code below to verify your email address:';
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -114,16 +118,10 @@ export async function sendOtpEmail({ to, otp, type = 'PASSWORD_RESET' }: SendOtp
     return;
   }
 
-  // Always log OTP to server console in dev mode
-  console.log(`\n========================================`);
-  console.log(`📧 [PUNCHY EMAIL DISPATCH]`);
-  console.log(`To: ${to}`);
-  console.log(`Type: ${type}`);
-  console.log(`OTP Code: >>> ${otp} <<<`);
-  console.log(`========================================\n`);
-
   if (!apiKey) {
-    console.warn('⚠️ BREVO_API_KEY is not configured in .env. OTP was logged to console above.');
+    // Never print OTPs. A missing provider is a deployment/configuration error.
+    console.error('Email provider is not configured; OTP delivery was not attempted.');
+    if (process.env.NODE_ENV === 'production') throw new Error('Email provider is not configured');
     return;
   }
 

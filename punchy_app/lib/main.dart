@@ -6,6 +6,7 @@ import 'core/providers/auth_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_screen.dart';
+import 'features/auth/signup_verification_screen.dart';
 import 'features/auth/forgot_password_screen.dart';
 import 'features/customer/dashboard_screen.dart';
 import 'features/customer/explore_screen.dart';
@@ -26,6 +27,7 @@ import 'features/admin/admin_announcements_screen.dart';
 import 'features/shared/profile_screen.dart';
 import 'features/shared/edit_profile_screen.dart';
 import 'features/shared/terms_screen.dart';
+import 'features/shared/privacy_screen.dart';
 import 'features/system_states/offline_screen.dart';
 import 'features/system_states/server_error_screen.dart';
 import 'features/system_states/account_suspended_screen.dart';
@@ -36,8 +38,10 @@ import 'features/system_states/system_states_demo_screen.dart';
 import 'features/system_states/punchy_splash_screen.dart';
 
 import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+
 import 'core/services/notification_service.dart';
 
 void main() {
@@ -46,7 +50,13 @@ void main() {
       WidgetsFlutterBinding.ensureInitialized();
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-      await NotificationService().initialize();
+      // Do not block the first frame on notification permission/channel setup.
+      // Notifications initialize in the background while the app opens.
+      unawaited(
+        NotificationService().initialize().catchError((error) {
+          debugPrint('Notification initialization failed: $error');
+        }),
+      );
       FlutterError.onError = (FlutterErrorDetails details) {
         FlutterError.presentError(details);
       };
@@ -89,6 +99,10 @@ class _PunchyAppState extends State<PunchyApp> {
         final role = user?['role'] ?? 'CUSTOMER';
         final isSuspended = authProvider.isSuspended;
 
+        if (authProvider.isMaintenance && loc != '/maintenance') {
+          return '/maintenance';
+        }
+
         // If user is suspended, they can ONLY be on /suspended or /terms
         if (isSuspended) {
           if (loc != '/suspended' && loc != '/terms') {
@@ -109,6 +123,7 @@ class _PunchyAppState extends State<PunchyApp> {
             loc == '/login' ||
             loc == '/splash' ||
             loc == '/signup' ||
+            loc == '/verify-signup' ||
             loc == '/forgot-password' ||
             loc == '/terms' ||
             loc.startsWith('/system-states') ||
@@ -172,6 +187,10 @@ class _PunchyAppState extends State<PunchyApp> {
         GoRoute(
           path: '/signup',
           builder: (context, state) => const SignupScreen(),
+        ),
+        GoRoute(
+          path: '/verify-signup',
+          builder: (context, state) => const SignupVerificationScreen(),
         ),
         GoRoute(
           path: '/forgot-password',
@@ -271,6 +290,10 @@ class _PunchyAppState extends State<PunchyApp> {
           builder: (context, state) => const TermsScreen(),
         ),
         GoRoute(
+          path: '/privacy',
+          builder: (context, state) => const PrivacyScreen(),
+        ),
+        GoRoute(
           path: '/system-states',
           builder: (context, state) => const SystemStatesDemoScreen(),
         ),
@@ -288,7 +311,8 @@ class _PunchyAppState extends State<PunchyApp> {
         ),
         GoRoute(
           path: '/maintenance',
-          builder: (context, state) => const MaintenanceScreen(),
+          builder: (context, state) =>
+              MaintenanceScreen(onCheckAgain: authProvider.checkMaintenance),
         ),
         GoRoute(
           path: '/update',

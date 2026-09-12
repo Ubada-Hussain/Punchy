@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -25,13 +26,15 @@ class _SignupScreenState extends State<SignupScreen> {
     if (_formKey.currentState!.validate()) {
       if (!_acceptedTerms) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please accept the Terms & Conditions to continue.')),
+          const SnackBar(
+            content: Text('Please accept the Terms & Conditions to continue.'),
+          ),
         );
         return;
       }
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final role = _roleIndex == 1 ? 'BUSINESS' : 'CUSTOMER';
-      
+
       final success = await auth.register(
         email: _emailController.text.trim(),
         password: _passwordController.text,
@@ -40,20 +43,22 @@ class _SignupScreenState extends State<SignupScreen> {
       );
 
       if (success && mounted) {
-        if (_roleIndex == 1) {
-          context.go('/business/setup');
-        } else {
-          context.go('/');
-        }
+        context.go('/verify-signup');
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppColors.ink,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             content: Text(
-              auth.errorMessage ?? 'Registration failed. Please check your credentials.',
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+              auth.errorMessage ??
+                  'Registration failed. Please check your credentials.',
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         );
@@ -70,13 +75,41 @@ class _SignupScreenState extends State<SignupScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 16.0,
+            ),
             child: Form(
               key: _formKey,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Center(
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.gradTeal,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.teal.withValues(alpha: 0.35),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Image.asset(
+                          'assets/punchy_app_icon.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   Text(
                     'Create your account',
                     style: GoogleFonts.plusJakartaSans(
@@ -105,13 +138,9 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: _buildSegButton(0, '🙋 Customer'),
-                        ),
+                        Expanded(child: _buildSegButton(0, '🙋 Customer')),
                         const SizedBox(width: 4),
-                        Expanded(
-                          child: _buildSegButton(1, '🏪 Business'),
-                        ),
+                        Expanded(child: _buildSegButton(1, '🏪 Business')),
                       ],
                     ),
                   ),
@@ -129,10 +158,18 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _nameController,
-                    style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: const InputDecoration(
                       hintText: 'Your name',
-                      prefixIcon: Icon(Icons.person_outline_rounded, color: AppColors.inkFaint, size: 18),
+                      prefixIcon: Icon(
+                        Icons.person_outline_rounded,
+                        color: AppColors.inkFaint,
+                        size: 18,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -150,14 +187,24 @@ class _SignupScreenState extends State<SignupScreen> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: const InputDecoration(
                       hintText: 'name@example.com',
-                      prefixIcon: Icon(Icons.mail_outline_rounded, color: AppColors.inkFaint, size: 18),
+                      prefixIcon: Icon(
+                        Icons.mail_outline_rounded,
+                        color: AppColors.inkFaint,
+                        size: 18,
+                      ),
                     ),
                     validator: (val) {
-                      if (val == null || val.trim().isEmpty) return 'Please enter an email';
-                      if (!val.contains('@') || !val.contains('.')) return 'Please enter a valid email address';
+                      if (val == null || val.trim().isEmpty)
+                        return 'Please enter an email';
+                      if (!val.contains('@') || !val.contains('.'))
+                        return 'Please enter a valid email address';
                       return null;
                     },
                   ),
@@ -176,14 +223,26 @@ class _SignupScreenState extends State<SignupScreen> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: true,
-                    style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: const InputDecoration(
                       hintText: 'Create a password',
-                      prefixIcon: Icon(Icons.lock_outline_rounded, color: AppColors.inkFaint, size: 18),
+                      prefixIcon: Icon(
+                        Icons.lock_outline_rounded,
+                        color: AppColors.inkFaint,
+                        size: 18,
+                      ),
                     ),
                     validator: (val) {
-                      if (val == null || val.isEmpty) return 'Please enter a password';
-                      if (val.length < 8) return 'Password must be at least 8 characters';
+                      if (val == null || val.isEmpty)
+                        return 'Please enter a password';
+                      if (!RegExp(
+                        r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$',
+                      ).hasMatch(val))
+                        return 'Use 8+ chars with uppercase, lowercase, number and symbol';
                       return null;
                     },
                   ),
@@ -202,14 +261,24 @@ class _SignupScreenState extends State<SignupScreen> {
                   TextFormField(
                     controller: _confirmPasswordController,
                     obscureText: true,
-                    style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: const InputDecoration(
                       hintText: 'Confirm your password',
-                      prefixIcon: Icon(Icons.lock_outline_rounded, color: AppColors.inkFaint, size: 18),
+                      prefixIcon: Icon(
+                        Icons.lock_outline_rounded,
+                        color: AppColors.inkFaint,
+                        size: 18,
+                      ),
                     ),
                     validator: (val) {
-                      if (val == null || val.isEmpty) return 'Please confirm your password';
-                      if (val != _passwordController.text) return "Passwords don't match";
+                      if (val == null || val.isEmpty)
+                        return 'Please confirm your password';
+                      if (val != _passwordController.text)
+                        return "Passwords don't match";
                       return null;
                     },
                   ),
@@ -222,18 +291,38 @@ class _SignupScreenState extends State<SignupScreen> {
                       Checkbox(
                         value: _acceptedTerms,
                         activeColor: AppColors.teal,
-                        onChanged: (value) => setState(() => _acceptedTerms = value ?? false),
+                        onChanged: (value) =>
+                            setState(() => _acceptedTerms = value ?? false),
                       ),
                       Expanded(
                         child: Wrap(
                           alignment: WrapAlignment.center,
                           children: [
-                            Text('I agree to the ', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.inkSoft)),
+                            Text(
+                              'I agree to the ',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: AppColors.inkSoft,
+                              ),
+                            ),
                             GestureDetector(
                               onTap: () => context.push('/terms'),
-                              child: Text('Terms & Conditions', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.tealDark, fontWeight: FontWeight.w700)),
+                              child: Text(
+                                'Terms & Conditions',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: AppColors.tealDark,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
-                            Text(' and Privacy Policy', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.inkSoft)),
+                            Text(
+                              ' and Privacy Policy',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: AppColors.inkSoft,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -249,7 +338,11 @@ class _SignupScreenState extends State<SignupScreen> {
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: (_roleIndex == 1 ? AppColors.coral : AppColors.teal).withValues(alpha: 0.45),
+                          color:
+                              (_roleIndex == 1
+                                      ? AppColors.coral
+                                      : AppColors.teal)
+                                  .withValues(alpha: 0.45),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
@@ -262,7 +355,9 @@ class _SignupScreenState extends State<SignupScreen> {
                         borderRadius: BorderRadius.circular(12),
                         child: Center(
                           child: Text(
-                            _roleIndex == 1 ? 'Start Business Account' : 'Create Account',
+                            _roleIndex == 1
+                                ? 'Start Business Account'
+                                : 'Create Account',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14.5,
                               fontWeight: FontWeight.w700,
@@ -282,7 +377,10 @@ class _SignupScreenState extends State<SignupScreen> {
                     children: [
                       Text(
                         'Already have an account? ',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.inkSoft),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: AppColors.inkSoft,
+                        ),
                       ),
                       GestureDetector(
                         onTap: () => context.pop(),

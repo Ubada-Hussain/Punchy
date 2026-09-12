@@ -22,7 +22,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
       localStorage.removeItem('punchy_admin_token');
       localStorage.removeItem('punchy_admin_user');
-      if (!window.location.pathname.startsWith('/login')) window.location.replace('/login');
+      if (!window.location.pathname.startsWith('/punchy-control-center-7f3c9b-2026')) window.location.replace('/punchy-control-center-7f3c9b-2026');
     }
     throw new Error(body.error || `HTTP ${res.status}`);
   }

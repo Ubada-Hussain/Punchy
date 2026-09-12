@@ -9,12 +9,15 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../lib/jw
 import { sendOtpEmail } from '../lib/email';
 import { requireAuth } from '../middleware/auth';
 import { OAuth2Client } from 'google-auth-library';
+import { authRateLimiter, otpRateLimiter } from '../middleware/rateLimit';
 
 const router = Router();
+router.use(authRateLimiter);
 
+const strongPassword = z.string().min(8).regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/, 'Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and symbol.');
 const RegisterSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: strongPassword,
   role: z.enum(['BUSINESS', 'CUSTOMER']),
   name: z.string().optional(),
   phone: z.string().optional(),
@@ -32,8 +35,10 @@ const ForgotPasswordSchema = z.object({
 const ResetPasswordSchema = z.object({
   email: z.string().email(),
   otp: z.string().regex(/^\d{6}$/),
-  password: z.string().min(8),
+  password: strongPassword,
 });
+const VerifySignupSchema = z.object({ email: z.string().email(), otp: z.string().regex(/^\d{6}$/) });
+const DeleteOtpSchema = z.object({ otp: z.string().regex(/^\d{6}$/) });
 
 const ProfileUpdateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -89,36 +94,43 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
   const parsed = RegisterSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
-  const { email, password, role, name, phone } = parsed.data;
+  const { password, role, name, phone } = parsed.data;
+  const email = parsed.data.email.toLowerCase();
   if (await prisma.user.findUnique({ where: { email } })) {
     res.status(409).json({ error: 'Email already registered' }); return;
   }
 
+  const otp = crypto.randomInt(100000, 1000000).toString();
+  const otpHash = await bcrypt.hash(otp, 12);
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({
-    data: { email, publicId: await uniquePublicId(), passwordHash, role, name: name || email.split('@')[0], phone },
-    select: { id: true, publicId: true, email: true, name: true, role: true, phone: true, createdAt: true },
+  await prisma.signupVerification.upsert({
+    where: { email },
+    update: { otpHash, passwordHash, role, name, phone, expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS), attempts: 0 },
+    create: { email, otpHash, passwordHash, role, name, phone, expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS) },
   });
+  await sendOtpEmail({ to: email, otp, type: 'SIGNUP_VERIFICATION' });
+  res.status(202).json({ verificationRequired: true, email, message: 'Verification code sent to your email.' });
+});
 
-  // If new business, automatically create default business profile
-  if (user.role === 'BUSINESS') {
-    await prisma.businessProfile.create({
-      data: {
-        userId: user.id,
-        name: name || 'My Business',
-        category: 'Cafe & Retail',
-        status: 'APPROVED',
-      },
-    });
+router.post('/verify-signup', otpRateLimiter, async (req: Request, res: Response): Promise<void> => {
+  const parsed = VerifySignupSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: 'Enter a valid 6-digit verification code.' }); return; }
+  const email = parsed.data.email.toLowerCase();
+  const pending = await prisma.signupVerification.findUnique({ where: { email } });
+  if (!pending || pending.expiresAt < new Date() || pending.attempts >= PASSWORD_RESET_MAX_ATTEMPTS || !(await bcrypt.compare(parsed.data.otp, pending.otpHash))) {
+    if (pending) await prisma.signupVerification.update({ where: { id: pending.id }, data: { attempts: { increment: 1 } } });
+    res.status(400).json({ error: 'Invalid or expired verification code.' }); return;
   }
-
+  if (await prisma.user.findUnique({ where: { email } })) { res.status(409).json({ error: 'Email already registered' }); return; }
+  const user = await prisma.user.create({ data: { email, publicId: await uniquePublicId(), passwordHash: pending.passwordHash, role: pending.role, name: pending.name || email.split('@')[0], phone: pending.phone }, select: { id: true, publicId: true, email: true, name: true, role: true, phone: true, createdAt: true } });
+  if (user.role === 'BUSINESS') await prisma.businessProfile.create({ data: { userId: user.id, name: pending.name || 'My Business', category: 'Cafe & Retail', status: 'APPROVED' } });
   const tokenPayload = { userId: user.id, email: user.email, role: user.role };
   const accessToken = signAccessToken(tokenPayload);
   const refreshToken = signRefreshToken(tokenPayload);
-  await prisma.refreshToken.create({
-    data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
-  });
-
+  await prisma.$transaction([
+    prisma.refreshToken.create({ data: { token: refreshToken, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) } }),
+    prisma.signupVerification.delete({ where: { id: pending.id } }),
+  ]);
   res.status(201).json({ user, accessToken, refreshToken });
 });
 
@@ -185,7 +197,14 @@ router.post('/device-token', requireAuth, async (req: Request, res: Response): P
   res.json({ message: 'Device registered for notifications' });
 });
 
-router.post('/forgot-password', async (req: Request, res: Response): Promise<void> => {
+router.post('/notification-preference', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== 'boolean') { res.status(400).json({ error: 'enabled must be a boolean' }); return; }
+  await prisma.user.update({ where: { id: req.user!.userId }, data: { pushNotificationsEnabled: enabled } });
+  res.json({ enabled });
+});
+
+router.post('/forgot-password', otpRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const parsed = ForgotPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
@@ -228,7 +247,7 @@ router.post('/forgot-password', async (req: Request, res: Response): Promise<voi
   }
 });
 
-router.post('/reset-password', async (req: Request, res: Response): Promise<void> => {
+router.post('/reset-password', otpRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const parsed = ResetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
@@ -350,10 +369,26 @@ router.put('/profile', requireAuth, async (req: Request, res: Response): Promise
   res.json({ message: 'Profile updated successfully', user: updatedUser });
 });
 
+router.post('/account/delete-request', requireAuth, otpRateLimiter, async (req: Request, res: Response): Promise<void> => {
+  const user = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { email: true, role: true } });
+  if (!user || user.role === 'ADMIN') { res.status(404).json({ error: 'Account not found' }); return; }
+  const otp = crypto.randomInt(100000, 1000000).toString();
+  await prisma.passwordResetOtp.deleteMany({ where: { email: user.email, purpose: 'DELETE_ACCOUNT' } });
+  await prisma.passwordResetOtp.create({ data: { email: user.email, otpHash: await bcrypt.hash(otp, 12), expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS), purpose: 'DELETE_ACCOUNT' } });
+  await sendOtpEmail({ to: user.email, otp, type: 'DELETE_ACCOUNT' });
+  res.json({ message: 'A verification code was sent to your email.' });
+});
+
 router.delete('/account', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const userId = req.user!.userId;
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, email: true } });
   if (!user || user.role === 'ADMIN') { res.status(404).json({ error: 'Account not found' }); return; }
+  const parsedOtp = DeleteOtpSchema.safeParse(req.body);
+  const pendingDelete = parsedOtp.success ? await prisma.passwordResetOtp.findFirst({ where: { email: user.email, purpose: 'DELETE_ACCOUNT', expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } }) : null;
+  if (!pendingDelete || pendingDelete.attempts >= PASSWORD_RESET_MAX_ATTEMPTS || !(await bcrypt.compare(parsedOtp.success ? parsedOtp.data.otp : '', pendingDelete.otpHash))) {
+    if (pendingDelete) await prisma.passwordResetOtp.update({ where: { id: pendingDelete.id }, data: { attempts: { increment: 1 } } });
+    res.status(400).json({ error: 'A valid email verification code is required before deleting your account.' }); return;
+  }
   await prisma.$transaction(async (tx) => {
     await tx.notification.deleteMany({ where: { createdBy: userId } });
     await tx.supportTicket.deleteMany({ where: { authorId: userId } });
@@ -388,6 +423,7 @@ router.delete('/account', requireAuth, async (req: Request, res: Response): Prom
     }
     await tx.user.delete({ where: { id: userId } });
   });
+  await prisma.passwordResetOtp.delete({ where: { id: pendingDelete.id } });
   res.json({ message: 'Account deleted successfully' });
 });
 

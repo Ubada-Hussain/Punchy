@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
+import Image from 'next/image';
 
 export default function LandingPage() {
   const [navOpen, setNavOpen] = useState(false);
@@ -47,9 +47,7 @@ export default function LandingPage() {
         <div className={`nav-inner ${navOpen ? 'nav-open' : ''}`}>
           <div className="brand">
             <div className="brand-mark">
-              <svg className="icon" style={{ color:'#fff', strokeWidth:0, fill:'currentColor', width:17, height:17 }}>
-                <use href="#i-star"/>
-              </svg>
+              <Image src="/punchy-mark.png" alt="Punchy" width={42} height={42} priority />
             </div>
             Punchy
           </div>
@@ -65,7 +63,6 @@ export default function LandingPage() {
             <a href="#reviews" onClick={() => setNavOpen(false)}>Reviews</a>
           </div>
           <div className="nav-cta">
-            <Link href="/login" className="lbtn lbtn-outline lbtn-sm" onClick={() => setNavOpen(false)}>Log In</Link>
             <a href="#download" className="lbtn lbtn-coral lbtn-sm" onClick={() => setNavOpen(false)}>Get the App</a>
           </div>
         </div>
@@ -83,7 +80,7 @@ export default function LandingPage() {
                 <svg className="icon" style={{ width:22, height:22 }}><use href="#i-apple"/></svg>
                 <span><small>Download on the</small><b>App Store</b></span>
               </a>
-              <a href="#" className="store-btn">
+              <a href="https://play.google.com/store/apps/details?id=com.punchy.app" className="store-btn" target="_blank" rel="noreferrer">
                 <svg className="icon" style={{ width:20, height:20 }}><use href="#i-play"/></svg>
                 <span><small>Get it on</small><b>Google Play</b></span>
               </a>
@@ -309,7 +306,7 @@ export default function LandingPage() {
                   <svg className="icon" style={{ width:22, height:22 }}><use href="#i-apple"/></svg>
                   <span><small>Download on the</small><b>App Store</b></span>
                 </a>
-                <a href="#" className="store-btn">
+                <a href="https://play.google.com/store/apps/details?id=com.punchy.app" className="store-btn" target="_blank" rel="noreferrer">
                   <svg className="icon" style={{ width:20, height:20 }}><use href="#i-play"/></svg>
                   <span><small>Get it on</small><b>Google Play</b></span>
                 </a>
@@ -332,9 +329,7 @@ export default function LandingPage() {
             <div className="foot-brand">
               <div className="brand">
                 <div className="brand-mark">
-                  <svg className="icon" style={{ color:'#fff', strokeWidth:0, fill:'currentColor', width:17, height:17 }}>
-                    <use href="#i-star"/>
-                  </svg>
+                  <Image src="/punchy-mark.png" alt="Punchy" width={42} height={42} />
                 </div>
                 Punchy
               </div>
@@ -349,23 +344,20 @@ export default function LandingPage() {
               </div>
               <div className="foot-col">
                 <h4>Company</h4>
-                <a href="#">About</a>
-                <a href="#">Careers</a>
-                <a href="#">Contact</a>
+                <a href="#how">About Punchy</a>
+                <a href="mailto:support.punchy@gmail.com">Contact</a>
+                <a href="mailto:support.punchy@gmail.com?subject=Careers%20at%20Punchy">Careers</a>
               </div>
               <div className="foot-col">
                 <h4>Legal</h4>
-                <a href="#">Terms &amp; Conditions</a>
-                <a href="#">Privacy Policy</a>
-                <a href="#">Support</a>
+                <a href="/terms">Terms &amp; Conditions</a>
+                <a href="/privacy-policy">Privacy Policy</a>
+                <a href="mailto:support.punchy@gmail.com">Account &amp; Support</a>
               </div>
             </div>
           </div>
           <div className="foot-bottom">
             <span>© 2026 Punchy. All rights reserved.</span>
-            <div className="foot-social">
-              <div>𝕏</div><div>◎</div><div>in</div>
-            </div>
           </div>
         </div>
       </footer>

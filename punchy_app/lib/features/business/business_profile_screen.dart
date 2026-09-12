@@ -23,6 +23,11 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   bool _notifyCardCompleted = true;
   bool _weeklySummary = true;
 
+  Widget _businessInitial(String name) => Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'B',
+        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white),
+      );
+
   @override
   void initState() {
     super.initState();
@@ -154,17 +159,18 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                                   ],
                                 ),
                                 child: Center(
-                                  child: bizLogo != null
-                                      ? (bizLogo.length <= 4
-                                          ? Text(bizLogo, style: const TextStyle(fontSize: 28))
-                                          : Text(
-                                              bizName.isNotEmpty ? bizName[0].toUpperCase() : 'B',
-                                              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white),
-                                            ))
-                                      : Text(
-                                          bizName.isNotEmpty ? bizName[0].toUpperCase() : 'B',
-                                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white),
-                                        ),
+                                  child: bizLogo != null && bizLogo.startsWith('http')
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(18),
+                                          child: Image.network(
+                                            bizLogo,
+                                            width: 64,
+                                            height: 64,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => _businessInitial(bizName),
+                                          ),
+                                        )
+                                      : _businessInitial(bizName),
                                 ),
                               ),
                               const SizedBox(width: 14),
@@ -283,14 +289,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                           'Privacy & Security',
                           'Merchant encryption & data policies',
                           Icons.shield_outlined,
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                backgroundColor: AppColors.ink,
-                                content: Text('Merchant data and transactions are encrypted 🔒', style: GoogleFonts.plusJakartaSans(color: Colors.white)),
-                              ),
-                            );
-                          },
+                          onTap: () => context.push('/privacy'),
                         ),
                         const Divider(height: 1, color: AppColors.line),
                         _buildSettingsRow(
@@ -407,7 +406,13 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       ),
     );
     if (confirm != true || !mounted) return;
-    final ok = await context.read<AuthProvider>().deleteAccount();
+    final auth = context.read<AuthProvider>();
+    if (!await auth.requestDeleteAccountOtp() || !mounted) return;
+    final otpController = TextEditingController();
+    final otp = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(title: const Text('Enter email code'), content: TextField(controller: otpController, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: '6-digit OTP')), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')), ElevatedButton(onPressed: () => Navigator.pop(ctx, otpController.text.trim()), child: const Text('Confirm deletion'))]));
+    otpController.dispose();
+    if (otp == null || otp.isEmpty || !mounted) return;
+    final ok = await auth.deleteAccount(otp);
     if (mounted) {
       if (ok) {
         context.go('/login');

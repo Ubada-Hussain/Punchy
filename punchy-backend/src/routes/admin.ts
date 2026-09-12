@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { sendNotification } from '../lib/notifications';
+import { clearMaintenanceCache } from '../middleware/maintenance';
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.patch('/config', requireAuth, requireRole('ADMIN'), async (req: Request, 
     create: { key, value: value as any, updatedBy: req.user!.userId },
     update: { value: value as any, updatedBy: req.user!.userId },
   })));
+  if (entries.some(([key]) => key === 'maintenanceMode')) clearMaintenanceCache();
   res.json({ message: 'Settings saved' });
 });
 

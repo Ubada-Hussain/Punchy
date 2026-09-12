@@ -7,6 +7,8 @@ async function cleanDatabase() {
   try {
     const dRedemptions = await prisma.redemption.deleteMany({});
     console.log(`  🗑️  Deleted Redemptions: ${dRedemptions.count}`);
+    await prisma.signupVerification.deleteMany({});
+    await prisma.passwordResetOtp.deleteMany({});
 
     const dPunchTransactions = await prisma.punchTransaction.deleteMany({});
     console.log(`  🗑️  Deleted PunchTransactions: ${dPunchTransactions.count}`);

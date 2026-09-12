@@ -15,6 +15,12 @@ router.post('/', requireAuthAllowSuspended, async (req: Request, res: Response):
   const parsed = TicketSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
+  const recentDuplicate = await prisma.supportTicket.findFirst({
+    where: { authorId: req.user!.userId, subject: parsed.data.subject, body: parsed.data.body, createdAt: { gte: new Date(Date.now() - 60_000) } },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (recentDuplicate) { res.status(200).json(recentDuplicate); return; }
+
   const ticket = await prisma.supportTicket.create({
     data: { authorId: req.user!.userId, ...parsed.data },
   });

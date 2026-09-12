@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/api/api_client.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -11,7 +12,8 @@ class CustomerDashboardScreen extends StatefulWidget {
   const CustomerDashboardScreen({super.key});
 
   @override
-  State<CustomerDashboardScreen> createState() => _CustomerDashboardScreenState();
+  State<CustomerDashboardScreen> createState() =>
+      _CustomerDashboardScreenState();
 }
 
 class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
@@ -53,7 +55,20 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
     if (dateVal == null) return 'No expiry';
     try {
       final dt = DateTime.parse(dateVal.toString());
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
     } catch (_) {
       return dateVal.toString();
@@ -63,7 +78,8 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final userName = auth.user?['name'] ?? (auth.user?['email']?.split('@')[0] ?? 'there');
+    final userName =
+        auth.user?['name'] ?? (auth.user?['email']?.split('@')[0] ?? 'there');
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -76,7 +92,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                 onRefresh: _loadCards,
                 color: AppColors.teal,
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                   children: [
                     // Top Row
                     Row(
@@ -106,7 +125,9 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                         ),
                         // Bell notification icon
                         GestureDetector(
-                          onTap: () => context.push('/notifications'),
+                          onTap: () => context
+                              .push('/notifications')
+                              .then((_) => _loadCards()),
                           child: Container(
                             width: 36,
                             height: 36,
@@ -116,7 +137,11 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                               borderRadius: BorderRadius.circular(11),
                             ),
                             child: const Center(
-                              child: Icon(Icons.notifications_none_rounded, color: AppColors.ink, size: 18),
+                              child: Icon(
+                                Icons.notifications_none_rounded,
+                                color: AppColors.ink,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -126,9 +151,13 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
 
                     // Search Bar -> Navigates to Explore
                     GestureDetector(
-                      onTap: () => context.push('/explore'),
+                      onTap: () =>
+                          context.push('/explore').then((_) => _loadCards()),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 11,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
                           border: Border.all(color: AppColors.line, width: 1.5),
@@ -136,7 +165,11 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.search_rounded, color: AppColors.inkFaint, size: 18),
+                            const Icon(
+                              Icons.search_rounded,
+                              color: AppColors.inkFaint,
+                              size: 18,
+                            ),
                             const SizedBox(width: 9),
                             Text(
                               'Find a business or card...',
@@ -181,12 +214,17 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.all(30),
-                          child: CircularProgressIndicator(color: AppColors.teal),
+                          child: CircularProgressIndicator(
+                            color: AppColors.teal,
+                          ),
                         ),
                       )
                     else if (_cards.isEmpty)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 32,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
                           borderRadius: BorderRadius.circular(20),
@@ -201,7 +239,11 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                                 color: AppColors.surfaceAlt,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Icon(Icons.credit_card_off_rounded, color: AppColors.tealDark, size: 26),
+                              child: const Icon(
+                                Icons.credit_card_off_rounded,
+                                color: AppColors.tealDark,
+                                size: 26,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             Text(
@@ -223,16 +265,27 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
-                              onPressed: () => context.push('/explore'),
+                              onPressed: () => context
+                                  .push('/explore')
+                                  .then((_) => _loadCards()),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.teal,
                                 elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 11,
+                                ),
                               ),
                               child: Text(
                                 'Explore Businesses',
-                                style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ],
@@ -240,10 +293,14 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                       )
                     else
                       Column(
-                        children: _cards.map((c) => Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: _buildWalletCard(c),
-                        )).toList(),
+                        children: _cards
+                            .map(
+                              (c) => Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: _buildWalletCard(c),
+                              ),
+                            )
+                            .toList(),
                       ),
                   ],
                 ),
@@ -268,16 +325,19 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
         : (cardInfo['visualStyle']?['icon'] ?? '🎟️');
     final punchCount = cardData['punchCount'] as int? ?? 0;
     final punchesRequired = cardInfo['punchesRequired'] as int? ?? 10;
-    final isCompleted = cardData['isCompleted'] == true || punchCount >= punchesRequired;
+    final isCompleted =
+        cardData['isCompleted'] == true || punchCount >= punchesRequired;
 
-    final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal').toString().toLowerCase();
+    final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal')
+        .toString()
+        .toLowerCase();
     final gradient = themeStr == 'coral'
         ? AppColors.gradCoral
         : themeStr == 'purple'
-            ? AppColors.gradPurple
-            : themeStr == 'gold'
-                ? AppColors.gradGold
-                : AppColors.gradTeal;
+        ? AppColors.gradPurple
+        : themeStr == 'gold'
+        ? AppColors.gradGold
+        : AppColors.gradTeal;
 
     return GestureDetector(
       onTap: () {
@@ -337,7 +397,21 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                     borderRadius: BorderRadius.circular(9),
                   ),
                   child: Center(
-                    child: Text(bizLogo, style: const TextStyle(fontSize: 15)),
+                    child: bizLogo.startsWith('http')
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(9),
+                            child: Image.network(
+                              bizLogo,
+                              width: 32,
+                              height: 32,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Text(
+                                '🏪',
+                                style: TextStyle(fontSize: 15),
+                              ),
+                            ),
+                          )
+                        : Text(bizLogo, style: const TextStyle(fontSize: 15)),
                   ),
                 ),
               ],
@@ -358,7 +432,9 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                       height: 7,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: isOn ? Colors.white : Colors.white.withValues(alpha: 0.4),
+                        color: isOn
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.4),
                       ),
                     );
                   }),
@@ -367,7 +443,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                   children: [
                     if (cardInfo['validUntil'] != null) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2.5,
+                        ),
                         margin: const EdgeInsets.only(right: 6),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.2),
@@ -384,13 +463,18 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                       ),
                     ],
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.22),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        isCompleted ? '$punchCount/$punchesRequired 🎉' : '$punchCount/$punchesRequired',
+                        isCompleted
+                            ? '$punchCount/$punchesRequired 🎉'
+                            : '$punchCount/$punchesRequired',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -419,7 +503,12 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildNavItem(0, Icons.home_rounded, 'Home'),
-          _buildNavItem(1, Icons.explore_rounded, 'Explore', onTap: () => context.push('/explore')),
+          _buildNavItem(
+            1,
+            Icons.explore_rounded,
+            'Explore',
+            onTap: () => context.push('/explore').then((_) => _loadCards()),
+          ),
           // Center Coral Barcode / Loyalty Pass Button
           GestureDetector(
             onTap: () => context.push('/barcode'),
@@ -446,14 +535,30 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
               ),
             ),
           ),
-          _buildNavItem(2, Icons.notifications_none_rounded, 'Alerts', onTap: () => context.push('/notifications')),
-          _buildNavItem(3, Icons.person_outline_rounded, 'Profile', onTap: () => context.push('/profile')),
+          _buildNavItem(
+            2,
+            Icons.notifications_none_rounded,
+            'Alerts',
+            onTap: () =>
+                context.push('/notifications').then((_) => _loadCards()),
+          ),
+          _buildNavItem(
+            3,
+            Icons.person_outline_rounded,
+            'Profile',
+            onTap: () => context.push('/profile').then((_) => _loadCards()),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label, {VoidCallback? onTap}) {
+  Widget _buildNavItem(
+    int index,
+    IconData icon,
+    String label, {
+    VoidCallback? onTap,
+  }) {
     final isActive = _activeNavIndex == index;
     return GestureDetector(
       onTap: () {
