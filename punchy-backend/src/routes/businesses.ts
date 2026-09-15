@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
+import { parsePagination } from '../lib/pagination';
 
 const router = Router();
 
@@ -16,8 +17,11 @@ const BusinessUpsertSchema = z.object({
 
 // GET /businesses — admin: all businesses with pagination + filters
 router.get('/', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
-  const { search, status, page = '1', limit = '20' } = req.query;
-  const skip = (Number(page) - 1) * Number(limit);
+  const { search, status } = req.query;
+  const pagination = parsePagination(req.query);
+  if (pagination.error) { res.status(400).json({ error: pagination.error }); return; }
+  const { page, limit } = pagination;
+  const skip = (page - 1) * limit;
   const where: Record<string, unknown> = {};
   if (status) where.status = status;
   if (search) where.OR = [
@@ -34,7 +38,7 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (req: Request, res: Res
     prisma.businessProfile.count({ where }),
   ]);
 
-  res.json({ businesses, total, page: Number(page), limit: Number(limit) });
+  res.json({ businesses, total, page, limit, totalPages: Math.ceil(total / limit) });
 });
 
 // POST /businesses — business user creates their profile

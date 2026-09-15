@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { strongPassword } from '../src/lib/passwordPolicy';
 import { createRateLimiter } from '../src/middleware/rateLimit';
 import { PunchDomainError, PunchService } from '../src/services/punchService';
+import { parsePagination } from '../src/lib/pagination';
 
 test('strong password policy rejects weak passwords and accepts compliant passwords', () => {
   assert.equal(strongPassword.safeParse('password').success, false);
@@ -31,4 +32,9 @@ test('punch service rejects an unknown identifier before writing data', async ()
   await assert.rejects(() => service.record('customer-1', 'missing'), (error: unknown) => {
     return error instanceof PunchDomainError && error.statusCode === 404;
   });
+});
+
+test('pagination is bounded to protect list endpoints', () => {
+  assert.deepEqual(parsePagination({ page: '2', limit: '100' }), { page: 2, limit: 100, error: undefined });
+  assert.equal(parsePagination({ page: '0', limit: '500' }).error !== undefined, true);
 });

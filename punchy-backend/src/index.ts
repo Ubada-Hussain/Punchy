@@ -18,6 +18,7 @@ import adminRouter from './routes/admin';
 import businessPortalRouter from './routes/businessPortal';
 import { maintenanceGuard } from './middleware/maintenance';
 import prisma from './lib/prisma';
+import { processScheduledNotifications } from './services/scheduledNotificationService';
 
 const app = express();
 
@@ -84,4 +85,8 @@ if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !proces
   throw new Error('Production JWT secrets are missing or use a default value. Refusing to start.');
 }
 app.listen(PORT, () => console.log(`Punchy API listening on port ${PORT}`));
+if (process.env.NODE_ENV !== 'test') {
+  const intervalMs = 30_000;
+  setInterval(() => void processScheduledNotifications().catch((error) => console.error('Scheduled notification worker failed', error)), intervalMs).unref();
+}
 export default app;

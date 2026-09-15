@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { sendNotification } from '../lib/notifications';
+import { parsePagination } from '../lib/pagination';
 
 const router = Router();
 
@@ -34,14 +35,18 @@ router.post('/', requireAuth, async (req: Request, res: Response): Promise<void>
   const notification = await prisma.notification.create({
     data: { ...parsed.data, targetId, createdBy: req.user!.userId, sentAt: parsed.data.scheduledAt ? undefined : new Date() },
   });
-  await sendNotification({ userId: parsed.data.targetType === 'USER' ? targetId : undefined, targetRole: parsed.data.targetType === 'CUSTOMERS' ? 'CUSTOMER' : parsed.data.targetType === 'BUSINESSES' ? 'BUSINESS' : 'ALL', title: parsed.data.title, body: parsed.data.body });
+  if (!parsed.data.scheduledAt) {
+    await sendNotification({ userId: parsed.data.targetType === 'USER' ? targetId : undefined, targetRole: parsed.data.targetType === 'CUSTOMERS' ? 'CUSTOMER' : parsed.data.targetType === 'BUSINESSES' ? 'BUSINESS' : 'ALL', title: parsed.data.title, body: parsed.data.body });
+  }
   res.status(201).json(notification);
 });
 
 // GET /notifications
 router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const { page = '1', limit = '20' } = req.query;
-  const skip = (Number(page) - 1) * Number(limit);
+  const pagination = parsePagination(req.query);
+  if (pagination.error) { res.status(400).json({ error: pagination.error }); return; }
+  const { page, limit } = pagination;
+  const skip = (page - 1) * limit;
   let where: any = {};
   if (req.user!.role === 'ADMIN') {
     where = {};
@@ -73,7 +78,7 @@ router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> 
     }),
     prisma.notification.count({ where }),
   ]);
-  res.json({ notifications, total });
+  res.json({ notifications, total, page, limit, totalPages: Math.ceil(total / limit) });
 });
 
 router.delete('/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {

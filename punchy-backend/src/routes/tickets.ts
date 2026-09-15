@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { requireAuth, requireAuthAllowSuspended, requireRole } from '../middleware/auth';
+import { parsePagination } from '../lib/pagination';
 
 const router = Router();
 
@@ -29,8 +30,11 @@ router.post('/', requireAuthAllowSuspended, async (req: Request, res: Response):
 
 // GET /tickets — admin sees all, others see their own
 router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const { status, page = '1', limit = '20' } = req.query;
-  const skip = (Number(page) - 1) * Number(limit);
+  const { status } = req.query;
+  const pagination = parsePagination(req.query);
+  if (pagination.error) { res.status(400).json({ error: pagination.error }); return; }
+  const { page, limit } = pagination;
+  const skip = (page - 1) * limit;
   const where: Record<string, unknown> = req.user!.role === 'ADMIN' ? {} : { authorId: req.user!.userId };
   if (status) where.status = status;
 
@@ -42,7 +46,7 @@ router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> 
     }),
     prisma.supportTicket.count({ where }),
   ]);
-  res.json({ tickets, total });
+  res.json({ tickets, total, page, limit, totalPages: Math.ceil(total / limit) });
 });
 
 // GET /tickets/:id
