@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/validation/password_policy.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -242,10 +243,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       if (val == null || val.isEmpty) {
                         return 'Please enter a password';
                       }
-                      if (!RegExp(
-                        r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$',
-                      ).hasMatch(val)) {
-                        return 'Use 8+ chars with uppercase, lowercase, number and symbol';
+                      if (!PasswordPolicy.isValid(val)) {
+                        return PasswordPolicy.message;
                       }
                       return null;
                     },

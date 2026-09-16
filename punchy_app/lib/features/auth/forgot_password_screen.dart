@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/validation/password_policy.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -117,9 +118,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  _codeSent
-                      ? 'We sent a 6-digit code to your email.'
-                      : 'Enter your email and we will send you a one-time code.',
+                  _codeSent ? 'We sent a 6-digit code to your email.' : 'Enter your email and we will send you a one-time code.',
                   style: GoogleFonts.plusJakartaSans(
                     color: AppColors.inkSoft,
                     fontSize: 13,
@@ -205,8 +204,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       if (value == null || value.isEmpty) {
                         return 'Please enter a new password';
                       }
-                      if (value.length < 8) {
-                        return 'Password must be at least 8 characters';
+                      if (!PasswordPolicy.isValid(value)) {
+                        return PasswordPolicy.message;
                       }
                       return null;
                     },

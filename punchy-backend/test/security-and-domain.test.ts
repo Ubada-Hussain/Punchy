@@ -8,6 +8,7 @@ import { parsePagination } from '../src/lib/pagination';
 test('strong password policy rejects weak passwords and accepts compliant passwords', () => {
   assert.equal(strongPassword.safeParse('password').success, false);
   assert.equal(strongPassword.safeParse('Password1!').success, true);
+  assert.equal(strongPassword.safeParse('Password1').success, true);
   assert.equal(strongPassword.safeParse('PASSWORD1!').success, false);
 });
 
