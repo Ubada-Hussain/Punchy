@@ -12,6 +12,7 @@ const CardSchema = z.object({
   validUntil: z.string().nullable().optional(),
   pricePerPunch: z.number().min(0).optional().default(0),
   currency: z.string().min(1).max(10).optional().default('PKR'),
+  isActive: z.boolean().optional(),
   visualStyle: z.object({
     primaryColor: z.string().default('#FF6B35'),
     bgColor: z.string().default('#1a1a2e'),
@@ -97,6 +98,14 @@ router.patch('/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, 
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.validUntil !== undefined) {
     updateData.validUntil = parsed.data.validUntil ? new Date(parsed.data.validUntil) : null;
+  }
+  const nextActive = parsed.data.isActive ?? card.isActive;
+  const nextValidUntil = parsed.data.validUntil !== undefined
+    ? (parsed.data.validUntil ? new Date(parsed.data.validUntil) : null)
+    : card.validUntil;
+  if (nextActive && nextValidUntil && nextValidUntil <= new Date()) {
+    res.status(400).json({ error: 'A card can only be reactivated with a future expiry date.' });
+    return;
   }
 
   res.json(await prisma.loyaltyCard.update({ where: { id }, data: updateData }));

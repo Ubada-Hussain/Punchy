@@ -327,6 +327,9 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
     final punchesRequired = cardInfo['punchesRequired'] as int? ?? 10;
     final isCompleted =
         cardData['isCompleted'] == true || punchCount >= punchesRequired;
+    final expiry = DateTime.tryParse((cardInfo['validUntil'] ?? '').toString());
+    final isExpired = cardData['isExpired'] == true ||
+        (expiry != null && expiry.isBefore(DateTime.now()));
 
     final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal')
         .toString()
@@ -453,7 +456,9 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          '⏳ ${_formatDate(cardInfo['validUntil'])}',
+                          isExpired
+                              ? 'EXPIRED'
+                              : '⏳ ${_formatDate(cardInfo['validUntil'])}',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w700,

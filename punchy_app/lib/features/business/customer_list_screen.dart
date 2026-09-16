@@ -277,6 +277,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                             final punchCount = c['punchCount'] as int? ?? 0;
                             final punchesRequired = c['punchesRequired'] as int? ?? 10;
                             final isCompleted = c['isCompleted'] == true || punchCount >= punchesRequired;
+                            final expiry = DateTime.tryParse((c['validUntil'] ?? '').toString());
+                            final isExpired = c['isExpired'] == true || (expiry != null && expiry.isBefore(DateTime.now()));
                             final lastActivity = c['lastActivity'] ?? 'Recently';
 
                             return GestureDetector(
@@ -338,17 +340,21 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                                           decoration: BoxDecoration(
-                                            color: isCompleted
+                                            color: isExpired
+                                                ? AppColors.coral.withValues(alpha: 0.15)
+                                                : isCompleted
                                                 ? AppColors.coral.withValues(alpha: 0.15)
                                                 : AppColors.teal.withValues(alpha: 0.12),
                                             borderRadius: BorderRadius.circular(999),
                                           ),
                                           child: Text(
-                                            isCompleted ? 'Reward Ready 🎉' : '$punchCount/$punchesRequired',
+                                            isExpired
+                                                ? 'Expired'
+                                                : (isCompleted ? 'Reward Ready 🎉' : '$punchCount/$punchesRequired'),
                                             style: GoogleFonts.plusJakartaSans(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w800,
-                                              color: isCompleted ? AppColors.coralDark : AppColors.tealDark,
+                                              color: isExpired ? AppColors.coralDark : (isCompleted ? AppColors.coralDark : AppColors.tealDark),
                                             ),
                                           ),
                                         ),

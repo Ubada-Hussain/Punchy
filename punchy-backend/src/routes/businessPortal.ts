@@ -39,6 +39,7 @@ const CardSchema = z.object({
   validUntil: z.string().nullable().optional(),
   pricePerPunch: z.number().min(0).optional().default(0),
   currency: z.string().min(1).max(10).optional().default('PKR'),
+  isActive: z.boolean().optional(),
   enableQR: z.boolean().default(true),
   enableNFC: z.boolean().default(true),
 });
@@ -502,9 +503,21 @@ router.get('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
  * PUT /business/cards/:id
  */
 router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+  const existing = await prisma.loyaltyCard.findUnique({ where: { id: String(req.params.id) } });
+  if (!existing) { res.status(404).json({ error: 'Card not found' }); return; }
+  const owner = await prisma.businessProfile.findFirst({ where: { id: existing.businessId, userId: req.user!.userId }, select: { id: true } });
+  if (!owner) { res.status(403).json({ error: 'Forbidden' }); return; }
   const parsed = CardSchema.partial().safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const nextValidUntil = parsed.data.validUntil !== undefined
+    ? (parsed.data.validUntil ? new Date(parsed.data.validUntil) : null)
+    : existing.validUntil;
+  if (parsed.data.isActive === true && nextValidUntil && nextValidUntil <= new Date()) {
+    res.status(400).json({ error: 'A card can only be reactivated with a future expiry date.' });
     return;
   }
 
@@ -517,6 +530,7 @@ router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
       ...(parsed.data.visualStyle !== undefined ? { visualStyle: parsed.data.visualStyle as any } : {}),
       ...(parsed.data.pricePerPunch !== undefined ? { pricePerPunch: parsed.data.pricePerPunch } : {}),
       ...(parsed.data.currency !== undefined ? { currency: parsed.data.currency } : {}),
+      ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
       ...(parsed.data.validUntil !== undefined
         ? { validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null }
         : {}),
@@ -726,6 +740,7 @@ router.get('/customers', requireAuth, requireRole('BUSINESS'), async (req: Reque
     punchesRequired: cc.card.punchesRequired,
     validUntil: cc.card.validUntil,
     isCompleted: cc.isCompleted,
+    isExpired: Boolean(cc.card.validUntil && cc.card.validUntil <= new Date()),
     joinedAt: cc.joinedAt,
     lastActivity: cc.punchTransactions[0]?.timestamp ?? cc.updatedAt,
   }));

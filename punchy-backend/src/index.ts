@@ -19,6 +19,7 @@ import businessPortalRouter from './routes/businessPortal';
 import { maintenanceGuard } from './middleware/maintenance';
 import prisma from './lib/prisma';
 import { processScheduledNotifications } from './services/scheduledNotificationService';
+import { processCardLifecycle } from './services/cardLifecycleService';
 
 const app = express();
 
@@ -87,6 +88,10 @@ if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !proces
 app.listen(PORT, () => console.log(`Punchy API listening on port ${PORT}`));
 if (process.env.NODE_ENV !== 'test') {
   const intervalMs = 30_000;
-  setInterval(() => void processScheduledNotifications().catch((error) => console.error('Scheduled notification worker failed', error)), intervalMs).unref();
+  void processCardLifecycle().catch((error) => console.error('Initial card lifecycle pass failed', error));
+  setInterval(() => {
+    void processScheduledNotifications().catch((error) => console.error('Scheduled notification worker failed', error));
+    void processCardLifecycle().catch((error) => console.error('Card lifecycle worker failed', error));
+  }, intervalMs).unref();
 }
 export default app;

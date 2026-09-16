@@ -18,7 +18,10 @@ router.get('/cards', requireAuth, requireRole('CUSTOMER'), async (req: Request, 
     },
     orderBy: { joinedAt: 'desc' },
   });
-  res.json(cards);
+  res.json(cards.map((customerCard) => ({
+    ...customerCard,
+    isExpired: Boolean(customerCard.card.validUntil && customerCard.card.validUntil <= new Date()),
+  })));
 });
 
 // GET /customer/cards/:id — single card with punch history
@@ -32,7 +35,7 @@ router.get('/cards/:id', requireAuth, requireRole('CUSTOMER'), async (req: Reque
     },
   });
   if (!card) { res.status(404).json({ error: 'Card not found' }); return; }
-  res.json(card);
+  res.json({ ...card, isExpired: Boolean(card.card.validUntil && card.card.validUntil <= new Date()) });
 });
 
 // POST /customer/cards/:id/redeem
@@ -76,7 +79,10 @@ router.get('/explore', requireAuth, async (req: Request, res: Response): Promise
     where,
     include: {
       loyaltyCards: {
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+        },
         include: {
           punchMethods: { where: { isActive: true } },
           _count: { select: { customerCards: true } },

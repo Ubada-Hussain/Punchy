@@ -809,6 +809,8 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
         ? priceVal.toInt().toString()
         : priceVal.toString();
     final validDate = _formatDate(activeCard['validUntil']);
+    final expiry = DateTime.tryParse((activeCard['validUntil'] ?? '').toString());
+    final isExpired = expiry != null && expiry.isBefore(DateTime.now());
     final custCount = activeCard['_count']?['customerCards'] ?? 0;
 
     return Container(
@@ -831,7 +833,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Row: Coffee Badge + Card Title + Active Badge + Price & Reward on Right
+          // Top Row: card title, lifecycle status, and price/reward summary.
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -880,21 +882,21 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF10A37F)
+                                  color: (isExpired ? AppColors.coral : const Color(0xFF10A37F))
                                       .withValues(alpha: 0.28),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color: const Color(0xFF10A37F)
+                                    color: (isExpired ? AppColors.coral : const Color(0xFF10A37F))
                                         .withValues(alpha: 0.5),
                                     width: 0.8,
                                   ),
                                 ),
                                 child: Text(
-                                  'Active',
+                                  isExpired ? 'Expired' : 'Active',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF6EE7B7),
+                                    color: isExpired ? AppColors.coral : const Color(0xFF6EE7B7),
                                   ),
                                 ),
                               ),

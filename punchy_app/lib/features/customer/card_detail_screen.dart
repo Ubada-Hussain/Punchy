@@ -93,6 +93,9 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     final reward = cardInfo['rewardDescription'] ?? 'Reward';
     final isCompleted =
         _card['isCompleted'] == true || punchCount >= punchesRequired;
+    final expiry = DateTime.tryParse((cardInfo['validUntil'] ?? '').toString());
+    final isExpired = _card['isExpired'] == true ||
+        (expiry != null && expiry.isBefore(DateTime.now()));
 
     final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal')
         .toString()
@@ -316,7 +319,9 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                     child: Text(
-                                      isCompleted ? 'REWARD READY' : 'ACTIVE',
+                                      isCompleted
+                                          ? 'REWARD READY'
+                                          : (isExpired ? 'EXPIRED' : 'ACTIVE'),
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w800,
