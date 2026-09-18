@@ -15,12 +15,24 @@ import { strongPassword } from '../lib/passwordPolicy';
 const router = Router();
 router.use(authRateLimiter);
 
+const phoneRegex = /^\+?[0-9\s\-()]{8,20}$/;
+
 const RegisterSchema = z.object({
   email: z.string().email(),
   password: strongPassword,
   role: z.enum(['BUSINESS', 'CUSTOMER']),
   name: z.string().optional(),
   phone: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.role === 'BUSINESS') {
+    if (!data.phone || !phoneRegex.test(data.phone.trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['phone'],
+        message: 'A valid phone number is required for business accounts (e.g. +923001234567)',
+      });
+    }
+  }
 });
 
 const LoginSchema = z.object({
@@ -42,7 +54,7 @@ const DeleteOtpSchema = z.object({ otp: z.string().regex(/^\d{6}$/) });
 
 const ProfileUpdateSchema = z.object({
   name: z.string().min(1).optional(),
-  phone: z.string().optional(),
+  phone: z.string().regex(phoneRegex, 'Please enter a valid phone number (e.g. +923001234567)').optional(),
 });
 
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -442,14 +454,43 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
 
   // Rotate
   await prisma.refreshToken.delete({ where: { token: refreshToken } });
-  const tokenPayload = { userId: payload.userId, email: payload.email, role: payload.role };
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    include: { businessProfile: true, staffBusiness: true },
+  });
+  if (!user || user.isBlocked) {
+    res.status(403).json({ error: 'User not found or blocked' });
+    return;
+  }
+  const tokenPayload = { userId: user.id, email: user.email, role: user.role };
   const newAccess = signAccessToken(tokenPayload);
   const newRefresh = signRefreshToken(tokenPayload);
   await prisma.refreshToken.create({
-    data: { token: newRefresh, userId: payload.userId, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
+    data: { token: newRefresh, userId: user.id, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) },
   });
 
-  res.json({ accessToken: newAccess, refreshToken: newRefresh });
+  const isBusinessSuspended = user.role === 'BUSINESS' && user.businessProfile?.status === 'SUSPENDED';
+  const isStaffBusinessSuspended = user.role === 'STAFF' && user.staffBusiness?.status === 'SUSPENDED';
+  const isSuspended = user.isBlocked || isBusinessSuspended || isStaffBusinessSuspended;
+
+  res.json({
+    accessToken: newAccess,
+    refreshToken: newRefresh,
+    user: {
+      id: user.id,
+      publicId: user.publicId,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      phone: user.phone,
+      isBlocked: user.isBlocked,
+      isSuspended,
+      isStaffActive: user.isStaffActive,
+      businessId: user.businessId,
+      businessName: user.staffBusiness?.name ?? user.businessProfile?.name,
+      createdAt: user.createdAt,
+    },
+  });
 });
 
 router.post('/logout', async (req: Request, res: Response): Promise<void> => {

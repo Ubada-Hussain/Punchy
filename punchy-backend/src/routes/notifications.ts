@@ -32,11 +32,41 @@ router.post('/', requireAuth, async (req: Request, res: Response): Promise<void>
     targetId = target.id;
   }
 
+  let connectedCustomerIds: string[] = [];
+  if (req.user!.role === 'BUSINESS' && parsed.data.targetType === 'CUSTOMERS') {
+    const biz = await prisma.businessProfile.findUnique({
+      where: { userId: req.user!.userId },
+      include: { loyaltyCards: { select: { id: true } } },
+    });
+    if (!biz) {
+      res.status(404).json({ error: 'Business profile not found' });
+      return;
+    }
+    const cardIds = biz.loyaltyCards.map((c) => c.id);
+    const customerCards = await prisma.customerCard.findMany({
+      where: { cardId: { in: cardIds } },
+      select: { customerId: true },
+    });
+    connectedCustomerIds = Array.from(new Set(customerCards.map((c) => c.customerId)));
+  }
+
   const notification = await prisma.notification.create({
     data: { ...parsed.data, targetId, createdBy: req.user!.userId, sentAt: parsed.data.scheduledAt ? undefined : new Date() },
   });
   if (!parsed.data.scheduledAt) {
-    await sendNotification({ userId: parsed.data.targetType === 'USER' ? targetId : undefined, targetRole: parsed.data.targetType === 'CUSTOMERS' ? 'CUSTOMER' : parsed.data.targetType === 'BUSINESSES' ? 'BUSINESS' : 'ALL', title: parsed.data.title, body: parsed.data.body });
+    if (req.user!.role === 'BUSINESS' && parsed.data.targetType === 'CUSTOMERS') {
+      // Send push notification exclusively to customers who joined this business's cards
+      for (const cid of connectedCustomerIds) {
+        await sendNotification({ userId: cid, title: parsed.data.title, body: parsed.data.body });
+      }
+    } else {
+      await sendNotification({
+        userId: parsed.data.targetType === 'USER' ? targetId : undefined,
+        targetRole: parsed.data.targetType === 'CUSTOMERS' ? 'CUSTOMER' : parsed.data.targetType === 'BUSINESSES' ? 'BUSINESS' : 'ALL',
+        title: parsed.data.title,
+        body: parsed.data.body,
+      });
+    }
   }
   res.status(201).json(notification);
 });
@@ -51,10 +81,16 @@ router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> 
   if (req.user!.role === 'ADMIN') {
     where = {};
   } else if (req.user!.role === 'CUSTOMER') {
+    const myJoinedCards = await prisma.customerCard.findMany({
+      where: { customerId: req.user!.userId },
+      include: { card: { select: { business: { select: { userId: true } } } } },
+    });
+    const allowedBizUserIds = Array.from(new Set(myJoinedCards.map((jc) => jc.card.business.userId)));
     where = {
       OR: [
         { targetType: 'ALL' },
-        { targetType: 'CUSTOMERS' },
+        { targetType: 'CUSTOMERS', creator: { role: 'ADMIN' } },
+        { targetType: 'CUSTOMERS', createdBy: { in: allowedBizUserIds } },
         { targetType: 'USER', targetId: req.user!.userId },
       ],
     };

@@ -1,11 +1,19 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'dart:io';
+class NetworkException implements Exception {
+  final String message;
+  const NetworkException([this.message = 'No internet connection']);
+
+  @override
+  String toString() => 'NetworkException: $message';
+}
 
 class ApiClient {
   ApiClient({
@@ -27,6 +35,18 @@ class ApiClient {
   final String baseUrl;
   final Duration timeout;
 
+  Future<T> _execute<T>(Future<T> Function() call) async {
+    try {
+      return await call();
+    } on SocketException catch (_) {
+      throw const NetworkException('Unable to connect. Please check your internet connection.');
+    } on http.ClientException catch (e) {
+      throw NetworkException('Network error: ${e.message}');
+    } on TimeoutException catch (_) {
+      throw const NetworkException('Connection timed out. Please try again.');
+    }
+  }
+
   Future<Map<String, String>> _getHeaders() async {
     final token = await _tokenStore.read();
     return {
@@ -36,64 +56,76 @@ class ApiClient {
   }
 
   Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
-    final response = await _client
-        .post(
-          _uri(endpoint),
-          headers: await _getHeaders(),
-          body: jsonEncode(body),
-        )
-        .timeout(timeout);
-    return _handleResponse(response);
+    return _execute(() async {
+      final response = await _client
+          .post(
+            _uri(endpoint),
+            headers: await _getHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(timeout);
+      return _handleResponse(response);
+    });
   }
 
   Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
-    final response = await _client
-        .put(
-          _uri(endpoint),
-          headers: await _getHeaders(),
-          body: jsonEncode(body),
-        )
-        .timeout(timeout);
-    return _handleResponse(response);
+    return _execute(() async {
+      final response = await _client
+          .put(
+            _uri(endpoint),
+            headers: await _getHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(timeout);
+      return _handleResponse(response);
+    });
   }
 
   Future<dynamic> patch(String endpoint, Map<String, dynamic> body) async {
-    final response = await _client
-        .patch(
-          _uri(endpoint),
-          headers: await _getHeaders(),
-          body: jsonEncode(body),
-        )
-        .timeout(timeout);
-    return _handleResponse(response);
+    return _execute(() async {
+      final response = await _client
+          .patch(
+            _uri(endpoint),
+            headers: await _getHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(timeout);
+      return _handleResponse(response);
+    });
   }
 
   Future<dynamic> delete(String endpoint) async {
-    final response = await _client
-        .delete(_uri(endpoint), headers: await _getHeaders())
-        .timeout(timeout);
-    return _handleResponse(response);
+    return _execute(() async {
+      final response = await _client
+          .delete(_uri(endpoint), headers: await _getHeaders())
+          .timeout(timeout);
+      return _handleResponse(response);
+    });
   }
 
   Future<dynamic> deleteWithBody(
     String endpoint,
     Map<String, dynamic> body,
   ) async {
-    final response = await _client
-        .delete(
-          _uri(endpoint),
-          headers: await _getHeaders(),
-          body: jsonEncode(body),
-        )
-        .timeout(timeout);
-    return _handleResponse(response);
+    return _execute(() async {
+      final response = await _client
+          .delete(
+            _uri(endpoint),
+            headers: await _getHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(timeout);
+      return _handleResponse(response);
+    });
   }
 
   Future<dynamic> get(String endpoint) async {
-    final response = await _client
-        .get(_uri(endpoint), headers: await _getHeaders())
-        .timeout(timeout);
-    return _handleResponse(response);
+    return _execute(() async {
+      final response = await _client
+          .get(_uri(endpoint), headers: await _getHeaders())
+          .timeout(timeout);
+      return _handleResponse(response);
+    });
   }
 
   Future<dynamic> uploadImage(
@@ -101,31 +133,33 @@ class ApiClient {
     File file, {
     String field = 'logo',
   }) async {
-    final request = http.MultipartRequest('POST', _uri(endpoint));
-    final headers = await _getHeaders();
-    // MultipartRequest generates its own boundary Content-Type. Sending the
-    // JSON header here makes Express/Multer see an empty request body.
-    headers.remove('Content-Type');
-    request.headers.addAll(headers);
-    // Some Android gallery providers return a cache path without a useful
-    // extension. Give the multipart part an explicit image filename so
-    // Multer can reliably identify it as the `logo` file.
-    final fileName =
-        file.uri.pathSegments.isNotEmpty &&
-            file.uri.pathSegments.last.contains('.')
-        ? file.uri.pathSegments.last
-        : 'logo.jpg';
-    request.files.add(
-      await http.MultipartFile.fromPath(
-        field,
-        file.path,
-        filename: fileName,
-        contentType: MediaType('image', 'jpeg'),
-      ),
-    );
-    return _handleResponse(
-      await http.Response.fromStream(await request.send().timeout(timeout)),
-    );
+    return _execute(() async {
+      final request = http.MultipartRequest('POST', _uri(endpoint));
+      final headers = await _getHeaders();
+      // MultipartRequest generates its own boundary Content-Type. Sending the
+      // JSON header here makes Express/Multer see an empty request body.
+      headers.remove('Content-Type');
+      request.headers.addAll(headers);
+      // Some Android gallery providers return a cache path without a useful
+      // extension. Give the multipart part an explicit image filename so
+      // Multer can reliably identify it as the `logo` file.
+      final fileName =
+          file.uri.pathSegments.isNotEmpty &&
+              file.uri.pathSegments.last.contains('.')
+          ? file.uri.pathSegments.last
+          : 'logo.jpg';
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          field,
+          file.path,
+          filename: fileName,
+          contentType: MediaType('image', 'jpeg'),
+        ),
+      );
+      return _handleResponse(
+        await http.Response.fromStream(await request.send().timeout(timeout)),
+      );
+    });
   }
 
   Uri _uri(String endpoint) {
@@ -192,6 +226,22 @@ class SecureTokenStore implements TokenStore {
 
   @override
   Future<void> delete() => _storage.delete(key: 'access_token');
+
+  Future<String?> readRefreshToken() => _storage.read(key: 'refresh_token');
+  Future<void> writeRefreshToken(String token) =>
+      _storage.write(key: 'refresh_token', value: token);
+  Future<void> deleteRefreshToken() => _storage.delete(key: 'refresh_token');
+
+  Future<String?> readCachedUser() => _storage.read(key: 'cached_user');
+  Future<void> writeCachedUser(String userJson) =>
+      _storage.write(key: 'cached_user', value: userJson);
+  Future<void> deleteCachedUser() => _storage.delete(key: 'cached_user');
+
+  Future<void> clearAll() async {
+    await _storage.delete(key: 'access_token');
+    await _storage.delete(key: 'refresh_token');
+    await _storage.delete(key: 'cached_user');
+  }
 }
 
 class ApiException implements Exception {

@@ -17,7 +17,7 @@ export async function notifyProgressMilestone(
   punchesRequired: number,
 ): Promise<void> {
   const remaining = punchesRequired - punchCount;
-  if (remaining !== 1 && remaining !== 2) return;
+  if (remaining < 1 || remaining > 3) return;
   const createdBy = await systemCreatorId();
   if (!createdBy) return;
   const customerCard = await prisma.customerCard.findUnique({ where: { id: customerCardId }, select: { joinedAt: true } });

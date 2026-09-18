@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,13 +11,16 @@ import '../data/auth_repository.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _auth = AuthRepository();
-  final TokenStore _tokenStore = const SecureTokenStore();
+  final SecureTokenStore _tokenStore = const SecureTokenStore();
   final ApiClient _api = ApiClient();
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
   bool _isReady = false;
   bool get isReady => _isReady;
+
+  bool _isOffline = false;
+  bool get isOffline => _isOffline;
 
   String? _errorMessage;
   Map<String, dynamic>? _pendingSignup;
@@ -70,6 +75,13 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> _loadToken() async {
     try {
+      final cachedUserStr = await _tokenStore.readCachedUser();
+      if (cachedUserStr != null && cachedUserStr.isNotEmpty) {
+        try {
+          _user = jsonDecode(cachedUserStr) as Map<String, dynamic>;
+        } catch (_) {}
+      }
+
       _token = await _tokenStore.read();
       if (_token == null) {
         // One-time migration for users upgrading from the legacy plaintext
@@ -82,10 +94,22 @@ class AuthProvider extends ChangeNotifier {
           _token = legacyToken;
         }
       }
+
       if (_token != null) {
         await fetchProfile();
         if (_token != null) await _registerDeviceToken();
+      } else {
+        // No session stored, verify server reachability without blocking
+        try {
+          await _api.get('/health');
+          _isOffline = false;
+        } catch (e) {
+          if (e is NetworkException || e is SocketException || e is TimeoutException) {
+            _isOffline = true;
+          }
+        }
       }
+
       // Health/maintenance is supplemental and must not delay login or the
       // first route when no session exists.
       unawaited(checkMaintenance());
@@ -101,8 +125,39 @@ class AuthProvider extends ChangeNotifier {
     try {
       final res = await _api.get('/health');
       _isMaintenance = res is Map && res['maintenance'] == true;
+      _isOffline = false;
       notifyListeners();
-    } catch (_) {}
+    } catch (e) {
+      if (e is NetworkException || e is SocketException || e is TimeoutException) {
+        _isOffline = true;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> retryConnection() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final res = await _api.get('/health');
+      _isMaintenance = res is Map && res['maintenance'] == true;
+      _isOffline = false;
+      if (_token != null) {
+        await fetchProfile();
+      }
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      if (e is NetworkException || e is SocketException || e is TimeoutException) {
+        _isOffline = true;
+      } else {
+        _isOffline = false;
+      }
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<void> setPushNotificationsEnabled(bool enabled) async {
@@ -115,14 +170,45 @@ class AuthProvider extends ChangeNotifier {
       if (res['user'] != null) {
         _user = res['user'];
         _isMaintenance = false;
+        _isOffline = false;
         _isSuspended =
             _user?['isSuspended'] == true || _user?['isBlocked'] == true;
+        await _tokenStore.writeCachedUser(jsonEncode(_user));
         notifyListeners();
       }
     } catch (e) {
       debugPrint('AuthProvider fetchProfile error: $e');
+      if (e is NetworkException) {
+        _isOffline = true;
+        notifyListeners();
+        return;
+      }
       if (e is ApiException && e.statusCode == 401) {
-        await _tokenStore.delete();
+        // Attempt token refresh before clearing
+        final refreshToken = await _tokenStore.readRefreshToken();
+        if (refreshToken != null && refreshToken.isNotEmpty) {
+          try {
+            final refreshed = await _auth.refreshToken(refreshToken);
+            if (refreshed['accessToken'] != null) {
+              _token = refreshed['accessToken'];
+              await _tokenStore.write(_token!);
+              if (refreshed['refreshToken'] != null) {
+                await _tokenStore.writeRefreshToken(refreshed['refreshToken'].toString());
+              }
+              if (refreshed['user'] != null) {
+                _user = refreshed['user'];
+                await _tokenStore.writeCachedUser(jsonEncode(_user));
+              }
+              _isOffline = false;
+              _isSuspended = false;
+              notifyListeners();
+              return;
+            }
+          } catch (refreshErr) {
+            debugPrint('Token refresh failed: $refreshErr');
+          }
+        }
+        await _tokenStore.clearAll();
         _token = null;
         _user = null;
         _isSuspended = false;
@@ -152,11 +238,20 @@ class AuthProvider extends ChangeNotifier {
       final response = await _auth.login(email, password);
 
       _token = response['accessToken'];
+      final refreshToken = response['refreshToken'];
       _user = response['user'];
       _isSuspended =
           _user?['isSuspended'] == true || _user?['isBlocked'] == true;
+      _isOffline = false;
 
       await _tokenStore.write(_token!);
+      if (refreshToken != null && refreshToken.toString().isNotEmpty) {
+        await _tokenStore.writeRefreshToken(refreshToken.toString());
+      }
+      if (_user != null) {
+        await _tokenStore.writeCachedUser(jsonEncode(_user));
+      }
+
       // Refresh the complete server profile so generated fields (including
       // the immutable public ID) are available immediately after sign-in.
       await fetchProfile();
@@ -167,7 +262,10 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _isLoading = false;
-      if (e is ApiException) {
+      if (e is NetworkException) {
+        _isOffline = true;
+        _errorMessage = e.message;
+      } else if (e is ApiException) {
         _errorMessage = e.message;
         if (e.statusCode == 403 ||
             e.message.toLowerCase().contains('suspend') ||
@@ -266,9 +364,17 @@ class AuthProvider extends ChangeNotifier {
       }
 
       _token = response['accessToken'];
+      final refreshToken = response['refreshToken'];
       _user = response['user'];
+      _isOffline = false;
 
       await _tokenStore.write(_token!);
+      if (refreshToken != null && refreshToken.toString().isNotEmpty) {
+        await _tokenStore.writeRefreshToken(refreshToken.toString());
+      }
+      if (_user != null) {
+        await _tokenStore.writeCachedUser(jsonEncode(_user));
+      }
       await _registerDeviceToken();
 
       _isLoading = false;
@@ -276,7 +382,10 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _isLoading = false;
-      if (e is ApiException) {
+      if (e is NetworkException) {
+        _isOffline = true;
+        _errorMessage = e.message;
+      } else if (e is ApiException) {
         _errorMessage = e.message;
       } else {
         _errorMessage = e.toString();
@@ -295,10 +404,20 @@ class AuthProvider extends ChangeNotifier {
     try {
       final response = await _auth.verifySignup(email, otp);
       _token = response['accessToken'];
+      final refreshToken = response['refreshToken'];
       _user = response['user'];
       _pendingSignup = null;
+      _isOffline = false;
+
       await _tokenStore.write(_token!);
+      if (refreshToken != null && refreshToken.toString().isNotEmpty) {
+        await _tokenStore.writeRefreshToken(refreshToken.toString());
+      }
+      if (_user != null) {
+        await _tokenStore.writeCachedUser(jsonEncode(_user));
+      }
       await _registerDeviceToken();
+
       _isLoading = false;
       notifyListeners();
       return true;
@@ -319,6 +438,7 @@ class AuthProvider extends ChangeNotifier {
 
       if (res['user'] != null) {
         _user = res['user'];
+        await _tokenStore.writeCachedUser(jsonEncode(_user));
       }
       _isLoading = false;
       notifyListeners();
@@ -338,10 +458,11 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await _tokenStore.delete();
+    await _tokenStore.clearAll();
     _token = null;
     _user = null;
     _isSuspended = false;
+    _isOffline = false;
     notifyListeners();
   }
 

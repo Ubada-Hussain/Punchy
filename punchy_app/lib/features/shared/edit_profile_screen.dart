@@ -14,28 +14,36 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    _nameController = TextEditingController(text: auth.user?['name'] ?? 'User');
+    _nameController = TextEditingController(text: auth.user?['name'] ?? '');
+    _phoneController = TextEditingController(text: auth.user?['phone'] ?? '');
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
   void _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    final phone = _phoneController.text.trim();
 
     setState(() => _isSaving = true);
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final success = await auth.updateProfile(name: name);
+    final success = await auth.updateProfile(
+      name: name,
+      phone: phone.isNotEmpty ? phone : null,
+    );
 
     if (mounted) {
       setState(() => _isSaving = false);
@@ -46,7 +54,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Text(
-              'Profile name updated in database! ✨',
+              'Profile updated successfully! ✨',
               style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
             ),
           ),
@@ -59,7 +67,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Text(
-              'Failed to update profile. Please try again.',
+              auth.errorMessage ?? 'Failed to update profile. Please try again.',
               style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
             ),
           ),
@@ -70,6 +78,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final isBusiness = auth.user?['role'] == 'BUSINESS';
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
@@ -121,61 +132,111 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: AppColors.line),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Full name',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.inkSoft,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _nameController,
-                          style: GoogleFonts.plusJakartaSans(
-                            color: AppColors.ink,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Enter your full name',
-                            hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.inkFaint),
-                            prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.inkSoft, size: 18),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Save Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: ElevatedButton(
-                            onPressed: _isSaving ? null : _saveProfile,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.teal,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Full name',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.inkSoft,
                             ),
-                            child: _isSaving
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                  )
-                                : Text(
-                                    'Save Changes',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                    ),
-                                  ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _nameController,
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty) {
+                                return 'Please enter your name';
+                              }
+                              return null;
+                            },
+                            style: GoogleFonts.plusJakartaSans(
+                              color: AppColors.ink,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Enter your full name',
+                              hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.inkFaint),
+                              prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.inkSoft, size: 18),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          Text(
+                            isBusiness ? 'Business Phone Number *' : 'Phone number',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.inkSoft,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            validator: (val) {
+                              final phoneRegex = RegExp(r'^\+?[0-9\s\-()]{8,20}$');
+                              if (isBusiness) {
+                                if (val == null || val.trim().isEmpty) {
+                                  return 'Business phone number is required';
+                                }
+                                if (!phoneRegex.hasMatch(val.trim())) {
+                                  return 'Please enter a valid phone number';
+                                }
+                              } else if (val != null && val.trim().isNotEmpty) {
+                                if (!phoneRegex.hasMatch(val.trim())) {
+                                  return 'Please enter a valid phone number';
+                                }
+                              }
+                              return null;
+                            },
+                            style: GoogleFonts.plusJakartaSans(
+                              color: AppColors.ink,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: '+1 234 567 8900',
+                              hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.inkFaint),
+                              prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.inkSoft, size: 18),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Save Button
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: _isSaving ? null : _saveProfile,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.teal,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: _isSaving
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : Text(
+                                      'Save Changes',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],

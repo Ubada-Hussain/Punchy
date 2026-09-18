@@ -11,7 +11,12 @@ router.get('/cards', requireAuth, requireRole('CUSTOMER'), async (req: Request, 
     include: {
       card: {
         include: {
-          business: { select: { id: true, name: true, logo: true, category: true, locations: true } },
+          business: {
+            select: {
+              id: true, name: true, logo: true, category: true, locations: true,
+              user: { select: { phone: true } },
+            },
+          },
           punchMethods: { where: { isActive: true }, select: { type: true } },
         },
       },
@@ -29,7 +34,16 @@ router.get('/cards/:id', requireAuth, requireRole('CUSTOMER'), async (req: Reque
   const card = await prisma.customerCard.findFirst({
     where: { id: String(req.params.id), customerId: req.user!.userId },
     include: {
-      card: { include: { business: { select: { id: true, name: true, logo: true, category: true, locations: true } } } },
+      card: {
+        include: {
+          business: {
+            select: {
+              id: true, name: true, logo: true, category: true, locations: true,
+              user: { select: { phone: true } },
+            },
+          },
+        },
+      },
       punchTransactions: { orderBy: { timestamp: 'desc' }, take: 50 },
       redemptions: { orderBy: { redeemedAt: 'desc' } },
     },
@@ -145,6 +159,42 @@ router.post('/cards/join', requireAuth, requireRole('CUSTOMER'), async (req: Req
   });
 
   res.status(201).json({ message: 'Card added to your wallet! 🎉', customerCard: created });
+});
+
+// DELETE /customer/cards/:id — remove/unjoin card from wallet
+router.delete('/cards/:id', requireAuth, requireRole('CUSTOMER'), async (req: Request, res: Response): Promise<void> => {
+  const customerId = req.user!.userId;
+  const customerCardId = String(req.params.id);
+
+  const customerCard = await prisma.customerCard.findFirst({
+    where: {
+      id: customerCardId,
+      customerId,
+    },
+    include: {
+      card: { select: { title: true } },
+    },
+  });
+
+  if (!customerCard) {
+    res.status(404).json({ error: 'Card not found in your wallet' });
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.punchTransaction.deleteMany({ where: { customerCardId: customerCard.id } }),
+    prisma.redemption.deleteMany({ where: { customerCardId: customerCard.id } }),
+    prisma.customerCard.delete({ where: { id: customerCard.id } }),
+    prisma.activityLog.create({
+      data: {
+        userId: customerId,
+        action: 'CARD_REMOVED_FROM_WALLET',
+        metadata: { cardId: customerCard.cardId, cardTitle: customerCard.card.title },
+      },
+    }),
+  ]);
+
+  res.json({ message: 'Card removed from wallet', success: true });
 });
 
 export default router;

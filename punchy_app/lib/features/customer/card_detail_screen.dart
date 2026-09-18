@@ -73,6 +73,82 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _callBusiness(String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone);
+    await launchUrl(uri);
+  }
+
+  Future<void> _confirmRemoveCard() async {
+    final cardId = _card['id'];
+    if (cardId == null) return;
+    final cardInfo = _card['card'] ?? {};
+    final biz = cardInfo['business'] ?? {};
+    final title = biz['name'] ?? cardInfo['title'] ?? 'this loyalty card';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Remove Card?',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+            color: AppColors.ink,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to remove "$title" from your wallet? Your punch progress on this card will be removed.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: AppColors.inkSoft,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkSoft,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.coral,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Confirm',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _api.delete('/customer/cards/$cardId');
+        if (mounted) {
+          context.pop(true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to remove card: $e')),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cardInfo = _card['card'] ?? {};
@@ -85,6 +161,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     final bizAddress = bizLocations.isNotEmpty && bizLocations.first is Map
         ? (bizLocations.first['address'] ?? '').toString()
         : '';
+    final bizPhone = (biz['user']?['phone'] ?? '').toString().trim();
     final bizLogo = (biz['logo'] != null && biz['logo'].toString().isNotEmpty)
         ? biz['logo'].toString()
         : (cardInfo['visualStyle']?['icon'] ?? '🎟️');
@@ -146,19 +223,22 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       color: AppColors.ink,
                     ),
                   ),
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      border: Border.all(color: AppColors.line),
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.settings_outlined,
-                        size: 16,
-                        color: AppColors.ink,
+                  GestureDetector(
+                    onTap: _confirmRemoveCard,
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        border: Border.all(color: AppColors.line),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.delete_outline_rounded,
+                          size: 16,
+                          color: AppColors.coral,
+                        ),
                       ),
                     ),
                   ),
@@ -313,9 +393,11 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.22,
-                                      ),
+                                      color: isExpired
+                                          ? AppColors.coral
+                                          : Colors.white.withValues(
+                                              alpha: 0.22,
+                                            ),
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                     child: Text(
@@ -609,6 +691,54 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       ),
                     ),
                   ],
+                  if (bizPhone.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.line),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.phone_outlined, color: AppColors.tealDark),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              bizPhone,
+                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.inkSoft, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _callBusiness(bizPhone),
+                            icon: const Icon(Icons.call_rounded, size: 16),
+                            label: const Text('Call'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _confirmRemoveCard,
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 18,
+                        color: AppColors.coral,
+                      ),
+                      label: Text(
+                        'Remove Card from Wallet',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.coral,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),

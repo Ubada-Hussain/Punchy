@@ -18,7 +18,7 @@ import adminRouter from './routes/admin';
 import businessPortalRouter from './routes/businessPortal';
 import { maintenanceGuard } from './middleware/maintenance';
 import prisma from './lib/prisma';
-import { processScheduledNotifications } from './services/scheduledNotificationService';
+import { processScheduledNotifications, processDailyCustomerReminders } from './services/scheduledNotificationService';
 import { processCardLifecycle } from './services/cardLifecycleService';
 
 const app = express();
@@ -91,6 +91,7 @@ if (process.env.NODE_ENV !== 'test') {
   void processCardLifecycle().catch((error) => console.error('Initial card lifecycle pass failed', error));
   setInterval(() => {
     void processScheduledNotifications().catch((error) => console.error('Scheduled notification worker failed', error));
+    void processDailyCustomerReminders().catch((error) => console.error('Daily customer reminders worker failed', error));
     void processCardLifecycle().catch((error) => console.error('Card lifecycle worker failed', error));
   }, intervalMs).unref();
 }

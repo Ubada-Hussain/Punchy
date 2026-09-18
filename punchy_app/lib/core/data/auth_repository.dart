@@ -15,6 +15,13 @@ class AuthRepository {
         }),
       );
 
+  Future<Map<String, dynamic>> refreshToken(String refreshToken) async =>
+      _asMap(
+        await _client.post('/auth/refresh', {
+          'refreshToken': refreshToken,
+        }),
+      );
+
   Future<Map<String, dynamic>> register({
     required String email,
     required String password,

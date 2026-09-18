@@ -161,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                     decoration: const InputDecoration(
-                      hintText: 'ayesha@email.com',
+                      hintText: 'name@example.com',
                       prefixIcon: Icon(
                         Icons.mail_outline_rounded,
                         color: AppColors.inkFaint,

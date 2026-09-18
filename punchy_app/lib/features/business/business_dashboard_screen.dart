@@ -285,7 +285,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
   /// Business Logo, Name + Verified Checkmark, Category, Full Address with Location Pin,
   /// Notification Bell (with red dot), and Settings Gear.
   Widget _buildHeader(Map<String, dynamic> business, bool hasUnread) {
-    final name = business['name'] ?? 'The Cozy Spot';
+    final name = business['name'] ?? 'My Business';
     final category = business['category'] ?? 'Food & Beverages';
     final address = business['address']?.toString() ?? '';
     final logo = business['logo'];
@@ -556,6 +556,12 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
         'title': 'Business Location',
         'subtitle': 'Update address and map',
         'route': '/business/setup',
+      },
+      {
+        'icon': Icons.campaign_outlined,
+        'title': 'Notify Customers',
+        'subtitle': 'Send an update to your customers',
+        'route': '/business/notifications/send',
       },
     ];
     return Column(

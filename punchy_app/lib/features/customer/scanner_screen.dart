@@ -103,27 +103,30 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
         );
         context.pop();
       }
-    } catch (_) {
-      // Offline / Simulation fallback
+    } catch (e) {
       if (mounted) {
+        final errorMsg = e.toString().contains('expired') || e.toString().contains('EXPIRED')
+            ? 'This loyalty card has expired.'
+            : 'Could not record punch. Please check your connection.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: AppColors.ink,
+            backgroundColor: AppColors.coral,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Row(
               children: [
-                const Icon(Icons.check_circle_rounded, color: AppColors.teal, size: 22),
+                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 22),
                 const SizedBox(width: 10),
-                Text(
-                  '$method punch recorded! 🎉',
-                  style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+                Expanded(
+                  child: Text(
+                    errorMsg,
+                    style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),
           ),
         );
-        context.pop();
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
@@ -220,62 +223,7 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 14),
-
-            // Simulation Fallback Button (Web / Local testing)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: _modeIndex == 0 ? AppColors.gradCoral : AppColors.gradPurple,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (_modeIndex == 0 ? AppColors.coral : AppColors.purple).withValues(alpha: 0.5),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: _isProcessing
-                        ? null
-                        : () => _processPunch('demo-qr-identifier-001', _modeIndex == 0 ? 'QR Code' : 'NFC Tag'),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Center(
-                      child: _isProcessing
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  _modeIndex == 0 ? Icons.qr_code_scanner_rounded : Icons.nfc_rounded,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _modeIndex == 0 ? 'Simulate QR Punch' : 'Simulate NFC Tap',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            const SizedBox(height: 20),
           ],
         ),
       ),

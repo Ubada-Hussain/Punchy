@@ -75,6 +75,104 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
     }
   }
 
+  Future<void> _confirmRemoveCard(Map<String, dynamic> cardData) async {
+    final cardInfo = cardData['card'] ?? {};
+    final biz = cardInfo['business'] ?? {};
+    final bizName = biz['name'] ?? cardInfo['title'] ?? 'this loyalty card';
+    final cardId = cardData['id'];
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Row(
+          children: [
+            const Icon(Icons.remove_circle_outline_rounded, color: AppColors.coralDark),
+            const SizedBox(width: 10),
+            Text(
+              'Remove Card',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink,
+                fontSize: 17,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to remove "$bizName" from your wallet? Your punch progress on this card will be deleted.',
+          style: GoogleFonts.plusJakartaSans(
+            color: AppColors.inkSoft,
+            fontSize: 13.5,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                color: AppColors.inkSoft,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.coral,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text(
+              'Remove',
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || cardId == null || !mounted) return;
+
+    try {
+      await _api.delete('/customer/cards/$cardId');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.ink,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Text(
+              'Card removed from your wallet.',
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+        );
+        _loadCards();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.ink,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Text(
+              'Could not remove card. Please try again.',
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -392,30 +490,54 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                     ),
                   ],
                 ),
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Center(
-                    child: bizLogo.startsWith('http')
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(9),
-                            child: Image.network(
-                              bizLogo,
-                              width: 32,
-                              height: 32,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => const Text(
-                                '🏪',
-                                style: TextStyle(fontSize: 15),
-                              ),
-                            ),
-                          )
-                        : Text(bizLogo, style: const TextStyle(fontSize: 15)),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _confirmRemoveCard(cardData),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.delete_outline_rounded,
+                            size: 17,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Center(
+                        child: bizLogo.startsWith('http')
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(9),
+                                child: Image.network(
+                                  bizLogo,
+                                  width: 32,
+                                  height: 32,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => const Text(
+                                    '🏪',
+                                    style: TextStyle(fontSize: 15),
+                                  ),
+                                ),
+                              )
+                            : Text(bizLogo, style: const TextStyle(fontSize: 15)),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -447,23 +569,38 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                     if (cardInfo['validUntil'] != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2.5,
+                          horizontal: 8,
+                          vertical: 3,
                         ),
                         margin: const EdgeInsets.only(right: 6),
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.2),
+                          color: isExpired
+                              ? AppColors.coral.withValues(alpha: 0.9)
+                              : Colors.black.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(
-                          isExpired
-                              ? 'EXPIRED'
-                              : '⏳ ${_formatDate(cardInfo['validUntil'])}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white.withValues(alpha: 0.9),
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isExpired) ...[
+                              const Icon(
+                                Icons.timer_off_rounded,
+                                size: 11,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(
+                              isExpired
+                                  ? 'EXPIRED'
+                                  : '⏳ ${_formatDate(cardInfo['validUntil'])}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

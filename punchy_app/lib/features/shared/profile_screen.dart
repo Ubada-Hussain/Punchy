@@ -30,8 +30,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.user;
-    final email = user?['email'] ?? 'customer@punchy.app';
-    final name = user?['name'] ?? (email.contains('@') ? email.split('@')[0] : 'User');
+    final email = user?['email']?.toString() ?? '';
+    final name = (user?['name'] != null && user!['name'].toString().trim().isNotEmpty)
+        ? user['name'].toString().trim()
+        : (email.contains('@') ? email.split('@')[0] : 'User');
     final role = user?['role'] ?? 'CUSTOMER';
 
     String initials = 'P';

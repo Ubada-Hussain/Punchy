@@ -13,9 +13,13 @@ class CustomerBarcodeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.user;
-    final email = user?['email'] ?? 'ayesha@email.com';
-    final userId = user?['id'] ?? user?['userId'] ?? 'c_ayesha_9842';
-    final initial = email.isNotEmpty ? email[0].toUpperCase() : 'A';
+    final rawName = user?['name']?.toString().trim() ?? '';
+    final email = user?['email']?.toString().trim() ?? '';
+    final userId = user?['id']?.toString() ?? user?['userId']?.toString() ?? '';
+    final displayName = rawName.isNotEmpty
+        ? rawName
+        : (email.isNotEmpty ? email.split('@').first : 'Customer');
+    final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'C';
     final qrData = 'PUNCHY:CUSTOMER:$userId:$email';
 
     // Format a nice human-readable customer barcode ID
@@ -108,7 +112,7 @@ class CustomerBarcodeScreen extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    email.split('@').first,
+                                    displayName,
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w800,

@@ -19,6 +19,7 @@ import 'features/business/customer_list_screen.dart';
 import 'features/business/business_profile_screen.dart';
 import 'features/business/business_scanner_screen.dart';
 import 'features/business/business_staff_screen.dart';
+import 'features/business/business_notification_screen.dart';
 import 'features/staff/staff_portal_screen.dart';
 import 'features/admin/admin_dashboard_screen.dart';
 import 'features/admin/admin_businesses_screen.dart';
@@ -101,6 +102,18 @@ class _PunchyAppState extends State<PunchyApp> {
 
         if (authProvider.isMaintenance && loc != '/maintenance') {
           return '/maintenance';
+        }
+
+        if (authProvider.isOffline && loc != '/offline') {
+          return '/offline';
+        }
+
+        if (!authProvider.isOffline && loc == '/offline') {
+          if (!loggedIn) return '/login';
+          if (role == 'BUSINESS') return '/business';
+          if (role == 'STAFF') return '/staff';
+          if (role == 'ADMIN') return '/admin';
+          return '/';
         }
 
         // If user is suspended, they can ONLY be on /suspended or /terms
@@ -257,6 +270,10 @@ class _PunchyAppState extends State<PunchyApp> {
           path: '/business/staff',
           builder: (context, state) => const BusinessStaffScreen(),
         ),
+        GoRoute(
+          path: '/business/notifications/send',
+          builder: (context, state) => const BusinessNotificationScreen(),
+        ),
 
         // Admin Portal Routes
         GoRoute(
@@ -299,7 +316,9 @@ class _PunchyAppState extends State<PunchyApp> {
         ),
         GoRoute(
           path: '/offline',
-          builder: (context, state) => const OfflineScreen(),
+          builder: (context, state) => OfflineScreen(
+            onRetry: authProvider.retryConnection,
+          ),
         ),
         GoRoute(
           path: '/server-error',

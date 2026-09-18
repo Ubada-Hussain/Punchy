@@ -17,6 +17,7 @@ class SignupScreen extends StatefulWidget {
 class _SignupScreenState extends State<SignupScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -41,6 +42,7 @@ class _SignupScreenState extends State<SignupScreen> {
         password: _passwordController.text,
         role: role,
         name: _nameController.text.trim(),
+        phone: _roleIndex == 1 ? _phoneController.text.trim() : null,
       );
 
       if (success && mounted) {
@@ -212,6 +214,49 @@ class _SignupScreenState extends State<SignupScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
+
+                  if (_roleIndex == 1) ...[
+                    // Business Phone (Mandatory)
+                    Text(
+                      'Business phone number *',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.inkSoft,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: AppColors.ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: '+1 234 567 8900',
+                        prefixIcon: Icon(
+                          Icons.phone_outlined,
+                          color: AppColors.inkFaint,
+                          size: 18,
+                        ),
+                      ),
+                      validator: (val) {
+                        if (_roleIndex == 1) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Business phone number is required';
+                          }
+                          final phoneRegex = RegExp(r'^\+?[0-9\s\-()]{8,20}$');
+                          if (!phoneRegex.hasMatch(val.trim())) {
+                            return 'Please enter a valid phone number';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // Password
                   Text(
@@ -446,6 +491,7 @@ class _SignupScreenState extends State<SignupScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();

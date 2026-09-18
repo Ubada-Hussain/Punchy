@@ -454,12 +454,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         : '$currency ${price is num && price % 1 == 0 ? price.toInt() : price}';
     final description = business['description']?.toString().trim() ?? '';
     return GestureDetector(
-      onTap: card == null
-          ? null
-          : () => _addCardToWallet(
-              card['id'],
-              business['name']?.toString() ?? 'Business',
-            ),
+      onTap: null,
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
         decoration: BoxDecoration(
@@ -919,10 +914,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      if (card != null) {
+                      if (card != null && card['id'] != null) {
                         _addCardToWallet(
-                          card['id'] ?? 'demo',
-                          business['name'] ?? '',
+                          card['id'].toString(),
+                          business['name']?.toString() ?? '',
                         );
                       }
                     },

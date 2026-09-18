@@ -29,7 +29,7 @@ class _OfflineScreenState extends State<OfflineScreen> {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           content: Text(
-            'Checking connection status...',
+            'Unable to connect. Please check your internet connection.',
             style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
           ),
         ),

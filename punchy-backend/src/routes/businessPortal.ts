@@ -19,6 +19,8 @@ const logoUpload = multer({
 });
 
 // Business Onboarding Schema
+const phoneRegex = /^\+?[0-9\s\-()]{8,20}$/;
+
 const SetupSchema = z.object({
   name: z.string().min(2),
   category: z.string().min(2),
@@ -26,6 +28,7 @@ const SetupSchema = z.object({
   website: z.string().optional(),
   logo: z.string().optional(),
   address: z.string().optional(),
+  phone: z.string().regex(phoneRegex, 'Please enter a valid phone number (e.g. +923001234567)').optional(),
   enableQR: z.boolean().default(true),
   enableNFC: z.boolean().default(true),
 });
@@ -89,10 +92,10 @@ router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Reque
       business = await prisma.businessProfile.create({
         data: {
           userId: req.user!.userId,
-          name: 'The Cozy Spot',
-          category: 'Food & Beverages',
-          status: 'APPROVED',
-          locations: [{ address: '12 Maple Street, Gulberg III, Lahore, Pakistan' }],
+          name: 'My Business',
+          category: 'Retail',
+          status: 'PENDING',
+          locations: [],
         },
         include: {
           loyaltyCards: {
@@ -346,7 +349,14 @@ router.post('/setup', requireAuth, requireRole('BUSINESS'), async (req: Request,
     return;
   }
 
-  const { name, category, description, website, logo, address } = parsed.data;
+  const { name, category, description, website, logo, address, phone } = parsed.data;
+
+  if (phone) {
+    await prisma.user.update({
+      where: { id: req.user!.userId },
+      data: { phone },
+    });
+  }
 
   const business = await prisma.businessProfile.upsert({
     where: { userId: req.user!.userId },

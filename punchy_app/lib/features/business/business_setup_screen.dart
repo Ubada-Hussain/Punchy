@@ -21,6 +21,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _descController = TextEditingController();
   final _websiteController = TextEditingController();
   final _addressController = TextEditingController();
@@ -76,6 +77,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
         final b = res['business'];
         setState(() {
           _nameController.text = b['name'] ?? '';
+          _phoneController.text = b['phone'] ?? b['user']?['phone'] ?? '';
           _descController.text = b['description'] ?? '';
           _websiteController.text = b['website'] ?? '';
           if (b['category'] != null && _categories.contains(b['category'])) {
@@ -199,6 +201,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
     try {
       await _api.post('/business/setup', {
         'name': _nameController.text.trim(),
+        'phone': _phoneController.text.trim(),
         'category': _selectedCategory,
         'description': _descController.text.trim(),
         'website': _websiteController.text.trim(),
@@ -411,6 +414,45 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                             ),
                             decoration: const InputDecoration(
                               hintText: 'e.g. My Cafe, Urban Salon, FitClub',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Business Phone (Mandatory)
+                          Text(
+                            'Phone Number *',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.inkSoft,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Business phone number is required';
+                              }
+                              final phoneRegex = RegExp(r'^\+?[0-9\s\-()]{8,20}$');
+                              if (!phoneRegex.hasMatch(v.trim())) {
+                                return 'Please enter a valid phone number';
+                              }
+                              return null;
+                            },
+                            style: GoogleFonts.plusJakartaSans(
+                              color: AppColors.ink,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: '+1 234 567 8900',
+                              prefixIcon: Icon(
+                                Icons.phone_outlined,
+                                color: AppColors.inkFaint,
+                                size: 18,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -651,6 +693,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _phoneController.dispose();
     _descController.dispose();
     _websiteController.dispose();
     _addressController.dispose();

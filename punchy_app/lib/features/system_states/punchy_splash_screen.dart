@@ -49,6 +49,7 @@ class _PunchySplashScreenState extends State<PunchySplashScreen>
 
   void _goToStart(AuthProvider auth) {
     if (!mounted) return;
+    if (auth.isOffline) return context.go('/offline');
     final role = auth.user?['role'];
     if (!auth.isAuthenticated) return context.go('/login');
     if (auth.isSuspended) return context.go('/suspended');
