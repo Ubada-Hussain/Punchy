@@ -32,7 +32,7 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (req: Request, res: Res
   const [businesses, total] = await Promise.all([
     prisma.businessProfile.findMany({
       where, skip, take: Number(limit),
-      include: { user: { select: { email: true, phone: true, publicId: true, createdAt: true } }, _count: { select: { loyaltyCards: true } } },
+      include: { user: { select: { email: true, publicId: true, createdAt: true } }, _count: { select: { loyaltyCards: true } } },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.businessProfile.count({ where }),
