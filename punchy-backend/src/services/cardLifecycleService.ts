@@ -62,7 +62,6 @@ async function notifyOnce(customerId: string, createdBy: string, title: string, 
  */
 export async function processCardLifecycle(now = new Date()): Promise<{ reminders: number; expired: number; reset: number }> {
   const createdBy = await systemCreatorId();
-  if (!createdBy) return { reminders: 0, expired: 0, reset: 0 };
   const cards = await prisma.loyaltyCard.findMany({
     where: { validUntil: { not: null } },
     include: {
@@ -80,6 +79,9 @@ export async function processCardLifecycle(now = new Date()): Promise<{ reminder
     if (card.validUntil > now && card.isActive) {
       const days = daysUntilExpiry(card.validUntil, now);
       if (!EXPIRY_REMINDER_DAYS.includes(days as (typeof EXPIRY_REMINDER_DAYS)[number])) continue;
+      // Notifications require a system creator, but expiry enforcement must
+      // never depend on an administrator account being present.
+      if (!createdBy) continue;
       for (const customerCard of card.customerCards) {
         const copy = expiryReminderCopy({
           businessName: card.business.name,
@@ -104,14 +106,16 @@ export async function processCardLifecycle(now = new Date()): Promise<{ reminder
     expired += 1;
 
     // Send notification to the business owner
-    await notifyOnce(
-      card.business.userId,
-      createdBy,
-      `Loyalty card expired: ${card.title}`,
-      `Your loyalty card "${card.title}" reached its expiry date and is now expired. Customers cannot earn further punches until you update or reactivate it.`,
-      `BIZ_CARD_EXPIRED:${card.id}`,
-      today,
-    );
+    if (createdBy) {
+      await notifyOnce(
+        card.business.userId,
+        createdBy,
+        `Loyalty card expired: ${card.title}`,
+        `Your loyalty card "${card.title}" reached its expiry date and is now expired. Customers cannot earn further punches until you update or reactivate it.`,
+        `BIZ_CARD_EXPIRED:${card.id}`,
+        today,
+      );
+    }
 
     for (const customerCard of card.customerCards) {
       const complete = customerCard.isCompleted || customerCard.punchCount >= card.punchesRequired;
@@ -119,7 +123,9 @@ export async function processCardLifecycle(now = new Date()): Promise<{ reminder
       const body = complete
         ? `Your ${card.business.name} card expired, but your completed ${card.rewardDescription} is still available.`
         : `Your ${card.business.name} card expired with ${customerCard.punchCount}/${card.punchesRequired} punches. Progress has been reset for this cycle.`;
-      await notifyOnce(customerCard.customerId, createdBy, title, body, `CARD_EXPIRED:${card.id}`, today);
+      if (createdBy) {
+        await notifyOnce(customerCard.customerId, createdBy, title, body, `CARD_EXPIRED:${card.id}`, today);
+      }
       if (!complete && customerCard.punchCount !== 0) {
         await prisma.customerCard.update({ where: { id: customerCard.id }, data: { punchCount: 0, isCompleted: false } });
         reset += 1;

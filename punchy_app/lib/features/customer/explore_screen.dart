@@ -8,6 +8,8 @@ import '../../core/api/api_client.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/punchy_empty_state.dart';
+import '../../core/formatting/currency.dart';
+import 'explore_card_detail_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -451,10 +453,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final price = card?['pricePerPunch'];
     final priceText = price == null
         ? 'Not set'
-        : '$currency ${price is num && price % 1 == 0 ? price.toInt() : price}';
+        : '${Currency.symbol(currency)} ${price is num && price % 1 == 0 ? price.toInt() : price}';
     final description = business['description']?.toString().trim() ?? '';
     return GestureDetector(
-      onTap: null,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ExploreCardDetailScreen(
+            business: Map<String, dynamic>.from(business),
+            card: card == null ? null : Map<String, dynamic>.from(card),
+          ),
+        ),
+      ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
         decoration: BoxDecoration(

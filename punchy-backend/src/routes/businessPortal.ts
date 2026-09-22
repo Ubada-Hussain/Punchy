@@ -10,6 +10,8 @@ import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { sendNotification } from '../lib/notifications';
 import { notifyPunchEarned, notifyProgressMilestone } from '../lib/automatedNotifications';
+import { processCardLifecycle } from '../services/cardLifecycleService';
+import { currencyForPhone } from '../lib/currency';
 
 const router = Router();
 const logoUpload = multer({
@@ -41,7 +43,7 @@ const CardSchema = z.object({
   visualStyle: z.record(z.string(), z.any()).default({}),
   validUntil: z.string().nullable().optional(),
   pricePerPunch: z.number().min(0).optional().default(0),
-  currency: z.string().min(1).max(10).optional().default('PKR'),
+  currency: z.string().min(1).max(10).optional(),
   isActive: z.boolean().optional(),
   enableQR: z.boolean().default(true),
   enableNFC: z.boolean().default(true),
@@ -75,6 +77,9 @@ function calculateTrend(curr7: number, prev7: number) {
  */
 router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
   try {
+    // Also enforce expiry on dashboard access, so progress is reset even if a
+    // background worker has not run yet.
+    await processCardLifecycle();
     let business = await prisma.businessProfile.findUnique({
       where: { userId: req.user!.userId },
       include: {
@@ -458,7 +463,7 @@ router.post('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request,
   });
   if (existingCard) {
     res.status(400).json({
-      error: 'A business can only have one active loyalty card at a time. Please delete your existing card before creating a new one.',
+      error: 'A business can only have one loyalty card. Edit the existing card to update or reactivate it.',
     });
     return;
   }
@@ -469,7 +474,10 @@ router.post('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request,
     return;
   }
 
-  const { title, punchesRequired, rewardDescription, visualStyle, validUntil, pricePerPunch, currency, enableQR, enableNFC } = parsed.data;
+  const { title, punchesRequired, rewardDescription, visualStyle, validUntil, pricePerPunch, enableQR, enableNFC } = parsed.data;
+  const owner = await prisma.user.findUnique({
+    where: { id: req.user!.userId }, select: { phone: true },
+  });
 
   const card = await prisma.loyaltyCard.create({
     data: {
@@ -480,7 +488,8 @@ router.post('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request,
       visualStyle: (visualStyle ?? {}) as any,
       validUntil: validUntil ? new Date(validUntil) : null,
       pricePerPunch: pricePerPunch ?? 0,
-      currency: currency ?? 'PKR',
+      // Card currency always follows the business phone's country code.
+      currency: currencyForPhone(owner?.phone),
       punchMethods: {
         create: [
           ...(enableQR ? [{ type: 'QR' as const, identifier: uuid(), label: `${title} QR Code` }] : []),
@@ -526,10 +535,15 @@ router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
   const nextValidUntil = parsed.data.validUntil !== undefined
     ? (parsed.data.validUntil ? new Date(parsed.data.validUntil) : null)
     : existing.validUntil;
-  if (parsed.data.isActive === true && nextValidUntil && nextValidUntil <= new Date()) {
+  if (nextValidUntil && nextValidUntil <= new Date()) {
     res.status(400).json({ error: 'A card can only be reactivated with a future expiry date.' });
     return;
   }
+
+  // Extending an expired card is its reactivation. Customer-card rows are
+  // intentionally untouched: expiry already reset only incomplete progress,
+  // while completed rewards remain claimable.
+  const shouldReactivate = !existing.isActive && !!nextValidUntil && nextValidUntil > new Date();
 
   const updated = await prisma.loyaltyCard.update({
     where: { id: String(req.params.id) },
@@ -540,7 +554,10 @@ router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
       ...(parsed.data.visualStyle !== undefined ? { visualStyle: parsed.data.visualStyle as any } : {}),
       ...(parsed.data.pricePerPunch !== undefined ? { pricePerPunch: parsed.data.pricePerPunch } : {}),
       ...(parsed.data.currency !== undefined ? { currency: parsed.data.currency } : {}),
-      ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
+      ...(parsed.data.isActive !== undefined
+        ? { isActive: parsed.data.isActive }
+        : (shouldReactivate ? { isActive: true } : {})),
+      ...(shouldReactivate ? { reactivatedAt: new Date() } : {}),
       ...(parsed.data.validUntil !== undefined
         ? { validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null }
         : {}),
@@ -549,35 +566,6 @@ router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
   });
 
   res.json(updated);
-});
-
-/**
- * DELETE /business/cards/:id
- * Allows business to delete their existing card so a new card can be created
- */
-router.delete('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
-  const business = await prisma.businessProfile.findUnique({ where: { userId: req.user!.userId } });
-  if (!business) {
-    res.status(404).json({ error: 'Business not found' });
-    return;
-  }
-
-  const cardId = String(req.params.id);
-  const card = await prisma.loyaltyCard.findFirst({
-    where: { id: cardId, businessId: business.id },
-  });
-
-  if (!card) {
-    res.status(404).json({ error: 'Card not found or does not belong to your business' });
-    return;
-  }
-
-  // Delete related punch methods, customer cards, and card
-  await prisma.punchMethod.deleteMany({ where: { cardId } });
-  await prisma.customerCard.deleteMany({ where: { cardId } });
-  await prisma.loyaltyCard.delete({ where: { id: cardId } });
-
-  res.json({ message: 'Loyalty card deleted successfully. You can now create a new loyalty card.' });
 });
 
 /**

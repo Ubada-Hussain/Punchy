@@ -1,11 +1,13 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
+import { processCardLifecycle } from '../services/cardLifecycleService';
 
 const router = Router();
 
 // GET /customer/cards — wallet
 router.get('/cards', requireAuth, requireRole('CUSTOMER'), async (req: Request, res: Response): Promise<void> => {
+  await processCardLifecycle();
   const cards = await prisma.customerCard.findMany({
     where: { customerId: String(req.user!.userId) },
     include: {
@@ -31,6 +33,7 @@ router.get('/cards', requireAuth, requireRole('CUSTOMER'), async (req: Request, 
 
 // GET /customer/cards/:id — single card with punch history
 router.get('/cards/:id', requireAuth, requireRole('CUSTOMER'), async (req: Request, res: Response): Promise<void> => {
+  await processCardLifecycle();
   const card = await prisma.customerCard.findFirst({
     where: { id: String(req.params.id), customerId: req.user!.userId },
     include: {
@@ -181,18 +184,19 @@ router.delete('/cards/:id', requireAuth, requireRole('CUSTOMER'), async (req: Re
     return;
   }
 
-  await prisma.$transaction([
-    prisma.punchTransaction.deleteMany({ where: { customerCardId: customerCard.id } }),
-    prisma.redemption.deleteMany({ where: { customerCardId: customerCard.id } }),
-    prisma.customerCard.delete({ where: { id: customerCard.id } }),
-    prisma.activityLog.create({
-      data: {
-        userId: customerId,
-        action: 'CARD_REMOVED_FROM_WALLET',
-        metadata: { cardId: customerCard.cardId, cardTitle: customerCard.card.title },
-      },
-    }),
-  ]);
+  // These ordered writes work with both standalone MongoDB and replica sets.
+  // The previous transaction caused the wallet delete API to fail on standalone
+  // deployments even though the card itself was valid.
+  await prisma.punchTransaction.deleteMany({ where: { customerCardId: customerCard.id } });
+  await prisma.redemption.deleteMany({ where: { customerCardId: customerCard.id } });
+  await prisma.customerCard.delete({ where: { id: customerCard.id } });
+  await prisma.activityLog.create({
+    data: {
+      userId: customerId,
+      action: 'CARD_REMOVED_FROM_WALLET',
+      metadata: { cardId: customerCard.cardId, cardTitle: customerCard.card.title },
+    },
+  });
 
   res.json({ message: 'Card removed from wallet', success: true });
 });

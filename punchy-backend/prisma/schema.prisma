@@ -146,6 +146,7 @@ model LoyaltyCard {
   pricePerPunch     Float?          @default(0)
   currency          String?         @default("PKR")
   isActive          Boolean         @default(true)
+  reactivatedAt     DateTime?       // Set when an expired card is given a new future validity date
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 

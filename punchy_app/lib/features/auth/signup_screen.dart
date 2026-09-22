@@ -23,6 +23,17 @@ class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _acceptedTerms = false;
   int _roleIndex = 0; // 0 = Customer, 1 = Business
+  String _countryCode = '+92';
+  static const _countryCodes = <String>[
+    '+92',
+    '+1',
+    '+44',
+    '+91',
+    '+971',
+    '+966',
+    '+61',
+    '+49',
+  ];
 
   void _handleSignup() async {
     if (_formKey.currentState!.validate()) {
@@ -42,7 +53,9 @@ class _SignupScreenState extends State<SignupScreen> {
         password: _passwordController.text,
         role: role,
         name: _nameController.text.trim(),
-        phone: _roleIndex == 1 ? _phoneController.text.trim() : null,
+        phone: _roleIndex == 1
+            ? '$_countryCode${_phoneController.text.trim()}'
+            : null,
       );
 
       if (success && mounted) {
@@ -234,12 +247,28 @@ class _SignupScreenState extends State<SignupScreen> {
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
-                      decoration: const InputDecoration(
-                        hintText: '+1 234 567 8900',
-                        prefixIcon: Icon(
+                      decoration: InputDecoration(
+                        hintText: '300 1234567',
+                        prefixIcon: const Icon(
                           Icons.phone_outlined,
                           color: AppColors.inkFaint,
                           size: 18,
+                        ),
+                        prefixText: '$_countryCode ',
+                        suffixIcon: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _countryCode,
+                            onChanged: (value) =>
+                                setState(() => _countryCode = value!),
+                            items: _countryCodes
+                                .map(
+                                  (code) => DropdownMenuItem(
+                                    value: code,
+                                    child: Text(code),
+                                  ),
+                                )
+                                .toList(),
+                          ),
                         ),
                       ),
                       validator: (val) {
@@ -247,7 +276,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           if (val == null || val.trim().isEmpty) {
                             return 'Business phone number is required';
                           }
-                          final phoneRegex = RegExp(r'^\+?[0-9\s\-()]{8,20}$');
+                          final phoneRegex = RegExp(r'^[0-9\s\-()]{7,15}$');
                           if (!phoneRegex.hasMatch(val.trim())) {
                             return 'Please enter a valid phone number';
                           }
@@ -264,6 +293,14 @@ class _SignupScreenState extends State<SignupScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Country code is used to set the loyalty-card currency.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
                       color: AppColors.inkSoft,
                     ),
                   ),
@@ -294,6 +331,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 8),
+                  _passwordRules(),
                   const SizedBox(height: 16),
 
                   // Confirm Password
@@ -453,6 +492,30 @@ class _SignupScreenState extends State<SignupScreen> {
       ),
     );
   }
+
+  Widget _passwordRules() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children:
+        [
+              'At least 8 characters',
+              'One uppercase letter',
+              'One lowercase letter',
+              'One number',
+            ]
+            .map(
+              (rule) => Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  '• $rule',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: AppColors.inkSoft,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+  );
 
   Widget _buildSegButton(int index, String label) {
     final isSelected = _roleIndex == index;

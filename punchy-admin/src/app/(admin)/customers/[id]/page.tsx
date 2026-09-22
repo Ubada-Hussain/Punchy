@@ -4,6 +4,13 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, type User } from '@/lib/api';
 
+type CustomerCard = {
+  id: string;
+  punchCount: number;
+  joinedAt: string;
+  card: { title: string; punchesRequired: number; rewardDescription: string; business: { name: string } };
+};
+
 function statusBadge(isBlocked: boolean) {
   if (isBlocked) return <span className="badge b-suspended">BLOCKED</span>;
   return <span className="badge b-active">ACTIVE</span>;
@@ -12,7 +19,7 @@ function statusBadge(isBlocked: boolean) {
 export default function CustomerDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<(User & { name?: string; customerCards?: CustomerCard[] }) | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,7 +41,7 @@ export default function CustomerDetailPage() {
     </div>
   );
 
-  const name = user.email.split('@')[0];
+  const name = user.name || user.email.split('@')[0];
 
   return (
     <>
@@ -64,7 +71,7 @@ export default function CustomerDetailPage() {
             <div style={{ flex:1 }}>
               <div className="p-name">{name}</div>
               <div className="p-meta">
-                {user.email} · Joined {new Date(user.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
+                {user.email} · {user.phone || 'No phone'} · Joined {new Date(user.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
               </div>
             </div>
             {statusBadge(user.isBlocked)}
@@ -73,9 +80,11 @@ export default function CustomerDetailPage() {
 
         <div className="panel" style={{ padding:0 }}>
           <div className="panel-head" style={{ padding:'16px 18px 0' }}><h4>Loyalty Cards</h4></div>
-          <div className="empty-state" style={{ padding:20 }}>
-            No loyalty cards added yet.
-          </div>
+          {!user.customerCards?.length ? <div className="empty-state" style={{ padding:20 }}>No loyalty cards added yet.</div> : (
+            <table className="atable"><thead><tr><th>Business</th><th>Card</th><th>Progress</th><th>Reward</th><th>Joined</th></tr></thead><tbody>
+              {user.customerCards.map(item => <tr key={item.id}><td>{item.card.business.name}</td><td>{item.card.title}</td><td>{item.punchCount}/{item.card.punchesRequired}</td><td>{item.card.rewardDescription}</td><td>{new Date(item.joinedAt).toLocaleDateString()}</td></tr>)}
+            </tbody></table>
+          )}
         </div>
 
         <div className="panel" style={{ padding:0 }}>

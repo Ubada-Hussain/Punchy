@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api, type User } from '@/lib/api';
+import Link from 'next/link';
 
 function statusBadge(isBlocked: boolean) {
   if (isBlocked) return <span className="badge b-suspended">SUSPENDED</span>;
@@ -116,6 +117,7 @@ export default function CustomersPage() {
                         >
                           {c.isBlocked ? 'Unban' : 'Suspend'}
                         </button>
+                        <Link href={`/customers/${c.id}`} className="btn btn-outline btn-xs">View</Link>
                       </div>
                     </td>
                   </tr>
