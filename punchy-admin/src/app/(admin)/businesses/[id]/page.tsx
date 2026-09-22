@@ -69,6 +69,24 @@ export default function BusinessDetailPage() {
               <div className="p-meta">
                 {biz.category} · {biz.locations?.[0]?.address ?? 'No address'} · Joined {new Date(biz.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
               </div>
+              <div className="p-meta" style={{ marginTop:6, display:'flex', gap:16, flexWrap:'wrap' }}>
+                {biz.user?.email && (
+                  <span style={{ display:'inline-flex', alignItems:'center', gap:5 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" style={{ stroke:'var(--ink-faint)', fill:'none', strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round' }}>
+                      <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/>
+                    </svg>
+                    {biz.user.email}
+                  </span>
+                )}
+                {biz.user?.phone && (
+                  <span style={{ display:'inline-flex', alignItems:'center', gap:5 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" style={{ stroke:'var(--ink-faint)', fill:'none', strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round' }}>
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.41a16 16 0 0 0 6 6l1.24-1.24a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92Z"/>
+                    </svg>
+                    {biz.user.phone}
+                  </span>
+                )}
+              </div>
             </div>
             {statusBadge(biz.status)}
           </div>

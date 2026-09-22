@@ -100,9 +100,9 @@ export default function BusinessesPage() {
               <thead>
                 <tr>
                   <th>Business</th>
-                  <th>Public ID</th>
+                  <th>Email</th>
+                  <th>Phone</th>
                   <th>Category</th>
-                  <th>Customers</th>
                   <th>Status</th>
                   <th>Joined</th>
                   <th>Actions</th>
@@ -122,9 +122,9 @@ export default function BusinessesPage() {
                         </div>
                       </div>
                     </td>
-                    <td>{b.user?.publicId ?? '—'}</td>
+                    <td style={{ color:'var(--ink-soft)', fontSize:12 }}>{b.user?.email ?? '—'}</td>
+                    <td style={{ color:'var(--ink-soft)', fontSize:12 }}>{b.user?.phone ?? '—'}</td>
                     <td style={{ color:'var(--ink-soft)', fontSize:12 }}>{b.category}</td>
-                    <td style={{ fontWeight:700 }}>{b._count?.loyaltyCards ?? 0}</td>
                     <td>{statusBadge(b.status)}</td>
                     <td style={{ color:'var(--ink-soft)', fontSize:12 }}>
                       {new Date(b.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
