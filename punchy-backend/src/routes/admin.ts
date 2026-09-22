@@ -184,37 +184,13 @@ router.get('/customers/:id', requireAuth, requireRole('ADMIN'), async (req: Requ
     where: { id: String(req.params.id), role: 'CUSTOMER' },
     select: {
       id: true, publicId: true, email: true, name: true, phone: true, isBlocked: true, createdAt: true,
-      customerCards: { select: {
-        id: true, punchCount: true, isCompleted: true, joinedAt: true,
-        card: { select: { title: true, punchesRequired: true, rewardDescription: true, currency: true, pricePerPunch: true, business: { select: { name: true, category: true } } } },
-      } },
+      customerCards: {
+        select: { id: true, punchCount: true, isCompleted: true, card: { select: { title: true, business: { select: { name: true } } } } },
+      },
     },
   });
   if (!customer) { res.status(404).json({ error: 'Customer not found' }); return; }
   res.json({ customer });
-});
-
-// GET /admin/businesses/:id — complete business account view for admins.
-router.get('/businesses/:id', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
-  const business = await prisma.businessProfile.findUnique({
-    where: { id: String(req.params.id) },
-    include: {
-      user: { select: { id: true, publicId: true, name: true, email: true, phone: true, createdAt: true } },
-      loyaltyCards: { include: {
-        punchMethods: { select: { id: true, type: true, label: true, isActive: true } },
-        customerCards: { select: { id: true, punchCount: true, isCompleted: true, joinedAt: true, customer: { select: { publicId: true, name: true, email: true, phone: true } } } },
-        _count: { select: { customerCards: true } },
-      } },
-    },
-  });
-  if (!business) { res.status(404).json({ error: 'Business not found' }); return; }
-  const cardIds = business.loyaltyCards.map(card => card.id);
-  const customerCardIds = business.loyaltyCards.flatMap(card => card.customerCards.map(item => item.id));
-  const [totalPunches, totalRedemptions] = await Promise.all([
-    prisma.punchTransaction.count({ where: { customerCardId: { in: customerCardIds } } }),
-    prisma.redemption.count({ where: { customerCardId: { in: customerCardIds } } }),
-  ]);
-  res.json({ business, totals: { cards: cardIds.length, customers: customerCardIds.length, punches: totalPunches, redemptions: totalRedemptions } });
 });
 
 router.get('/notification-targets', requireAuth, requireRole('ADMIN'), async (_req, res) => {

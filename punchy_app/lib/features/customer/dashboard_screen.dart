@@ -88,10 +88,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: Row(
           children: [
-            const Icon(
-              Icons.remove_circle_outline_rounded,
-              color: AppColors.coralDark,
-            ),
+            const Icon(Icons.remove_circle_outline_rounded, color: AppColors.coralDark),
             const SizedBox(width: 10),
             Text(
               'Remove Card',
@@ -127,9 +124,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.coral,
               elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             child: Text(
               'Remove',
@@ -152,15 +147,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
           SnackBar(
             backgroundColor: AppColors.ink,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Text(
               'Card removed from your wallet.',
-              style: GoogleFonts.plusJakartaSans(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
             ),
           ),
         );
@@ -172,15 +162,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
           SnackBar(
             backgroundColor: AppColors.ink,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Text(
               'Could not remove card. Please try again.',
-              style: GoogleFonts.plusJakartaSans(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
             ),
           ),
         );
@@ -441,10 +426,8 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
     final isCompleted =
         cardData['isCompleted'] == true || punchCount >= punchesRequired;
     final expiry = DateTime.tryParse((cardInfo['validUntil'] ?? '').toString());
-    final isExpired =
-        cardData['isExpired'] == true ||
+    final isExpired = cardData['isExpired'] == true ||
         (expiry != null && expiry.isBefore(DateTime.now()));
-    final isReactivated = !isExpired && cardInfo['reactivatedAt'] != null;
 
     final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal')
         .toString()
@@ -551,10 +534,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                                   ),
                                 ),
                               )
-                            : Text(
-                                bizLogo,
-                                style: const TextStyle(fontSize: 15),
-                              ),
+                            : Text(bizLogo, style: const TextStyle(fontSize: 15)),
                       ),
                     ),
                   ],
@@ -613,9 +593,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                             Text(
                               isExpired
                                   ? 'EXPIRED'
-                                  : (isReactivated
-                                        ? 'REACTIVATED'
-                                        : '⏳ ${_formatDate(cardInfo['validUntil'])}'),
+                                  : '⏳ ${_formatDate(cardInfo['validUntil'])}',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w800,

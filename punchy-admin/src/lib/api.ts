@@ -95,7 +95,6 @@ export interface LoyaltyCard {
   createdAt: string;
   punchMethods?: PunchMethod[];
   _count?: { customerCards: number };
-  customerCards?: { id: string; punchCount: number; customer: { name?: string; email: string; phone?: string } }[];
 }
 
 export interface PunchMethod {

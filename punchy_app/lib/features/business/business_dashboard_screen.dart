@@ -120,6 +120,85 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _deleteCard(String cardId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Delete Active Card?',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: AppColors.ink,
+          ),
+        ),
+        content: Text(
+          'A business can only have 1 active loyalty card at a time. Deleting this card will allow you to create a new one.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: AppColors.inkSoft,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                color: AppColors.inkSoft,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.coralDark,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Delete Card',
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _api.delete('/business/cards/$cardId');
+        await _loadDashboard();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.ink,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              content: Text(
+                '🗑️ Card deleted. You can now create a new loyalty card!',
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          );
+        }
+      } catch (_) {}
+    }
+  }
+
   void _handleNewCardTap(dynamic activeCard) {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const CreateCardScreen()))
@@ -662,7 +741,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
 
   /// Active Loyalty Card Summary Block matching Reference Image 2:
   /// Dark Teal rounded card with coffee badge, Active badge, punch summary,
-  /// price per punch on right, reward info on right, valid till, customer count, and Edit button.
+  /// price per punch on right, reward info on right, valid till, customer count, Edit and Delete buttons.
   Widget _buildActiveCardBlock(dynamic activeCard, List<dynamic> allCards) {
     if (activeCard == null) {
       return GestureDetector(
@@ -736,9 +815,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
         ? priceVal.toInt().toString()
         : priceVal.toString();
     final validDate = _formatDate(activeCard['validUntil']);
-    final expiry = DateTime.tryParse(
-      (activeCard['validUntil'] ?? '').toString(),
-    );
+    final expiry = DateTime.tryParse((activeCard['validUntil'] ?? '').toString());
     final isExpired = expiry != null && expiry.isBefore(DateTime.now());
     final custCount = activeCard['_count']?['customerCards'] ?? 0;
 
@@ -811,18 +888,12 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color:
-                                      (isExpired
-                                              ? AppColors.coral
-                                              : const Color(0xFF10A37F))
-                                          .withValues(alpha: 0.28),
+                                  color: (isExpired ? AppColors.coral : const Color(0xFF10A37F))
+                                      .withValues(alpha: 0.28),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color:
-                                        (isExpired
-                                                ? AppColors.coral
-                                                : const Color(0xFF10A37F))
-                                            .withValues(alpha: 0.5),
+                                    color: (isExpired ? AppColors.coral : const Color(0xFF10A37F))
+                                        .withValues(alpha: 0.5),
                                     width: 0.8,
                                   ),
                                 ),
@@ -831,9 +902,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.w700,
-                                    color: isExpired
-                                        ? AppColors.coral
-                                        : const Color(0xFF6EE7B7),
+                                    color: isExpired ? AppColors.coral : const Color(0xFF6EE7B7),
                                   ),
                                 ),
                               ),
@@ -956,7 +1025,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
           const Divider(height: 1, color: Colors.white24),
           const SizedBox(height: 12),
 
-          // Bottom Row: Valid till, Customers count, and edit action.
+          // Bottom Row: Valid till, Customers count, Edit and Delete action buttons
           Row(
             children: [
               Expanded(
@@ -1037,6 +1106,41 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                       const SizedBox(width: 3),
                       Text(
                         'Edit',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+
+              // Delete Button (Red Pill)
+              GestureDetector(
+                onTap: () => _deleteCard(activeCard['id']),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: const Color(0xFFDC2626),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.white,
+                        size: 11,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        'Delete',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,

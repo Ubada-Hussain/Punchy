@@ -82,18 +82,7 @@ class AuthProvider extends ChangeNotifier {
         } catch (_) {}
       }
 
-      // Demo credentials must never become a persistent offline session in a
-      // production build. A real customer's cached session remains intact.
-      final cachedEmail = _user?['email']?.toString().toLowerCase();
-      if (cachedEmail == 'demo-customer@punchy.app' ||
-          cachedEmail == 'demo-business@punchy.app' ||
-          cachedEmail == 'demo-staff@punchy.app') {
-        await _tokenStore.clearAll();
-        _user = null;
-        _token = null;
-      }
-
-      _token ??= await _tokenStore.read();
+      _token = await _tokenStore.read();
       if (_token == null) {
         // One-time migration for users upgrading from the legacy plaintext
         // SharedPreferences token. The legacy value is removed immediately.
@@ -115,9 +104,7 @@ class AuthProvider extends ChangeNotifier {
           await _api.get('/health');
           _isOffline = false;
         } catch (e) {
-          if (e is NetworkException ||
-              e is SocketException ||
-              e is TimeoutException) {
+          if (e is NetworkException || e is SocketException || e is TimeoutException) {
             _isOffline = true;
           }
         }
@@ -141,9 +128,7 @@ class AuthProvider extends ChangeNotifier {
       _isOffline = false;
       notifyListeners();
     } catch (e) {
-      if (e is NetworkException ||
-          e is SocketException ||
-          e is TimeoutException) {
+      if (e is NetworkException || e is SocketException || e is TimeoutException) {
         _isOffline = true;
         notifyListeners();
       }
@@ -164,9 +149,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      if (e is NetworkException ||
-          e is SocketException ||
-          e is TimeoutException) {
+      if (e is NetworkException || e is SocketException || e is TimeoutException) {
         _isOffline = true;
       } else {
         _isOffline = false;
@@ -210,9 +193,7 @@ class AuthProvider extends ChangeNotifier {
               _token = refreshed['accessToken'];
               await _tokenStore.write(_token!);
               if (refreshed['refreshToken'] != null) {
-                await _tokenStore.writeRefreshToken(
-                  refreshed['refreshToken'].toString(),
-                );
+                await _tokenStore.writeRefreshToken(refreshed['refreshToken'].toString());
               }
               if (refreshed['user'] != null) {
                 _user = refreshed['user'];

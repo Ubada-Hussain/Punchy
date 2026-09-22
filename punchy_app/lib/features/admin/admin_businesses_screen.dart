@@ -219,48 +219,13 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
                                                 color: AppColors.ink,
                                               ),
                                             ),
-                                            if ((b['category'] ?? '').toString().isNotEmpty)
-                                              Text(
-                                                b['category'],
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 11.5,
-                                                  color: AppColors.inkSoft,
-                                                ),
+                                            Text(
+                                              '${b['category'] ?? ''} • ${b['user']?['email'] ?? ''}',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 11.5,
+                                                color: AppColors.inkSoft,
                                               ),
-                                            const SizedBox(height: 4),
-                                            if ((b['user']?['email'] ?? '').toString().isNotEmpty)
-                                              Row(
-                                                children: [
-                                                  const Icon(Icons.email_outlined, size: 13, color: AppColors.inkFaint),
-                                                  const SizedBox(width: 5),
-                                                  Expanded(
-                                                    child: Text(
-                                                      b['user']['email'],
-                                                      style: GoogleFonts.plusJakartaSans(
-                                                        fontSize: 11,
-                                                        color: AppColors.inkSoft,
-                                                      ),
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            if ((b['user']?['phone'] ?? '').toString().isNotEmpty) ...[
-                                              const SizedBox(height: 2),
-                                              Row(
-                                                children: [
-                                                  const Icon(Icons.phone_outlined, size: 13, color: AppColors.inkFaint),
-                                                  const SizedBox(width: 5),
-                                                  Text(
-                                                    b['user']['phone'],
-                                                    style: GoogleFonts.plusJakartaSans(
-                                                      fontSize: 11,
-                                                      color: AppColors.inkSoft,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
+                                            ),
                                           ],
                                         ),
                                       ),

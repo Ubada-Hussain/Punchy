@@ -46,7 +46,7 @@ router.post('/business/:businessId', requireAuth, requireRole('BUSINESS'), async
   // Check Single Active Card rule
   const existingCard = await prisma.loyaltyCard.findFirst({ where: { businessId } });
   if (existingCard) {
-    res.status(400).json({ error: 'A business can only have one loyalty card. Edit the existing card to update or reactivate it.' });
+    res.status(400).json({ error: 'A business can only have one active loyalty card at a time. Please delete your existing card before creating a new one.' });
     return;
   }
 
@@ -103,17 +103,28 @@ router.patch('/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, 
   const nextValidUntil = parsed.data.validUntil !== undefined
     ? (parsed.data.validUntil ? new Date(parsed.data.validUntil) : null)
     : card.validUntil;
-  if (nextValidUntil && nextValidUntil <= new Date()) {
+  if (nextActive && nextValidUntil && nextValidUntil <= new Date()) {
     res.status(400).json({ error: 'A card can only be reactivated with a future expiry date.' });
     return;
   }
 
-  if (!card.isActive && nextValidUntil && nextValidUntil > new Date() && parsed.data.isActive === undefined) {
-    updateData.isActive = true;
-    updateData.reactivatedAt = new Date();
-  }
-
   res.json(await prisma.loyaltyCard.update({ where: { id }, data: updateData }));
+});
+
+// DELETE /cards/:id
+router.delete('/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
+  const id = String(req.params.id);
+  const card = await prisma.loyaltyCard.findUnique({ where: { id } });
+  if (!card) { res.status(404).json({ error: 'Card not found' }); return; }
+
+  const business = await prisma.businessProfile.findUnique({ where: { id: card.businessId } });
+  if (!business || business.userId !== req.user!.userId) { res.status(403).json({ error: 'Forbidden' }); return; }
+
+  await prisma.punchMethod.deleteMany({ where: { cardId: id } });
+  await prisma.customerCard.deleteMany({ where: { cardId: id } });
+  await prisma.loyaltyCard.delete({ where: { id } });
+
+  res.json({ message: 'Loyalty card deleted successfully' });
 });
 
 export default router;

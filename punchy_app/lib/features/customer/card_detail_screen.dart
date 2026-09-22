@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_client.dart';
-import '../../core/formatting/currency.dart';
 import '../../core/theme/app_colors.dart';
 
 class CardDetailScreen extends StatefulWidget {
@@ -121,9 +120,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.coral,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               elevation: 0,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -144,9 +141,9 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to remove card: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to remove card: $e')),
+          );
         }
       }
     }
@@ -174,10 +171,8 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     final isCompleted =
         _card['isCompleted'] == true || punchCount >= punchesRequired;
     final expiry = DateTime.tryParse((cardInfo['validUntil'] ?? '').toString());
-    final isExpired =
-        _card['isExpired'] == true ||
+    final isExpired = _card['isExpired'] == true ||
         (expiry != null && expiry.isBefore(DateTime.now()));
-    final isReactivated = !isExpired && cardInfo['reactivatedAt'] != null;
 
     final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal')
         .toString()
@@ -407,14 +402,8 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                                     ),
                                     child: Text(
                                       isCompleted
-                                          ? (isExpired
-                                                ? 'REWARD READY • EXPIRED'
-                                                : 'REWARD READY')
-                                          : (isExpired
-                                                ? 'EXPIRED • RESET'
-                                                : (isReactivated
-                                                      ? 'REACTIVATED'
-                                                      : 'ACTIVE')),
+                                          ? 'REWARD READY'
+                                          : (isExpired ? 'EXPIRED' : 'ACTIVE'),
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w800,
@@ -519,14 +508,8 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                         // Progress Note
                         Text(
                           isCompleted
-                              ? (isExpired
-                                    ? '🎉 This card expired, but your reward is still ready to redeem.'
-                                    : '🎉 Reward unlocked! Ready to redeem.')
-                              : (isExpired
-                                    ? 'This card expired and incomplete progress was reset. It will restart at 0 when reactivated.'
-                                    : (isReactivated
-                                          ? 'This card has been reactivated. Collect punches from 0 for this new cycle.'
-                                          : '${punchesRequired - punchCount} more punches until your free reward!')),
+                              ? '🎉 Reward unlocked! Ready to redeem.'
+                              : '${punchesRequired - punchCount} more punches until your free reward!',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -578,10 +561,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                               child: _detailStat(
                                 Icons.sell_outlined,
                                 'Minimum order',
-                                Currency.price(
-                                  cardInfo['currency'],
-                                  cardInfo['pricePerPunch'],
-                                ),
+                                '${cardInfo['currency'] ?? 'PKR'} ${cardInfo['pricePerPunch'] ?? 'Not set'}',
                               ),
                             ),
                             Expanded(
@@ -722,19 +702,12 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(
-                            Icons.phone_outlined,
-                            color: AppColors.tealDark,
-                          ),
+                          const Icon(Icons.phone_outlined, color: AppColors.tealDark),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               bizPhone,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                color: AppColors.inkSoft,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.inkSoft, fontWeight: FontWeight.w600),
                             ),
                           ),
                           OutlinedButton.icon(

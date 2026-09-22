@@ -13,7 +13,6 @@ export default function BusinessDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const [biz, setBiz] = useState<Business | null>(null);
-  const [totals, setTotals] = useState({ cards: 0, customers: 0, punches: 0, redemptions: 0 });
   const [loading, setLoading] = useState(true);
 
   async function changeStatus() {
@@ -25,8 +24,8 @@ export default function BusinessDetailPage() {
   }
 
   useEffect(() => {
-    api.get<{ business: Business; totals: typeof totals }>(`/admin/businesses/${id}`)
-      .then(res => { setBiz(res.business); setTotals(res.totals); })
+    api.get<Business | { business: Business }>(`/businesses/${id}`)
+      .then(res => setBiz('business' in res ? res.business : res))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
@@ -81,11 +80,11 @@ export default function BusinessDetailPage() {
           </div>
           <div className="astat">
             <span>Customers</span>
-            <b>{totals.customers}</b>
+            <b>{biz._count?.loyaltyCards ?? 0}</b>
           </div>
           <div className="astat">
             <span>Total Punches</span>
-            <b>{totals.punches}</b>
+            <b>0</b>
           </div>
         </div>
 
@@ -118,12 +117,10 @@ export default function BusinessDetailPage() {
         </div>
 
         <div className="panel" style={{ padding:0 }}>
-          <div className="panel-head" style={{ padding:'16px 18px 0' }}><h4>Customers & Punch Progress</h4></div>
-          {!biz.loyaltyCards?.some(card => card.customerCards?.length) ? <div className="empty-state" style={{ padding:20 }}>No customer activity yet.</div> : (
-            <table className="atable"><thead><tr><th>Customer</th><th>Email</th><th>Phone</th><th>Card</th><th>Punches</th></tr></thead><tbody>
-              {biz.loyaltyCards.flatMap(card => (card.customerCards ?? []).map(customer => <tr key={customer.id}><td>{customer.customer.name || '—'}</td><td>{customer.customer.email}</td><td>{customer.customer.phone || '—'}</td><td>{card.title}</td><td>{customer.punchCount}/{card.punchesRequired}</td></tr>))}
-            </tbody></table>
-          )}
+          <div className="panel-head" style={{ padding:'16px 18px 0' }}><h4>Recent Customers</h4></div>
+          <div className="empty-state" style={{ padding:20 }}>
+            No customer activity yet.
+          </div>
         </div>
       </div>
     </>
