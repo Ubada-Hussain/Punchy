@@ -11,11 +11,10 @@ import { requireAuth } from '../middleware/auth';
 import { OAuth2Client } from 'google-auth-library';
 import { authRateLimiter, otpRateLimiter } from '../middleware/rateLimit';
 import { strongPassword } from '../lib/passwordPolicy';
+import { currencyForCountry, normalizeBusinessPhone } from '../lib/international';
 
 const router = Router();
 router.use(authRateLimiter);
-
-const phoneRegex = /^\+?[0-9\s\-()]{8,20}$/;
 
 const RegisterSchema = z.object({
   email: z.string().email(),
@@ -23,15 +22,19 @@ const RegisterSchema = z.object({
   role: z.enum(['BUSINESS', 'CUSTOMER']),
   name: z.string().optional(),
   phone: z.string().optional(),
+  countryCode: z.string().length(2).optional().default('PK'),
 }).superRefine((data, ctx) => {
   if (data.role === 'BUSINESS') {
-    if (!data.phone || !phoneRegex.test(data.phone.trim())) {
+    if (!data.phone || !normalizeBusinessPhone(data.phone, data.countryCode)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['phone'],
         message: 'A valid phone number is required for business accounts (e.g. +923001234567)',
       });
     }
+  }
+  if (data.phone && !normalizeBusinessPhone(data.phone, data.countryCode)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['phone'], message: 'Enter a valid phone number for the selected country.' });
   }
 });
 
@@ -54,7 +57,8 @@ const DeleteOtpSchema = z.object({ otp: z.string().regex(/^\d{6}$/) });
 
 const ProfileUpdateSchema = z.object({
   name: z.string().min(1).optional(),
-  phone: z.string().regex(phoneRegex, 'Please enter a valid phone number (e.g. +923001234567)').optional(),
+  phone: z.string().optional(),
+  countryCode: z.string().length(2).optional().default('PK'),
 });
 
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -106,7 +110,8 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
   const parsed = RegisterSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
-  const { password, role, name, phone } = parsed.data;
+  const { password, role, name, phone, countryCode } = parsed.data;
+  const normalizedPhone = phone ? normalizeBusinessPhone(phone, countryCode) : phone;
   const email = parsed.data.email.toLowerCase();
   if (await prisma.user.findUnique({ where: { email } })) {
     res.status(409).json({ error: 'Email already registered' }); return;
@@ -117,8 +122,8 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
   const passwordHash = await bcrypt.hash(password, 12);
   await prisma.signupVerification.upsert({
     where: { email },
-    update: { otpHash, passwordHash, role, name, phone, expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS), attempts: 0 },
-    create: { email, otpHash, passwordHash, role, name, phone, expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS) },
+    update: { otpHash, passwordHash, role, name, phone: normalizedPhone, countryCode, expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS), attempts: 0 },
+    create: { email, otpHash, passwordHash, role, name, phone: normalizedPhone, countryCode, expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS) },
   });
   await sendOtpEmail({ to: email, otp, type: 'SIGNUP_VERIFICATION' });
   res.status(202).json({ verificationRequired: true, email, message: 'Verification code sent to your email.' });
@@ -134,8 +139,13 @@ router.post('/verify-signup', otpRateLimiter, async (req: Request, res: Response
     res.status(400).json({ error: 'Invalid or expired verification code.' }); return;
   }
   if (await prisma.user.findUnique({ where: { email } })) { res.status(409).json({ error: 'Email already registered' }); return; }
-  const user = await prisma.user.create({ data: { email, publicId: await uniquePublicId(), passwordHash: pending.passwordHash, role: pending.role, name: pending.name || email.split('@')[0], phone: pending.phone }, select: { id: true, publicId: true, email: true, name: true, role: true, phone: true, createdAt: true } });
-  if (user.role === 'BUSINESS') await prisma.businessProfile.create({ data: { userId: user.id, name: pending.name || 'My Business', category: 'Cafe & Retail', status: 'APPROVED' } });
+  const user = await prisma.user.create({ data: { email, publicId: await uniquePublicId(), passwordHash: pending.passwordHash, role: pending.role, name: pending.name || email.split('@')[0], phone: pending.phone, countryCode: pending.countryCode || 'PK' }, select: { id: true, publicId: true, email: true, name: true, role: true, phone: true, countryCode: true, createdAt: true } });
+  if (user.role === 'BUSINESS') {
+    const countryCode = pending.countryCode || 'PK';
+    await prisma.businessProfile.create({
+      data: { userId: user.id, name: pending.name || 'My Business', category: 'Cafe & Retail', status: 'APPROVED', countryCode, currencyCode: currencyForCountry(countryCode) },
+    });
+  }
   const tokenPayload = { userId: user.id, email: user.email, role: user.role };
   const accessToken = signAccessToken(tokenPayload);
   const refreshToken = signRefreshToken(tokenPayload);
@@ -360,12 +370,22 @@ router.put('/profile', requireAuth, async (req: Request, res: Response): Promise
     return;
   }
 
-  const { name, phone } = parsed.data;
+  const { name, phone, countryCode } = parsed.data;
+  const currentUser = await prisma.user.findUnique({
+    where: { id: req.user!.userId },
+    select: { role: true, businessProfile: { select: { countryCode: true } } },
+  });
+  const normalizedPhone = phone !== undefined && currentUser?.role === 'BUSINESS'
+    ? normalizeBusinessPhone(phone, countryCode || currentUser.businessProfile?.countryCode || 'PK')
+    : phone;
+  if (phone !== undefined && currentUser?.role === 'BUSINESS' && !normalizedPhone) {
+    res.status(400).json({ error: 'Enter a valid phone number for the selected country.' }); return;
+  }
   const updatedUser = await prisma.user.update({
     where: { id: req.user!.userId },
     data: {
       ...(name ? { name } : {}),
-      ...(phone !== undefined ? { phone } : {}),
+      ...(phone !== undefined ? { phone: normalizedPhone } : {}),
     },
     select: { id: true, publicId: true, email: true, name: true, role: true, phone: true, createdAt: true },
   });

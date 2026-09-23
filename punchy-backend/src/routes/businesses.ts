@@ -6,6 +6,13 @@ import { parsePagination } from '../lib/pagination';
 
 const router = Router();
 
+const PermanentDeleteSchema = z.object({ confirmationKey: z.string().min(1) });
+
+function hasValidDeletionKey(key: string): boolean {
+  const expected = process.env.ADMIN_DELETION_KEY;
+  return Boolean(expected) && key === expected;
+}
+
 const BusinessUpsertSchema = z.object({
   name: z.string().min(2),
   category: z.string(),
@@ -32,7 +39,7 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (req: Request, res: Res
   const [businesses, total] = await Promise.all([
     prisma.businessProfile.findMany({
       where, skip, take: Number(limit),
-      include: { user: { select: { email: true, publicId: true, createdAt: true } }, _count: { select: { loyaltyCards: true } } },
+      include: { user: { select: { email: true, phone: true, publicId: true, createdAt: true } }, _count: { select: { loyaltyCards: true } } },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.businessProfile.count({ where }),
@@ -110,6 +117,40 @@ router.post('/:id/unban', requireAuth, requireRole('ADMIN'), async (req: Request
   const b = await prisma.businessProfile.findUnique({ where: { id: String(req.params.id) } });
   if (!b) { res.status(404).json({ error: 'Business not found' }); return; }
   res.json(await prisma.businessProfile.update({ where: { id: String(req.params.id) }, data: { status: 'APPROVED' } }));
+});
+
+// DELETE /businesses/:id — permanently remove a business, its owner, staff, cards and related activity.
+router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  const parsed = PermanentDeleteSchema.safeParse(req.body);
+  if (!parsed.success || !hasValidDeletionKey(parsed.data.confirmationKey)) {
+    res.status(403).json({ error: 'The permanent deletion key is incorrect.' }); return;
+  }
+
+  const business = await prisma.businessProfile.findUnique({
+    where: { id: String(req.params.id) },
+    select: { id: true, userId: true, staffMembers: { select: { id: true } }, loyaltyCards: { select: { id: true, punchMethods: { select: { id: true } } } } },
+  });
+  if (!business) { res.status(404).json({ error: 'Business not found' }); return; }
+
+  const userIds = [business.userId, ...business.staffMembers.map((staff) => staff.id)];
+  const cardIds = business.loyaltyCards.map((card) => card.id);
+  const methodIds = business.loyaltyCards.flatMap((card) => card.punchMethods.map((method) => method.id));
+  const customerCards = cardIds.length ? await prisma.customerCard.findMany({ where: { cardId: { in: cardIds } }, select: { id: true } }) : [];
+  const customerCardIds = customerCards.map((card) => card.id);
+
+  await prisma.$transaction([
+    ...(customerCardIds.length ? [prisma.punchTransaction.deleteMany({ where: { customerCardId: { in: customerCardIds } } }), prisma.redemption.deleteMany({ where: { customerCardId: { in: customerCardIds } } })] : []),
+    ...(methodIds.length ? [prisma.punchTransaction.deleteMany({ where: { punchMethodId: { in: methodIds } } })] : []),
+    ...(cardIds.length ? [prisma.customerCard.deleteMany({ where: { cardId: { in: cardIds } } }), prisma.punchMethod.deleteMany({ where: { cardId: { in: cardIds } } }), prisma.loyaltyCard.deleteMany({ where: { businessId: business.id } })] : []),
+    prisma.refreshToken.deleteMany({ where: { userId: { in: userIds } } }),
+    prisma.activityLog.deleteMany({ where: { userId: { in: userIds } } }),
+    prisma.notification.deleteMany({ where: { createdBy: { in: userIds } } }),
+    prisma.supportTicket.deleteMany({ where: { authorId: { in: userIds } } }),
+    prisma.supportTicket.updateMany({ where: { resolvedBy: { in: userIds } }, data: { resolvedBy: null } }),
+    prisma.businessProfile.delete({ where: { id: business.id } }),
+    prisma.user.deleteMany({ where: { id: { in: userIds } } }),
+  ]);
+  res.json({ message: 'Business account permanently deleted.' });
 });
 
 export default router;

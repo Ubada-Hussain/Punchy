@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:country_picker/country_picker.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -23,6 +24,9 @@ class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _acceptedTerms = false;
   int _roleIndex = 0; // 0 = Customer, 1 = Business
+  String _countryCode = 'PK';
+  String _countryName = 'Pakistan';
+  String _dialCode = '+92';
 
   void _handleSignup() async {
     if (_formKey.currentState!.validate()) {
@@ -42,7 +46,10 @@ class _SignupScreenState extends State<SignupScreen> {
         password: _passwordController.text,
         role: role,
         name: _nameController.text.trim(),
-        phone: _roleIndex == 1 ? _phoneController.text.trim() : null,
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : '$_dialCode${_phoneController.text.replaceAll(RegExp(r'\\D'), '').replaceFirst(RegExp(r'^0'), '')}',
+        countryCode: _countryCode,
       );
 
       if (success && mounted) {
@@ -68,6 +75,25 @@ class _SignupScreenState extends State<SignupScreen> {
       }
     }
   }
+
+  Widget _passwordRules() => Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: AppColors.surfaceAlt,
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        Text('Password must include:'),
+        SizedBox(height: 4),
+        Text('• At least 8 characters'),
+        Text('• One uppercase letter'),
+        Text('• One lowercase letter'),
+        Text('• One number'),
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -215,8 +241,152 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  if (_roleIndex == 1) ...[
-                    // Business Phone (Mandatory)
+                  Text(
+                    'Country',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: () => showCountryPicker(
+                      context: context,
+                      showPhoneCode: true,
+                      onSelect: (country) => setState(() {
+                        _countryCode = country.countryCode;
+                        _countryName = country.name;
+                        _dialCode = '+${country.phoneCode}';
+                      }),
+                    ),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.public_outlined, size: 18),
+                      ),
+                      child: Text(
+                        '$_countryName ($_dialCode)',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Phone number is optional for customers and required for businesses.
+                  Text(
+                    _roleIndex == 1
+                        ? 'Business phone number *'
+                        : 'Phone number (optional)',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Phone number',
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.only(left: 12, right: 8),
+                        child: Text(
+                          _dialCode,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      prefixIconConstraints: const BoxConstraints(minWidth: 64),
+                    ),
+                    validator: (val) =>
+                        _roleIndex == 1 && (val == null || val.trim().isEmpty)
+                        ? 'Business phone number is required'
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Password
+                  Text(
+                    'Password',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: true,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'Create a password',
+                      prefixIcon: Icon(
+                        Icons.lock_outline_rounded,
+                        color: AppColors.inkFaint,
+                        size: 18,
+                      ),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.isEmpty)
+                        return 'Please enter a password';
+                      return PasswordPolicy.isValid(val)
+                          ? null
+                          : PasswordPolicy.message;
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  _passwordRules(),
+                  const SizedBox(height: 16),
+
+                  // Confirm Password
+                  Text(
+                    'Confirm Password',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: true,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'Confirm your password',
+                      prefixIcon: Icon(
+                        Icons.lock_outline_rounded,
+                        color: AppColors.inkFaint,
+                        size: 18,
+                      ),
+                    ),
+                    validator: (val) => val == null || val.isEmpty
+                        ? 'Please confirm your password'
+                        : val != _passwordController.text
+                        ? "Passwords don't match"
+                        : null,
+                  ),
+                  const SizedBox(height: 24),
+
+                  /*
                     Text(
                       'Business phone number *',
                       style: GoogleFonts.plusJakartaSans(
@@ -247,92 +417,40 @@ class _SignupScreenState extends State<SignupScreen> {
                           if (val == null || val.trim().isEmpty) {
                             return 'Business phone number is required';
                           }
-                          final phoneRegex = RegExp(r'^\+?[0-9\s\-()]{8,20}$');
-                          if (!phoneRegex.hasMatch(val.trim())) {
-                            return 'Please enter a valid phone number';
-                          }
                         }
                         return null;
                       },
                     ),
                     const SizedBox(height: 16),
-                  ],
-
-                  // Password
-                  Text(
-                    'Password',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.inkSoft,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    style: GoogleFonts.plusJakartaSans(
-                      color: AppColors.ink,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    decoration: const InputDecoration(
-                      hintText: 'Create a password',
-                      prefixIcon: Icon(
-                        Icons.lock_outline_rounded,
-                        color: AppColors.inkFaint,
-                        size: 18,
+                    DropdownButtonFormField<String>(
+                      value: _countryCode,
+                      decoration: const InputDecoration(
+                        labelText: 'Business country',
+                        prefixIcon: Icon(Icons.public_outlined, size: 18),
                       ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'PK',
+                          child: Text('Pakistan (+92)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'GB',
+                          child: Text('United Kingdom (+44)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'AE',
+                          child: Text('United Arab Emirates (+971)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'US',
+                          child: Text('United States (+1)'),
+                        ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _countryCode = value ?? 'PK'),
                     ),
-                    validator: (val) {
-                      if (val == null || val.isEmpty) {
-                        return 'Please enter a password';
-                      }
-                      if (!PasswordPolicy.isValid(val)) {
-                        return PasswordPolicy.message;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Confirm Password
-                  Text(
-                    'Confirm Password',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.inkSoft,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: _confirmPasswordController,
-                    obscureText: true,
-                    style: GoogleFonts.plusJakartaSans(
-                      color: AppColors.ink,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    decoration: const InputDecoration(
-                      hintText: 'Confirm your password',
-                      prefixIcon: Icon(
-                        Icons.lock_outline_rounded,
-                        color: AppColors.inkFaint,
-                        size: 18,
-                      ),
-                    ),
-                    validator: (val) {
-                      if (val == null || val.isEmpty) {
-                        return 'Please confirm your password';
-                      }
-                      if (val != _passwordController.text) {
-                        return "Passwords don't match";
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+                  ],*/
 
                   // Terms acceptance (required before account creation)
                   Row(

@@ -3,11 +3,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/punchy_empty_state.dart';
+import 'explore_business_detail_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -22,6 +24,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   List<dynamic> _businesses = [];
   bool _isLoading = true;
+  bool _locationUnavailable = false;
   String _selectedCategory = 'All';
 
   final List<String> _categories = [
@@ -45,8 +48,25 @@ class _ExploreScreenState extends State<ExploreScreen> {
       final categoryParam = _selectedCategory == 'All'
           ? ''
           : _selectedCategory.replaceAll(RegExp(r'[^\w\s]'), '').trim();
-      final query =
-          '?search=${_searchController.text.trim()}&category=$categoryParam';
+      Position? position;
+      try {
+        var permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission != LocationPermission.denied &&
+            permission != LocationPermission.deniedForever) {
+          position = await Geolocator.getCurrentPosition();
+        }
+      } catch (_) {}
+      if (mounted) setState(() => _locationUnavailable = position == null);
+      final params = <String, String>{
+        'search': _searchController.text.trim(),
+        'category': categoryParam,
+        if (position != null) 'lat': position.latitude.toString(),
+        if (position != null) 'lng': position.longitude.toString(),
+      };
+      final query = '?${Uri(queryParameters: params).query}';
 
       final res = await _api.get('/customer/explore$query');
       if (res is List && mounted) {
@@ -180,6 +200,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            if (_locationUnavailable)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 9,
+                ),
+                color: AppColors.surfaceAlt,
+                child: Text(
+                  'Location is off — showing all businesses. Enable it to discover nearby places.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    color: AppColors.inkSoft,
+                  ),
+                ),
+              ),
             // Top Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
@@ -454,7 +490,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
         : '$currency ${price is num && price % 1 == 0 ? price.toInt() : price}';
     final description = business['description']?.toString().trim() ?? '';
     return GestureDetector(
-      onTap: null,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ExploreBusinessDetailScreen(
+            business: Map<String, dynamic>.from(business as Map),
+            card: card is Map ? Map<String, dynamic>.from(card) : null,
+          ),
+        ),
+      ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 12, 12),
         decoration: BoxDecoration(

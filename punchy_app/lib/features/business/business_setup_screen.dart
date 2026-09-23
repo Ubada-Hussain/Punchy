@@ -27,6 +27,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
   final _addressController = TextEditingController();
 
   String _selectedCategory = 'Cafe & Bakery';
+  String _countryCode = 'PK';
   String _selectedLogo = '🏪';
   bool _enableQR = true;
   bool _enableNFC = true;
@@ -89,6 +90,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
           if (b['locations'] is List && (b['locations'] as List).isNotEmpty) {
             _addressController.text = b['locations'][0]['address'] ?? '';
           }
+          _countryCode = (b['countryCode']?.toString().toUpperCase() ?? 'PK');
           _isLoading = false;
         });
         return;
@@ -210,7 +212,14 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
         'enableQR': _enableQR,
         'enableNFC': _enableNFC,
       });
-    } catch (_) {}
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save profile: $error')));
+      return;
+    }
 
     if (mounted) {
       setState(() => _isSaving = false);
@@ -435,10 +444,6 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                               if (v == null || v.trim().isEmpty) {
                                 return 'Business phone number is required';
                               }
-                              final phoneRegex = RegExp(r'^\+?[0-9\s\-()]{8,20}$');
-                              if (!phoneRegex.hasMatch(v.trim())) {
-                                return 'Please enter a valid phone number';
-                              }
                               return null;
                             },
                             style: GoogleFonts.plusJakartaSans(
@@ -446,12 +451,36 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
                               fontSize: 13.5,
                               fontWeight: FontWeight.w600,
                             ),
-                            decoration: const InputDecoration(
-                              hintText: '+1 234 567 8900',
-                              prefixIcon: Icon(
+                            decoration: InputDecoration(
+                              hintText: 'Phone number',
+                              prefixIcon: const Icon(
                                 Icons.phone_outlined,
                                 color: AppColors.inkFaint,
                                 size: 18,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          Text(
+                            'Signup country',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.inkSoft,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          InputDecorator(
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.lock_outline_rounded, size: 18),
+                            ),
+                            child: Text(
+                              '$_countryCode — selected during signup',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: AppColors.ink,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),

@@ -22,7 +22,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     if ((res.status === 401 || res.status === 403) && typeof window !== 'undefined') {
       localStorage.removeItem('punchy_admin_token');
       localStorage.removeItem('punchy_admin_user');
-      if (!window.location.pathname.startsWith('/punchy-control-center-7f3c9b-2026')) window.location.replace('/punchy-control-center-7f3c9b-2026');
+      if (!window.location.pathname.startsWith('/administration-access-portal-a8f3e9c1-7b4d2f91-2026')) window.location.replace('/administration-access-portal-a8f3e9c1-7b4d2f91-2026');
     }
     throw new Error(body.error || `HTTP ${res.status}`);
   }
@@ -35,7 +35,7 @@ export const api = {
   post:   <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST',  body: JSON.stringify(body) }),
   patch:  <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   put:    <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT',   body: JSON.stringify(body) }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body: JSON.stringify(body) }),
 
   // Auth helpers
   login: (email: string, password: string) =>

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -19,7 +20,7 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   final _nameController = TextEditingController();
   final _rewardController = TextEditingController();
   final _priceController = TextEditingController(text: '350');
-  
+
   int _punchesRequired = 10;
   int _selectedColorIndex = 0; // 0=Coral, 1=Teal, 2=Purple, 3=Gold
   String _selectedCurrency = 'PKR';
@@ -30,6 +31,20 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   bool _isSaving = false;
   bool _isDeleting = false;
   DateTime _validUntil = DateTime.now().add(const Duration(days: 365));
+
+  String get _currencySymbol =>
+      const {
+        'PKR': 'Rs',
+        'GBP': '£',
+        'AED': 'AED',
+        'USD': r'$',
+        'EUR': '€',
+        'INR': '₹',
+        'SAR': '﷼',
+        'CAD': r'C$',
+        'AUD': r'A$',
+      }[_selectedCurrency] ??
+      _selectedCurrency;
 
   final List<LinearGradient> _gradients = [
     const LinearGradient(
@@ -78,7 +93,9 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
       if (data['pricePerPunch'] != null) {
         final p = data['pricePerPunch'];
         if (p is num) {
-          _priceController.text = (p % 1 == 0) ? p.toInt().toString() : p.toString();
+          _priceController.text = (p % 1 == 0)
+              ? p.toInt().toString()
+              : p.toString();
         } else {
           _priceController.text = p.toString();
         }
@@ -96,11 +113,46 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
     } else {
       _nameController.text = 'Coffee Lovers Card';
       _rewardController.text = '1 Free Coffee';
+      _loadBusinessCurrency();
     }
   }
 
+  Future<void> _loadBusinessCurrency() async {
+    try {
+      final profile = await _api.get('/business/profile');
+      String? currency;
+      if (profile is Map && profile['business'] is Map) {
+        currency = profile['business']['currencyCode']
+            ?.toString()
+            .toUpperCase();
+      }
+      if (currency != null && currency.isNotEmpty && mounted) {
+        final selectedCurrency = currency;
+        setState(() {
+          if (!_currencies.contains(selectedCurrency)) {
+            _currencies.add(selectedCurrency);
+          }
+          _selectedCurrency = selectedCurrency;
+        });
+      }
+    } catch (_) {}
+  }
+
   String _formatDate(DateTime dt) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
 
@@ -150,17 +202,18 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
     final priceVal = double.tryParse(_priceController.text.trim()) ?? 350.0;
 
     final body = {
-      'title': _nameController.text.trim().isEmpty ? 'Coffee Lovers Card' : _nameController.text.trim(),
+      'title': _nameController.text.trim().isEmpty
+          ? 'Coffee Lovers Card'
+          : _nameController.text.trim(),
       'punchesRequired': _punchesRequired,
-      'rewardDescription': _rewardController.text.trim().isEmpty ? '1 Free Coffee' : _rewardController.text.trim(),
+      'rewardDescription': _rewardController.text.trim().isEmpty
+          ? '1 Free Coffee'
+          : _rewardController.text.trim(),
       'validUntil': _validUntil.toIso8601String(),
       'pricePerPunch': priceVal,
       'currency': _selectedCurrency,
       'visualStyle': {'theme': theme, 'icon': '☕'},
-      if (widget.cardId == null) ...{
-        'enableQR': _useQR,
-        'enableNFC': _useNFC,
-      },
+      if (widget.cardId == null) ...{'enableQR': _useQR, 'enableNFC': _useNFC},
     };
 
     try {
@@ -176,10 +229,17 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
           SnackBar(
             backgroundColor: AppColors.ink,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             content: Text(
-              widget.cardId != null ? '✅ Loyalty Card Updated!' : '🎉 Loyalty Card Saved & Activated!',
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+              widget.cardId != null
+                  ? '✅ Loyalty Card Updated!'
+                  : '🎉 Loyalty Card Saved & Activated!',
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         );
@@ -196,10 +256,15 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
           SnackBar(
             backgroundColor: AppColors.coralDark,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             content: Text(
               msg,
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         );
@@ -215,24 +280,46 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Delete Loyalty Card?',
-          style: GoogleFonts.plusJakartaSans(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.ink),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: AppColors.ink,
+          ),
         ),
         content: Text(
           'Are you sure you want to delete this loyalty card? Customers will no longer be able to earn punches for it. Deleting will allow you to create a brand new card.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.inkSoft, height: 1.4),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: AppColors.inkSoft,
+            height: 1.4,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.plusJakartaSans(color: AppColors.inkSoft, fontWeight: FontWeight.w700)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                color: AppColors.inkSoft,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.coralDark,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: Text('Delete Card', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w700)),
+            child: Text(
+              'Delete Card',
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -247,10 +334,15 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
             SnackBar(
               backgroundColor: AppColors.ink,
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               content: Text(
                 '🗑️ Loyalty Card deleted successfully.',
-                style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           );
@@ -262,7 +354,10 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: AppColors.coralDark,
-              content: Text('Failed to delete card: $err', style: GoogleFonts.plusJakartaSans(color: Colors.white)),
+              content: Text(
+                'Failed to delete card: $err',
+                style: GoogleFonts.plusJakartaSans(color: Colors.white),
+              ),
             ),
           );
         }
@@ -303,7 +398,11 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                         ],
                       ),
                       child: const Center(
-                        child: Icon(Icons.chevron_left_rounded, size: 26, color: AppColors.ink),
+                        child: Icon(
+                          Icons.chevron_left_rounded,
+                          size: 26,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                   ),
@@ -313,7 +412,9 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isEditing ? 'Edit Loyalty Card' : 'Create Loyalty Card',
+                          isEditing
+                              ? 'Edit Loyalty Card'
+                              : 'Create Loyalty Card',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
@@ -343,7 +444,11 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                           borderRadius: BorderRadius.circular(11),
                         ),
                         child: const Center(
-                          child: Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.coralDark),
+                          child: Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                            color: AppColors.coralDark,
+                          ),
                         ),
                       ),
                     ),
@@ -354,7 +459,10 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
             // Scrollable Form & Live Preview
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 6,
+                ),
                 children: [
                   // Live Preview Card (Image 1)
                   _buildLivePreviewCard(currentGradient),
@@ -382,7 +490,10 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
                         focusedBorder: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -424,7 +535,11 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                                   color: AppColors.surfaceAlt,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.tealDark),
+                                child: const Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 16,
+                                  color: AppColors.tealDark,
+                                ),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
@@ -437,7 +552,10 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                                   ),
                                 ),
                               ),
-                              const Icon(Icons.chevron_right_rounded, color: AppColors.inkFaint),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: AppColors.inkFaint,
+                              ),
                             ],
                           ),
                         ),
@@ -447,11 +565,26 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                         // Quick Presets
                         Row(
                           children: [
-                            Expanded(child: _buildDurationChip('3 Months', () => _applyPresetDuration(90))),
+                            Expanded(
+                              child: _buildDurationChip(
+                                '3 Months',
+                                () => _applyPresetDuration(90),
+                              ),
+                            ),
                             const SizedBox(width: 8),
-                            Expanded(child: _buildDurationChip('6 Months', () => _applyPresetDuration(180))),
+                            Expanded(
+                              child: _buildDurationChip(
+                                '6 Months',
+                                () => _applyPresetDuration(180),
+                              ),
+                            ),
                             const SizedBox(width: 8),
-                            Expanded(child: _buildDurationChip('1 Year', () => _applyPresetDuration(365))),
+                            Expanded(
+                              child: _buildDurationChip(
+                                '1 Year',
+                                () => _applyPresetDuration(365),
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -463,7 +596,10 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                   _buildFieldLabel('Punches required'),
                   const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -474,7 +610,8 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                       children: [
                         GestureDetector(
                           onTap: () {
-                            if (_punchesRequired > 2) setState(() => _punchesRequired--);
+                            if (_punchesRequired > 2)
+                              setState(() => _punchesRequired--);
                           },
                           child: Container(
                             width: 32,
@@ -484,7 +621,14 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Center(
-                              child: Text('−', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ink)),
+                              child: Text(
+                                '−',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.ink,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -498,7 +642,8 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                         ),
                         GestureDetector(
                           onTap: () {
-                            if (_punchesRequired < 20) setState(() => _punchesRequired++);
+                            if (_punchesRequired < 20)
+                              setState(() => _punchesRequired++);
                           },
                           child: Container(
                             width: 32,
@@ -508,7 +653,14 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Center(
-                              child: Text('+', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ink)),
+                              child: Text(
+                                '+',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.ink,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -536,11 +688,18 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                       ),
                       decoration: const InputDecoration(
                         hintText: '1 Free Coffee',
-                        prefixIcon: Icon(Icons.card_giftcard_rounded, color: AppColors.inkSoft, size: 20),
+                        prefixIcon: Icon(
+                          Icons.card_giftcard_rounded,
+                          color: AppColors.inkSoft,
+                          size: 20,
+                        ),
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
                         focusedBorder: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -553,7 +712,8 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                     children: List.generate(_gradients.length, (index) {
                       final isSelected = _selectedColorIndex == index;
                       return GestureDetector(
-                        onTap: () => setState(() => _selectedColorIndex = index),
+                        onTap: () =>
+                            setState(() => _selectedColorIndex = index),
                         child: Container(
                           width: 38,
                           height: 38,
@@ -561,7 +721,9 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                           decoration: BoxDecoration(
                             gradient: _gradients[index],
                             borderRadius: BorderRadius.circular(11),
-                            border: isSelected ? Border.all(color: AppColors.ink, width: 2.8) : null,
+                            border: isSelected
+                                ? Border.all(color: AppColors.ink, width: 2.8)
+                                : null,
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.08),
@@ -605,24 +767,15 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                     ),
                     child: Row(
                       children: [
-                        // Currency Selector Dropdown
+                        // Currency is determined by the business signup country.
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _selectedCurrency,
-                              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.inkSoft, size: 20),
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.ink,
-                              ),
-                              onChanged: (val) {
-                                if (val != null) setState(() => _selectedCurrency = val);
-                              },
-                              items: _currencies.map((c) {
-                                return DropdownMenuItem(value: c, child: Text(c));
-                              }).toList(),
+                          child: Text(
+                            '$_currencySymbol $_selectedCurrency',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink,
                             ),
                           ),
                         ),
@@ -645,7 +798,9 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                               border: InputBorder.none,
                               enabledBorder: InputBorder.none,
                               focusedBorder: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 12),
+                              contentPadding: EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
                             ),
                           ),
                         ),
@@ -661,8 +816,15 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                                 onTap: () => _adjustPrice(50),
                                 behavior: HitTestBehavior.opaque,
                                 child: const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  child: Icon(Icons.keyboard_arrow_up_rounded, size: 18, color: AppColors.inkSoft),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  child: Icon(
+                                    Icons.keyboard_arrow_up_rounded,
+                                    size: 18,
+                                    color: AppColors.inkSoft,
+                                  ),
                                 ),
                               ),
                               GestureDetector(
@@ -670,8 +832,15 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                                 onTap: () => _adjustPrice(-50),
                                 behavior: HitTestBehavior.opaque,
                                 child: const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  child: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: AppColors.inkSoft),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  child: Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 18,
+                                    color: AppColors.inkSoft,
+                                  ),
                                 ),
                               ),
                             ],
@@ -684,18 +853,28 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
 
                   // Helper/info text box
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFE8F5F1),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFCCE8DF), width: 1),
+                      border: Border.all(
+                        color: const Color(0xFFCCE8DF),
+                        width: 1,
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Padding(
                           padding: EdgeInsets.only(top: 1),
-                          child: Icon(Icons.info_outline_rounded, size: 16, color: AppColors.tealDark),
+                          child: Icon(
+                            Icons.info_outline_rounded,
+                            size: 16,
+                            color: AppColors.tealDark,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -738,15 +917,24 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                               ? const SizedBox(
                                   height: 20,
                                   width: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
                                 )
                               : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(Icons.edit_note_rounded, color: Colors.white, size: 22),
+                                    const Icon(
+                                      Icons.edit_note_rounded,
+                                      color: Colors.white,
+                                      size: 22,
+                                    ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      isEditing ? 'Save Changes' : 'Save & Activate',
+                                      isEditing
+                                          ? 'Save Changes'
+                                          : 'Save & Activate',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w800,
@@ -781,7 +969,9 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   }
 
   Widget _buildLivePreviewCard(LinearGradient gradient) {
-    final title = _nameController.text.trim().isEmpty ? 'Coffee Lovers Card' : _nameController.text.trim();
+    final title = _nameController.text.trim().isEmpty
+        ? 'Coffee Lovers Card'
+        : _nameController.text.trim();
     final stampsCount = _punchesRequired.clamp(1, 20);
 
     return Container(
@@ -814,7 +1004,11 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: const Center(
-                      child: Icon(Icons.coffee_rounded, color: Colors.white, size: 18),
+                      child: Icon(
+                        Icons.coffee_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -847,12 +1041,18 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.25),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.hourglass_top_rounded, color: Colors.white, size: 11),
+                    const Icon(
+                      Icons.hourglass_top_rounded,
+                      color: Colors.white,
+                      size: 11,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'Valid till ${_formatDate(_validUntil)}',
@@ -904,7 +1104,8 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
             builder: (context, constraints) {
               final double totalWidth = constraints.maxWidth;
               final int count = stampsCount > 10 ? 10 : stampsCount;
-              final double stampSize = ((totalWidth - ((count - 1) * 6)) / count).clamp(22.0, 30.0);
+              final double stampSize =
+                  ((totalWidth - ((count - 1) * 6)) / count).clamp(22.0, 30.0);
 
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -915,12 +1116,23 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                     height: stampSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: isFirst ? Colors.white : Colors.white.withValues(alpha: 0.12),
-                      border: isFirst ? null : Border.all(color: Colors.white.withValues(alpha: 0.65), width: 1.2),
+                      color: isFirst
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.12),
+                      border: isFirst
+                          ? null
+                          : Border.all(
+                              color: Colors.white.withValues(alpha: 0.65),
+                              width: 1.2,
+                            ),
                     ),
                     child: Center(
                       child: isFirst
-                          ? Icon(Icons.check_rounded, color: gradient.colors.last, size: stampSize * 0.55)
+                          ? Icon(
+                              Icons.check_rounded,
+                              color: gradient.colors.last,
+                              size: stampSize * 0.55,
+                            )
                           : Text(
                               '${i + 1}',
                               style: GoogleFonts.plusJakartaSans(

@@ -88,7 +88,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: Row(
           children: [
-            const Icon(Icons.remove_circle_outline_rounded, color: AppColors.coralDark),
+            const Icon(
+              Icons.remove_circle_outline_rounded,
+              color: AppColors.coralDark,
+            ),
             const SizedBox(width: 10),
             Text(
               'Remove Card',
@@ -124,7 +127,9 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.coral,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: Text(
               'Remove',
@@ -147,10 +152,15 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
           SnackBar(
             backgroundColor: AppColors.ink,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             content: Text(
               'Card removed from your wallet.',
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         );
@@ -162,10 +172,15 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
           SnackBar(
             backgroundColor: AppColors.ink,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             content: Text(
               'Could not remove card. Please try again.',
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         );
@@ -426,7 +441,8 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
     final isCompleted =
         cardData['isCompleted'] == true || punchCount >= punchesRequired;
     final expiry = DateTime.tryParse((cardInfo['validUntil'] ?? '').toString());
-    final isExpired = cardData['isExpired'] == true ||
+    final isExpired =
+        cardData['isExpired'] == true ||
         (expiry != null && expiry.isBefore(DateTime.now()));
 
     final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal')
@@ -493,9 +509,15 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    GestureDetector(
-                      onTap: () => _confirmRemoveCard(cardData),
-                      child: Container(
+                    IconButton(
+                      tooltip: 'Remove card',
+                      onPressed: () => _confirmRemoveCard(cardData),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 32,
+                        height: 32,
+                      ),
+                      icon: Container(
                         width: 32,
                         height: 32,
                         margin: const EdgeInsets.only(right: 8),
@@ -534,7 +556,10 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                                   ),
                                 ),
                               )
-                            : Text(bizLogo, style: const TextStyle(fontSize: 15)),
+                            : Text(
+                                bizLogo,
+                                style: const TextStyle(fontSize: 15),
+                              ),
                       ),
                     ),
                   ],

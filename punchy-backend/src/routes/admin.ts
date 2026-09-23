@@ -6,6 +6,12 @@ import { sendNotification } from '../lib/notifications';
 import { clearMaintenanceCache } from '../middleware/maintenance';
 
 const router = Router();
+const PermanentDeleteSchema = z.object({ confirmationKey: z.string().min(1) });
+
+function hasValidDeletionKey(key: string): boolean {
+  const expected = process.env.ADMIN_DELETION_KEY;
+  return Boolean(expected) && key === expected;
+}
 
 // GET /admin/config — persisted platform settings
 router.get('/config', requireAuth, requireRole('ADMIN'), async (_req: Request, res: Response): Promise<void> => {
@@ -229,6 +235,28 @@ router.post('/customers/:id/toggle-block', requireAuth, requireRole('ADMIN'), as
     message: updated.isBlocked ? 'Customer account suspended.' : 'Customer account activated.',
     isBlocked: updated.isBlocked,
   });
+});
+
+// DELETE /admin/customers/:id — permanently remove a customer and their personal data.
+router.delete('/customers/:id', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  const parsed = PermanentDeleteSchema.safeParse(req.body);
+  if (!parsed.success || !hasValidDeletionKey(parsed.data.confirmationKey)) {
+    res.status(403).json({ error: 'The permanent deletion key is incorrect.' }); return;
+  }
+  const user = await prisma.user.findFirst({ where: { id: String(req.params.id), role: 'CUSTOMER' }, select: { id: true } });
+  if (!user) { res.status(404).json({ error: 'Customer not found' }); return; }
+  const customerCards = await prisma.customerCard.findMany({ where: { customerId: user.id }, select: { id: true } });
+  const customerCardIds = customerCards.map((card) => card.id);
+  await prisma.$transaction([
+    ...(customerCardIds.length ? [prisma.punchTransaction.deleteMany({ where: { customerCardId: { in: customerCardIds } } }), prisma.redemption.deleteMany({ where: { customerCardId: { in: customerCardIds } } }), prisma.customerCard.deleteMany({ where: { customerId: user.id } })] : []),
+    prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
+    prisma.activityLog.deleteMany({ where: { userId: user.id } }),
+    prisma.notification.deleteMany({ where: { createdBy: user.id } }),
+    prisma.supportTicket.deleteMany({ where: { authorId: user.id } }),
+    prisma.supportTicket.updateMany({ where: { resolvedBy: user.id }, data: { resolvedBy: null } }),
+    prisma.user.delete({ where: { id: user.id } }),
+  ]);
+  res.json({ message: 'Customer account permanently deleted.' });
 });
 
 // Announcement Schema

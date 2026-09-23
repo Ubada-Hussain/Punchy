@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 
+export const EXPLORE_RADIUS_METERS = 10_000;
+
 const router = Router();
 
 // GET /customer/cards — wallet
@@ -73,9 +75,12 @@ router.post('/cards/:id/redeem', requireAuth, requireRole('CUSTOMER'), async (re
 
 // GET /customer/explore — browse available businesses & loyalty cards
 router.get('/explore', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const { category, search } = req.query;
+  const { category, search, lat, lng } = req.query;
+  const customer = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { countryCode: true } });
+  const countryCode = customer?.countryCode?.toUpperCase() || 'PK';
   const where: Record<string, unknown> = {
     status: 'APPROVED',
+    countryCode,
   };
 
   if (category && category !== 'All') {
@@ -102,11 +107,31 @@ router.get('/explore', requireAuth, async (req: Request, res: Response): Promise
           _count: { select: { customerCards: true } },
         },
       },
+      user: { select: { phone: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
+  const latitude = Number(lat); const longitude = Number(lng);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) { res.json(businesses); return; }
 
-  res.json(businesses);
+  // Prisma's MongoDB client does not expose $near; issue the native Mongo command,
+  // then retain Prisma's populated card data and Mongo's distance ordering.
+  try {
+    const raw = await prisma.$runCommandRaw({
+      find: 'BusinessProfile',
+      filter: { status: 'APPROVED', countryCode, location: { $near: { $geometry: { type: 'Point', coordinates: [longitude, latitude] }, $maxDistance: EXPLORE_RADIUS_METERS } } },
+      projection: { _id: 1 },
+    }) as { cursor?: { firstBatch?: Array<{ _id: unknown }> } };
+    const nearbyIds = (raw.cursor?.firstBatch ?? []).map((item) => {
+      const id = item._id as { $oid?: string; toString?: () => string };
+      return id?.$oid || id?.toString?.() || String(id);
+    });
+    const byId = new Map(businesses.map((business) => [business.id, business]));
+    res.json(nearbyIds.map((id) => byId.get(id)).filter(Boolean));
+  } catch (error) {
+    console.warn('Nearby-business query failed; returning filtered businesses:', error);
+    res.json(businesses);
+  }
 });
 
 // POST /customer/cards/join — join card without scan
@@ -133,6 +158,15 @@ router.post('/cards/join', requireAuth, requireRole('CUSTOMER'), async (req: Req
   }
 
   const customerId = req.user!.userId;
+  const customer = await prisma.user.findUnique({
+    where: { id: customerId },
+    select: { countryCode: true },
+  });
+  const customerCountry = customer?.countryCode?.toUpperCase() || 'PK';
+  if (card.business.countryCode?.toUpperCase() !== customerCountry) {
+    res.status(403).json({ error: 'This card is not available in your signup country.' });
+    return;
+  }
   const existing = await prisma.customerCard.findUnique({
     where: { customerId_cardId: { customerId, cardId: card.id } },
   });

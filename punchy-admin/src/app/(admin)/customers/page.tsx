@@ -39,6 +39,18 @@ export default function CustomersPage() {
     load();
   }
 
+  async function permanentlyDelete(customer: User) {
+    if (!confirm(`Permanently delete ${customer.email}? This cannot be undone.`)) return;
+    const confirmationKey = prompt('Enter the permanent deletion key to continue:');
+    if (!confirmationKey) return;
+    try {
+      await api.delete(`/admin/customers/${customer.id}`, { confirmationKey });
+      void load();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to delete this customer.');
+    }
+  }
+
   const gradients = ['var(--grad-purple)', 'var(--grad-coral)', 'var(--grad-teal)', 'var(--grad-gold)'];
 
   return (
@@ -116,6 +128,7 @@ export default function CustomersPage() {
                         >
                           {c.isBlocked ? 'Unban' : 'Suspend'}
                         </button>
+                        <button className="btn btn-danger-ghost btn-xs" onClick={() => permanentlyDelete(c)}>Delete</button>
                       </div>
                     </td>
                   </tr>

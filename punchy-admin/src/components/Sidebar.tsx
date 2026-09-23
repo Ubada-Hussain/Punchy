@@ -91,7 +91,7 @@ export default function Sidebar() {
 
   function handleLogout() {
     api.clearSession();
-    router.replace('/punchy-control-center-7f3c9b-2026');
+    router.replace('/administration-access-portal-a8f3e9c1-7b4d2f91-2026');
   }
 
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? 'AD';

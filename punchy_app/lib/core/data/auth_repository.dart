@@ -17,9 +17,7 @@ class AuthRepository {
 
   Future<Map<String, dynamic>> refreshToken(String refreshToken) async =>
       _asMap(
-        await _client.post('/auth/refresh', {
-          'refreshToken': refreshToken,
-        }),
+        await _client.post('/auth/refresh', {'refreshToken': refreshToken}),
       );
 
   Future<Map<String, dynamic>> register({
@@ -28,6 +26,7 @@ class AuthRepository {
     required String role,
     String? name,
     String? phone,
+    String? countryCode,
   }) async => _asMap(
     await _client.post('/auth/register', {
       'email': email,
@@ -35,6 +34,7 @@ class AuthRepository {
       'role': role,
       if (name != null && name.isNotEmpty) 'name': name,
       if (phone != null && phone.isNotEmpty) 'phone': phone,
+      if (countryCode != null) 'countryCode': countryCode,
     }),
   );
 
@@ -83,6 +83,6 @@ class AuthRepository {
 
   static Map<String, dynamic> _asMap(dynamic value) =>
       value is Map<String, dynamic>
-          ? value
-          : Map<String, dynamic>.from(value as Map);
+      ? value
+      : Map<String, dynamic>.from(value as Map);
 }

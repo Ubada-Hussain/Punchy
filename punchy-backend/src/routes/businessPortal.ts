@@ -10,6 +10,7 @@ import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { sendNotification } from '../lib/notifications';
 import { notifyPunchEarned, notifyProgressMilestone } from '../lib/automatedNotifications';
+import { currencyForCountry, geocodeAddress, normalizeBusinessPhone } from '../lib/international';
 
 const router = Router();
 const logoUpload = multer({
@@ -19,8 +20,6 @@ const logoUpload = multer({
 });
 
 // Business Onboarding Schema
-const phoneRegex = /^\+?[0-9\s\-()]{8,20}$/;
-
 const SetupSchema = z.object({
   name: z.string().min(2),
   category: z.string().min(2),
@@ -28,7 +27,7 @@ const SetupSchema = z.object({
   website: z.string().optional(),
   logo: z.string().optional(),
   address: z.string().optional(),
-  phone: z.string().regex(phoneRegex, 'Please enter a valid phone number (e.g. +923001234567)').optional(),
+  phone: z.string().min(1),
   enableQR: z.boolean().default(true),
   enableNFC: z.boolean().default(true),
 });
@@ -41,7 +40,7 @@ const CardSchema = z.object({
   visualStyle: z.record(z.string(), z.any()).default({}),
   validUntil: z.string().nullable().optional(),
   pricePerPunch: z.number().min(0).optional().default(0),
-  currency: z.string().min(1).max(10).optional().default('PKR'),
+  currency: z.string().min(1).max(10).optional(),
   isActive: z.boolean().optional(),
   enableQR: z.boolean().default(true),
   enableNFC: z.boolean().default(true),
@@ -306,13 +305,19 @@ router.get('/profile', requireAuth, requireRole('BUSINESS'), async (req: Request
     });
 
     if (!business) {
-      const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.userId },
+        select: { name: true, countryCode: true },
+      });
+      const countryCode = user?.countryCode?.toUpperCase() || 'PK';
       business = await prisma.businessProfile.create({
         data: {
           userId: req.user!.userId,
           name: user?.name || 'My Business',
           category: 'Retail & Services',
           status: 'APPROVED',
+          countryCode,
+          currencyCode: currencyForCountry(countryCode),
         },
         include: {
           loyaltyCards: true,
@@ -350,11 +355,22 @@ router.post('/setup', requireAuth, requireRole('BUSINESS'), async (req: Request,
   }
 
   const { name, category, description, website, logo, address, phone } = parsed.data;
+  // The country is selected once at signup. It is deliberately read from the
+  // owner account here so setup requests can never alter it.
+  const owner = await prisma.user.findUnique({
+    where: { id: req.user!.userId },
+    select: { countryCode: true },
+  });
+  const countryCode = owner?.countryCode?.toUpperCase() || 'PK';
+  const normalizedPhone = normalizeBusinessPhone(phone, countryCode);
+  if (!normalizedPhone) { res.status(400).json({ error: 'Enter a valid phone number for the selected country.' }); return; }
+  const geocoded = address ? await geocodeAddress(address) : null;
+  const currencyCode = currencyForCountry(countryCode);
 
   if (phone) {
     await prisma.user.update({
       where: { id: req.user!.userId },
-      data: { phone },
+      data: { phone: normalizedPhone },
     });
   }
 
@@ -367,6 +383,9 @@ router.post('/setup', requireAuth, requireRole('BUSINESS'), async (req: Request,
       website,
       logo,
       locations: address ? [{ address }] : [],
+      ...(geocoded ? { location: geocoded.point } : {}),
+      countryCode,
+      currencyCode,
       status: 'APPROVED',
     },
     create: {
@@ -377,6 +396,9 @@ router.post('/setup', requireAuth, requireRole('BUSINESS'), async (req: Request,
       website,
       logo,
       locations: address ? [{ address }] : [],
+      ...(geocoded ? { location: geocoded.point } : {}),
+      countryCode,
+      currencyCode,
       status: 'APPROVED',
     },
   });
@@ -480,7 +502,7 @@ router.post('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request,
       visualStyle: (visualStyle ?? {}) as any,
       validUntil: validUntil ? new Date(validUntil) : null,
       pricePerPunch: pricePerPunch ?? 0,
-      currency: currency ?? 'PKR',
+      currency: business.currencyCode,
       punchMethods: {
         create: [
           ...(enableQR ? [{ type: 'QR' as const, identifier: uuid(), label: `${title} QR Code` }] : []),
@@ -515,7 +537,7 @@ router.get('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
 router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
   const existing = await prisma.loyaltyCard.findUnique({ where: { id: String(req.params.id) } });
   if (!existing) { res.status(404).json({ error: 'Card not found' }); return; }
-  const owner = await prisma.businessProfile.findFirst({ where: { id: existing.businessId, userId: req.user!.userId }, select: { id: true } });
+  const owner = await prisma.businessProfile.findFirst({ where: { id: existing.businessId, userId: req.user!.userId }, select: { id: true, currencyCode: true } });
   if (!owner) { res.status(403).json({ error: 'Forbidden' }); return; }
   const parsed = CardSchema.partial().safeParse(req.body);
   if (!parsed.success) {
@@ -539,7 +561,7 @@ router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
       rewardDescription: parsed.data.rewardDescription,
       ...(parsed.data.visualStyle !== undefined ? { visualStyle: parsed.data.visualStyle as any } : {}),
       ...(parsed.data.pricePerPunch !== undefined ? { pricePerPunch: parsed.data.pricePerPunch } : {}),
-      ...(parsed.data.currency !== undefined ? { currency: parsed.data.currency } : {}),
+      currency: owner.currencyCode,
       ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
       ...(parsed.data.validUntil !== undefined
         ? { validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null }

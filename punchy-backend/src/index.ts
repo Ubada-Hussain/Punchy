@@ -20,6 +20,7 @@ import { maintenanceGuard } from './middleware/maintenance';
 import prisma from './lib/prisma';
 import { processScheduledNotifications, processDailyCustomerReminders } from './services/scheduledNotificationService';
 import { processCardLifecycle } from './services/cardLifecycleService';
+import { ensureBusinessLocationIndex } from './lib/international';
 
 const app = express();
 
@@ -86,6 +87,7 @@ if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !proces
   throw new Error('Production JWT secrets are missing or use a default value. Refusing to start.');
 }
 app.listen(PORT, () => console.log(`Punchy API listening on port ${PORT}`));
+void ensureBusinessLocationIndex(prisma);
 if (process.env.NODE_ENV !== 'test') {
   const intervalMs = 30_000;
   void processCardLifecycle().catch((error) => console.error('Initial card lifecycle pass failed', error));

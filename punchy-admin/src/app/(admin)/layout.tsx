@@ -12,11 +12,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const user = api.getSession();
-    if (!user || user.role !== 'ADMIN') { queueMicrotask(() => setAuthorized(false)); router.replace('/punchy-control-center-7f3c9b-2026'); return; }
+    if (!user || user.role !== 'ADMIN') { queueMicrotask(() => setAuthorized(false)); router.replace('/administration-access-portal-a8f3e9c1-7b4d2f91-2026'); return; }
     api.get<{ user: { role: string } }>('/auth/me')
       .then(({ user: liveUser }) => {
         if (liveUser.role === 'ADMIN') setAuthorized(true);
-        else { api.clearSession(); queueMicrotask(() => setAuthorized(false)); router.replace('/punchy-control-center-7f3c9b-2026'); }
+        else { api.clearSession(); queueMicrotask(() => setAuthorized(false)); router.replace('/administration-access-portal-a8f3e9c1-7b4d2f91-2026'); }
       })
       .catch(() => setAuthorized(false));
   }, [pathname, router]);

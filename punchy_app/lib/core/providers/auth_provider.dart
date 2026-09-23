@@ -104,7 +104,9 @@ class AuthProvider extends ChangeNotifier {
           await _api.get('/health');
           _isOffline = false;
         } catch (e) {
-          if (e is NetworkException || e is SocketException || e is TimeoutException) {
+          if (e is NetworkException ||
+              e is SocketException ||
+              e is TimeoutException) {
             _isOffline = true;
           }
         }
@@ -128,7 +130,9 @@ class AuthProvider extends ChangeNotifier {
       _isOffline = false;
       notifyListeners();
     } catch (e) {
-      if (e is NetworkException || e is SocketException || e is TimeoutException) {
+      if (e is NetworkException ||
+          e is SocketException ||
+          e is TimeoutException) {
         _isOffline = true;
         notifyListeners();
       }
@@ -149,7 +153,9 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      if (e is NetworkException || e is SocketException || e is TimeoutException) {
+      if (e is NetworkException ||
+          e is SocketException ||
+          e is TimeoutException) {
         _isOffline = true;
       } else {
         _isOffline = false;
@@ -193,7 +199,9 @@ class AuthProvider extends ChangeNotifier {
               _token = refreshed['accessToken'];
               await _tokenStore.write(_token!);
               if (refreshed['refreshToken'] != null) {
-                await _tokenStore.writeRefreshToken(refreshed['refreshToken'].toString());
+                await _tokenStore.writeRefreshToken(
+                  refreshed['refreshToken'].toString(),
+                );
               }
               if (refreshed['user'] != null) {
                 _user = refreshed['user'];
@@ -341,6 +349,7 @@ class AuthProvider extends ChangeNotifier {
     required String role,
     String? name,
     String? phone,
+    String? countryCode,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -354,6 +363,7 @@ class AuthProvider extends ChangeNotifier {
         role: role,
         name: name,
         phone: phone,
+        countryCode: countryCode,
       );
 
       if (response['verificationRequired'] == true) {

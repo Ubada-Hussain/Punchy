@@ -50,6 +50,18 @@ export default function BusinessesPage() {
     load();
   }
 
+  async function permanentlyDelete(business: Business) {
+    if (!confirm(`Permanently delete ${business.name}? This cannot be undone.`)) return;
+    const confirmationKey = prompt('Enter the permanent deletion key to continue:');
+    if (!confirmationKey) return;
+    try {
+      await api.delete(`/businesses/${business.id}`, { confirmationKey });
+      void load();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Unable to delete this business.');
+    }
+  }
+
   const gradients = ['var(--grad-teal)','var(--grad-purple)','var(--grad-coral)','var(--grad-gold)'];
 
   return (
@@ -100,6 +112,7 @@ export default function BusinessesPage() {
               <thead>
                 <tr>
                   <th>Business</th>
+                  <th>Contact</th>
                   <th>Public ID</th>
                   <th>Category</th>
                   <th>Customers</th>
@@ -122,6 +135,10 @@ export default function BusinessesPage() {
                         </div>
                       </div>
                     </td>
+                    <td style={{ fontSize:12, lineHeight:1.55 }}>
+                      <div>{b.user?.email ?? '—'}</div>
+                      <div style={{ color:'var(--ink-soft)' }}>{b.user?.phone ?? 'No phone'}</div>
+                    </td>
                     <td>{b.user?.publicId ?? '—'}</td>
                     <td style={{ color:'var(--ink-soft)', fontSize:12 }}>{b.category}</td>
                     <td style={{ fontWeight:700 }}>{b._count?.loyaltyCards ?? 0}</td>
@@ -137,6 +154,7 @@ export default function BusinessesPage() {
                         {b.status === 'SUSPENDED' && (
                           <button className="btn btn-primary btn-xs" onClick={() => unban(b.id)}>Unban</button>
                         )}
+                        <button className="btn btn-danger-ghost btn-xs" onClick={() => permanentlyDelete(b)}>Delete</button>
                         <Link href={`/businesses/${b.id}`} className="btn btn-outline btn-xs">View</Link>
                       </div>
                     </td>

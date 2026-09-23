@@ -88,6 +88,14 @@ export default function BusinessDetailPage() {
           </div>
         </div>
 
+        <div className="panel">
+          <div className="panel-head"><h4>Contact</h4></div>
+          <div style={{ display:'grid', gap:12, fontSize:14 }}>
+            <div><span style={{ color:'var(--ink-soft)', display:'block', fontSize:12, marginBottom:3 }}>Email</span>{biz.user?.email ?? 'Not provided'}</div>
+            <div><span style={{ color:'var(--ink-soft)', display:'block', fontSize:12, marginBottom:3 }}>Phone</span>{biz.user?.phone ?? 'Not provided'}</div>
+          </div>
+        </div>
+
         <div className="panel" style={{ padding:0 }}>
           <div className="panel-head" style={{ padding:'16px 18px 0' }}><h4>Punch Cards</h4></div>
           {!biz.loyaltyCards?.length ? (
