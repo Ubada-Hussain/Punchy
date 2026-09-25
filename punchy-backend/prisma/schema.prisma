@@ -48,6 +48,19 @@ enum SubscriptionTier {
   PREMIUM
 }
 
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAYMENT_PENDING
+  EXPIRED
+}
+
+enum SubscriptionPlan {
+  TRIAL
+  MONTHLY
+  YEARLY
+}
+
 // ─── User ────────────────────────────────────────────────────────────────────
 
 model User {
@@ -129,6 +142,8 @@ model BusinessProfile {
   locations        Json             @default("[]")
   /// Canonical GeoJSON point used by the nearby-business query: [longitude, latitude].
   location         Json?
+  /// City resolved from the business address; used by location-aware Explore.
+  city             String?
   countryCode      String?          @default("PK")
   currencyCode     String           @default("PKR")
   createdAt        DateTime         @default(now())
@@ -136,8 +151,38 @@ model BusinessProfile {
 
   loyaltyCards LoyaltyCard[]
   staffMembers User[]        @relation("BusinessStaff")
+  subscriptions BusinessSubscription[]
 }
 
+
+model CountrySubscriptionPricing {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  countryCode  String   @unique
+  currencyCode String
+  monthlyPrice Float
+  yearlyPrice  Float
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model BusinessSubscription {
+  id         String             @id @default(auto()) @map("_id") @db.ObjectId
+  businessId String             @db.ObjectId
+  business   BusinessProfile    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  status     SubscriptionStatus @default(TRIALING)
+  plan       SubscriptionPlan   @default(TRIAL)
+  price      Float              @default(0)
+  currency   String
+  startDate  DateTime
+  endDate    DateTime
+  trialStart DateTime?
+  trialEnd   DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@index([businessId, status, endDate])
+}
 // ─── Loyalty Card ────────────────────────────────────────────────────────────
 
 model LoyaltyCard {

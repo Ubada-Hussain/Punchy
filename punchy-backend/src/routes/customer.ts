@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
+import { reverseGeocodeLocation } from '../lib/international';
 
 export const EXPLORE_RADIUS_METERS = 10_000;
 
@@ -73,15 +74,24 @@ router.post('/cards/:id/redeem', requireAuth, requireRole('CUSTOMER'), async (re
   res.json({ message: 'Reward redeemed! Enjoy! 🎉', redemption });
 });
 
-// GET /customer/explore — browse available businesses & loyalty cards
+// GET /customer/explore — browse businesses from the customer's current location.
 router.get('/explore', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const { category, search, lat, lng } = req.query;
-  const customer = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { countryCode: true } });
-  const countryCode = customer?.countryCode?.toUpperCase() || 'PK';
+  const requestedScope = ['nearby', 'city', 'country'].includes(String(req.query.scope))
+    ? String(req.query.scope) : 'nearby';
+  const latitude = Number(lat); const longitude = Number(lng);
+  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
+  const currentLocation = hasCoordinates
+    ? await reverseGeocodeLocation(latitude, longitude)
+    : null;
   const where: Record<string, unknown> = {
     status: 'APPROVED',
-    countryCode,
   };
+  // Location permission/reverse lookup failures fall back to an unfiltered
+  // Explore list; wallet cards are never queried or filtered here.
+  if (currentLocation && requestedScope === 'country' && currentLocation.countryCode) {
+    where.countryCode = currentLocation.countryCode;
+  }
 
   if (category && category !== 'All') {
     where.category = { contains: String(category), mode: 'insensitive' };
@@ -111,15 +121,17 @@ router.get('/explore', requireAuth, async (req: Request, res: Response): Promise
     },
     orderBy: { createdAt: 'desc' },
   });
-  const latitude = Number(lat); const longitude = Number(lng);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) { res.json(businesses); return; }
+  if (!hasCoordinates || requestedScope !== 'nearby') {
+    res.json({ businesses, location: currentLocation, locationAvailable: Boolean(currentLocation) });
+    return;
+  }
 
   // Prisma's MongoDB client does not expose $near; issue the native Mongo command,
   // then retain Prisma's populated card data and Mongo's distance ordering.
   try {
     const raw = await prisma.$runCommandRaw({
       find: 'BusinessProfile',
-      filter: { status: 'APPROVED', countryCode, location: { $near: { $geometry: { type: 'Point', coordinates: [longitude, latitude] }, $maxDistance: EXPLORE_RADIUS_METERS } } },
+      filter: { status: 'APPROVED', location: { $near: { $geometry: { type: 'Point', coordinates: [longitude, latitude] }, $maxDistance: EXPLORE_RADIUS_METERS } } },
       projection: { _id: 1 },
     }) as { cursor?: { firstBatch?: Array<{ _id: unknown }> } };
     const nearbyIds = (raw.cursor?.firstBatch ?? []).map((item) => {
@@ -127,10 +139,10 @@ router.get('/explore', requireAuth, async (req: Request, res: Response): Promise
       return id?.$oid || id?.toString?.() || String(id);
     });
     const byId = new Map(businesses.map((business) => [business.id, business]));
-    res.json(nearbyIds.map((id) => byId.get(id)).filter(Boolean));
+    res.json({ businesses: nearbyIds.map((id) => byId.get(id)).filter(Boolean), location: currentLocation, locationAvailable: Boolean(currentLocation) });
   } catch (error) {
-    console.warn('Nearby-business query failed; returning filtered businesses:', error);
-    res.json(businesses);
+    console.warn('Nearby-business query failed; returning unranked businesses:', error);
+    res.json({ businesses, location: currentLocation, locationAvailable: Boolean(currentLocation) });
   }
 });
 
@@ -158,15 +170,6 @@ router.post('/cards/join', requireAuth, requireRole('CUSTOMER'), async (req: Req
   }
 
   const customerId = req.user!.userId;
-  const customer = await prisma.user.findUnique({
-    where: { id: customerId },
-    select: { countryCode: true },
-  });
-  const customerCountry = customer?.countryCode?.toUpperCase() || 'PK';
-  if (card.business.countryCode?.toUpperCase() !== customerCountry) {
-    res.status(403).json({ error: 'This card is not available in your signup country.' });
-    return;
-  }
   const existing = await prisma.customerCard.findUnique({
     where: { customerId_cardId: { customerId, cardId: card.id } },
   });

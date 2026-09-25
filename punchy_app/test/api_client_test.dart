@@ -56,4 +56,31 @@ void main() {
       throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 403)),
     );
   });
+
+  test(
+    'coalesces identical mutations until the first request completes',
+    () async {
+      var requests = 0;
+      final completer = Completer<http.Response>();
+      final client = ApiClient(
+        baseUrl: 'https://api.example.test',
+        tokenStore: const SharedPreferencesTokenStore(),
+        client: _FakeClient((_) {
+          requests++;
+          return completer.future;
+        }),
+      );
+
+      final first = client.post('/customer/cards/join', {'cardId': 'card-1'});
+      final second = client.post('/customer/cards/join', {'cardId': 'card-1'});
+      await Future<void>.delayed(Duration.zero);
+      expect(requests, 1);
+
+      completer.complete(http.Response('{"ok":true}', 200));
+      await Future.wait([first, second]);
+
+      await client.post('/customer/cards/join', {'cardId': 'card-1'});
+      expect(requests, 2);
+    },
+  );
 }

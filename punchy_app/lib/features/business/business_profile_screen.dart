@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/api/api_client.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_confirmation_dialog.dart';
 import '../system_states/support_sheet.dart';
 
 class BusinessProfileScreen extends StatefulWidget {
@@ -24,9 +26,13 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   bool _weeklySummary = true;
 
   Widget _businessInitial(String name) => Text(
-        name.isNotEmpty ? name[0].toUpperCase() : 'B',
-        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white),
-      );
+    name.isNotEmpty ? name[0].toUpperCase() : 'B',
+    style: const TextStyle(
+      fontSize: 26,
+      fontWeight: FontWeight.w800,
+      color: Colors.white,
+    ),
+  );
 
   @override
   void initState() {
@@ -58,7 +64,20 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     if (dateVal == null) return 'Recent';
     try {
       final dt = DateTime.parse(dateVal.toString());
-      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const months = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
       return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
     } catch (_) {
       return 'Recent';
@@ -73,10 +92,14 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     final biz = _profileData?['business'] ?? {};
     final bizName = biz['name'] ?? user?['name'] ?? 'My Business';
     final bizCat = biz['category'] ?? 'Retail & Services';
-    final bizLogo = (biz['logo'] != null && biz['logo'].toString().isNotEmpty) ? biz['logo'].toString() : null;
+    final bizLogo = (biz['logo'] != null && biz['logo'].toString().isNotEmpty)
+        ? biz['logo'].toString()
+        : null;
     final activeCardsCount = _profileData?['activeCardsCount'] as int? ?? 0;
     final totalCustomers = _profileData?['totalCustomers'] as int? ?? 0;
-    final memberSince = _formatMemberSince(_profileData?['memberSince'] ?? user?['createdAt']);
+    final memberSince = _formatMemberSince(
+      _profileData?['memberSince'] ?? user?['createdAt'],
+    );
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -100,7 +123,11 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Center(
-                        child: Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: AppColors.ink),
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                   ),
@@ -113,7 +140,9 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () => context.push('/business/setup').then((_) => _loadProfile()),
+                    onTap: () => context
+                        .push('/business/setup')
+                        .then((_) => _loadProfile()),
                     child: Container(
                       width: 34,
                       height: 34,
@@ -123,7 +152,11 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Center(
-                        child: Icon(Icons.edit_outlined, size: 16, color: AppColors.ink),
+                        child: Icon(
+                          Icons.edit_outlined,
+                          size: 16,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                   ),
@@ -134,12 +167,17 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
             // Scrollable Content
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.teal))
+                  ? const Center(
+                      child: CircularProgressIndicator(color: AppColors.teal),
+                    )
                   : RefreshIndicator(
                       color: AppColors.teal,
                       onRefresh: _loadProfile,
                       child: ListView(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 8,
+                        ),
                         children: [
                           // Business Header Card
                           Row(
@@ -152,22 +190,29 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                                   borderRadius: BorderRadius.circular(18),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: AppColors.teal.withValues(alpha: 0.35),
+                                      color: AppColors.teal.withValues(
+                                        alpha: 0.35,
+                                      ),
                                       blurRadius: 16,
                                       offset: const Offset(0, 6),
                                     ),
                                   ],
                                 ),
                                 child: Center(
-                                  child: bizLogo != null && bizLogo.startsWith('http')
+                                  child:
+                                      bizLogo != null &&
+                                          bizLogo.startsWith('http')
                                       ? ClipRRect(
-                                          borderRadius: BorderRadius.circular(18),
+                                          borderRadius: BorderRadius.circular(
+                                            18,
+                                          ),
                                           child: Image.network(
                                             bizLogo,
                                             width: 64,
                                             height: 64,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) => _businessInitial(bizName),
+                                            errorBuilder: (_, _, _) =>
+                                                _businessInitial(bizName),
                                           ),
                                         )
                                       : _businessInitial(bizName),
@@ -195,18 +240,36 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    Text('ID: ${user?['publicId'] ?? '—'}', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.tealDark)),
+                                    Text(
+                                      'ID: ${user?['publicId'] ?? '—'}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.tealDark,
+                                      ),
+                                    ),
                                     const SizedBox(height: 6),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: AppColors.coral.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(999),
+                                        color: AppColors.coral.withValues(
+                                          alpha: 0.15,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(Icons.storefront_rounded, color: AppColors.coralDark, size: 12),
+                                          const Icon(
+                                            Icons.storefront_rounded,
+                                            color: AppColors.coralDark,
+                                            size: 12,
+                                          ),
                                           const SizedBox(width: 4),
                                           Text(
                                             'BUSINESS OWNER',
@@ -257,139 +320,181 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                  // Business Account Settings Section
-                  Text(
-                    'Business Account',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.line),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildSettingsRow(
-                          'Edit Business Profile',
-                          'Name, logo, category & address',
-                          Icons.store_outlined,
-                          onTap: () => context.push('/business/setup'),
-                        ),
-                        const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow(
-                          'Customer Loyalty List',
-                          'View punch progress & confirm rewards',
-                          Icons.people_outline_rounded,
-                          onTap: () => context.push('/business/customers'),
-                        ),
-                        const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow(
-                          'Privacy & Security',
-                          'Merchant encryption & data policies',
-                          Icons.shield_outlined,
-                          onTap: () => context.push('/privacy'),
-                        ),
-                        const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow(
-                          'Terms & Conditions',
-                          'Merchant and loyalty service agreement',
-                          Icons.description_outlined,
-                          onTap: () => context.push('/terms'),
-                        ),
-                        const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow(
-                          'Help & Support',
-                          'Contact merchant partner care',
-                          Icons.help_outline_rounded,
-                          onTap: () => SupportSheet.show(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  _buildSettingsRow('Delete profile', 'Permanently delete this business account', Icons.delete_forever_outlined, onTap: _confirmDeleteAccount),
-                  const SizedBox(height: 20),
-
-                  // Business Notification Preferences
-                  Text(
-                    'Merchant Notifications',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.line),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildNotificationToggle(
-                          title: 'New customer joined',
-                          subtitle: 'Alert when a customer adds your loyalty card',
-                          value: _notifyNewCustomer,
-                          onChanged: (v) => setState(() => _notifyNewCustomer = v),
-                        ),
-                        const Divider(height: 1, color: AppColors.line),
-                        _buildNotificationToggle(
-                          title: 'Card completed by customer',
-                          subtitle: 'Alert when a customer reaches reward redemption',
-                          value: _notifyCardCompleted,
-                          onChanged: (v) => setState(() => _notifyCardCompleted = v),
-                        ),
-                        const Divider(height: 1, color: AppColors.line),
-                        _buildNotificationToggle(
-                          title: 'Weekly activity digest',
-                          subtitle: 'Summary email of punches and active members',
-                          value: _weeklySummary,
-                          onChanged: (v) => setState(() => _weeklySummary = v),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Log Out Button
-                  GestureDetector(
-                    onTap: () {
-                      authProvider.logout();
-                      context.go('/login');
-                    },
-                    child: Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.line, width: 1.5),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.logout_rounded, color: AppColors.coralDark, size: 18),
-                          const SizedBox(width: 8),
+                          // Business Account Settings Section
                           Text(
-                            'Log out of Business Account',
+                            'Business Account',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.coralDark,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink,
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.line),
+                            ),
+                            child: Column(
+                              children: [
+                                _buildSettingsRow(
+                                  'Edit Business Profile',
+                                  'Name, logo, category & address',
+                                  Icons.store_outlined,
+                                  onTap: () => context.push('/business/setup'),
+                                ),
+                                const Divider(height: 1, color: AppColors.line),
+                                _buildSettingsRow(
+                                  'Subscription & Billing',
+                                  'Trial status and country pricing',
+                                  Icons.workspace_premium_outlined,
+                                  onTap: () => context.push('/business/subscription'),
+                                ),
+                                const Divider(height: 1, color: AppColors.line),
+                                _buildSettingsRow(
+                                  'Customer Loyalty List',
+                                  'View punch progress & confirm rewards',
+                                  Icons.people_outline_rounded,
+                                  onTap: () =>
+                                      context.push('/business/customers'),
+                                ),
+                                const Divider(height: 1, color: AppColors.line),
+                                _buildSettingsRow(
+                                  'Privacy & Security',
+                                  'Merchant encryption & data policies',
+                                  Icons.shield_outlined,
+                                  onTap: () => context.push('/privacy'),
+                                ),
+                                const Divider(height: 1, color: AppColors.line),
+                                _buildSettingsRow(
+                                  'Terms & Conditions',
+                                  'Merchant and loyalty service agreement',
+                                  Icons.description_outlined,
+                                  onTap: () => context.push('/terms'),
+                                ),
+                                const Divider(height: 1, color: AppColors.line),
+                                _buildSettingsRow(
+                                  'Help & Support',
+                                  'Contact merchant partner care',
+                                  Icons.help_outline_rounded,
+                                  onTap: () => SupportSheet.show(context),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          _buildSettingsRow(
+                            'Delete profile',
+                            'Permanently delete this business account',
+                            Icons.delete_forever_outlined,
+                            onTap: _confirmDeleteAccount,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Business Notification Preferences
+                          Text(
+                            'Merchant Notifications',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.line),
+                            ),
+                            child: Column(
+                              children: [
+                                _buildNotificationToggle(
+                                  title: 'New customer joined',
+                                  subtitle: 'Alert when a customer adds your loyalty card',
+                                  value: _notifyNewCustomer,
+                                  onChanged: (v) =>
+                                      setState(() => _notifyNewCustomer = v),
+                                ),
+                                const Divider(height: 1, color: AppColors.line),
+                                _buildNotificationToggle(
+                                  title: 'Card completed by customer',
+                                  subtitle: 'Alert when a customer reaches reward redemption',
+                                  value: _notifyCardCompleted,
+                                  onChanged: (v) =>
+                                      setState(() => _notifyCardCompleted = v),
+                                ),
+                                const Divider(height: 1, color: AppColors.line),
+                                _buildNotificationToggle(
+                                  title: 'Weekly activity digest',
+                                  subtitle: 'Summary email of punches and active members',
+                                  value: _weeklySummary,
+                                  onChanged: (v) =>
+                                      setState(() => _weeklySummary = v),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Log Out Button
+                          GestureDetector(
+                            onTap: () async {
+                              final loggedOut =
+                                  await PunchyConfirmationDialog.show(
+                                    context,
+                                    title: 'Log out?',
+                                    description:
+                                        'Are you sure you want to log out?',
+                                    confirmLabel: 'Log out',
+                                    destructive: false,
+                                    onConfirm: authProvider.logout,
+                                  );
+                              if (loggedOut && context.mounted) {
+                                context.go('/login');
+                              }
+                            },
+                            child: Container(
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.line,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.logout_rounded,
+                                    color: AppColors.coralDark,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Log out of Business Account',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.coralDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
                         ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -398,10 +503,18 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete profile?'),
-        content: const Text('This permanently deletes your business account and loyalty data.'),
+        content: const Text(
+          'This permanently deletes your business account and loyalty data.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -409,7 +522,28 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     final auth = context.read<AuthProvider>();
     if (!await auth.requestDeleteAccountOtp() || !mounted) return;
     final otpController = TextEditingController();
-    final otp = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(title: const Text('Enter email code'), content: TextField(controller: otpController, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: '6-digit OTP')), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')), ElevatedButton(onPressed: () => Navigator.pop(ctx, otpController.text.trim()), child: const Text('Confirm deletion'))]));
+    final otp = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Enter email code'),
+        content: TextField(
+          controller: otpController,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          decoration: const InputDecoration(labelText: '6-digit OTP'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, otpController.text.trim()),
+            child: const Text('Confirm deletion'),
+          ),
+        ],
+      ),
+    );
     otpController.dispose();
     if (otp == null || otp.isEmpty || !mounted) return;
     final ok = await auth.deleteAccount(otp);
@@ -417,7 +551,9 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       if (ok) {
         context.go('/login');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not delete profile.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete profile.')),
+        );
       }
     }
   }
@@ -437,19 +573,33 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
           const SizedBox(height: 6),
           Text(
             title.toUpperCase(),
-            style: GoogleFonts.plusJakartaSans(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppColors.inkSoft, letterSpacing: 0.3),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.inkSoft,
+              letterSpacing: 0.3,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             value,
-            style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.ink),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSettingsRow(String title, String subtitle, IconData icon, {VoidCallback? onTap}) {
+  Widget _buildSettingsRow(
+    String title,
+    String subtitle,
+    IconData icon, {
+    VoidCallback? onTap,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -490,7 +640,11 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.inkFaint, size: 18),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.inkFaint,
+                size: 18,
+              ),
             ],
           ),
         ),
@@ -515,11 +669,18 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.ink),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                  ),
                 ),
                 Text(
                   subtitle,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.inkSoft),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    color: AppColors.inkSoft,
+                  ),
                 ),
               ],
             ),

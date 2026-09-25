@@ -16,6 +16,7 @@ import notificationsRouter from './routes/notifications';
 import ticketsRouter from './routes/tickets';
 import adminRouter from './routes/admin';
 import businessPortalRouter from './routes/businessPortal';
+import subscriptionsRouter from './routes/subscriptions';
 import { maintenanceGuard } from './middleware/maintenance';
 import prisma from './lib/prisma';
 import { processScheduledNotifications, processDailyCustomerReminders } from './services/scheduledNotificationService';
@@ -64,6 +65,7 @@ const apiRoutes: [string, express.Router][] = [
   ['/notifications', notificationsRouter],
   ['/tickets', ticketsRouter],
   ['/admin', adminRouter],
+  ['/subscriptions', subscriptionsRouter],
 ];
 
 for (const [routePath, router] of apiRoutes) {

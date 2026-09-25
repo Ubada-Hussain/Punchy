@@ -34,7 +34,7 @@ class AuthRepository {
       'role': role,
       if (name != null && name.isNotEmpty) 'name': name,
       if (phone != null && phone.isNotEmpty) 'phone': phone,
-      if (countryCode != null) 'countryCode': countryCode,
+      'countryCode': ?countryCode,
     }),
   );
 

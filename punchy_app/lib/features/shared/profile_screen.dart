@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_confirmation_dialog.dart';
 import '../../core/services/notification_service.dart';
 import '../system_states/support_sheet.dart';
 
@@ -31,7 +33,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.user;
     final email = user?['email']?.toString() ?? '';
-    final name = (user?['name'] != null && user!['name'].toString().trim().isNotEmpty)
+    final name =
+        (user?['name'] != null && user!['name'].toString().trim().isNotEmpty)
         ? user['name'].toString().trim()
         : (email.contains('@') ? email.split('@')[0] : 'User');
     final role = user?['role'] ?? 'CUSTOMER';
@@ -68,7 +71,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Center(
-                        child: Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: AppColors.ink),
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                   ),
@@ -91,7 +98,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Center(
-                        child: Icon(Icons.edit_outlined, size: 16, color: AppColors.ink),
+                        child: Icon(
+                          Icons.edit_outlined,
+                          size: 16,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                   ),
@@ -102,7 +113,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Scrollable Content
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 8,
+                ),
                 children: [
                   // User Profile Card
                   Row(
@@ -153,10 +167,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          Text('ID: ${user?['publicId'] ?? '—'}', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.tealDark)),
+                          Text(
+                            'ID: ${user?['publicId'] ?? '—'}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.tealDark,
+                            ),
+                          ),
                           const SizedBox(height: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceAlt,
                               borderRadius: BorderRadius.circular(999),
@@ -164,10 +188,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.person_outline_rounded, color: AppColors.tealDark, size: 12),
+                                const Icon(
+                                  Icons.person_outline_rounded,
+                                  color: AppColors.tealDark,
+                                  size: 12,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  role == 'BUSINESS' ? 'Business Owner' : 'Customer',
+                                  role == 'BUSINESS'
+                                      ? 'Business Owner'
+                                      : 'Customer',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w800,
@@ -186,7 +216,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // Account Section
                   Text(
                     'Account & Preferences',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Container(
@@ -197,19 +231,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: Column(
                       children: [
-                        _buildSettingsRow('Edit profile', Icons.edit_outlined, onTap: () => context.push('/edit-profile')),
+                        _buildSettingsRow(
+                          'Edit profile',
+                          Icons.edit_outlined,
+                          onTap: () => context.push('/edit-profile'),
+                        ),
                         const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow('My Loyalty Pass (Barcode)', Icons.qr_code_rounded, onTap: () => context.push('/barcode')),
+                        _buildSettingsRow(
+                          'My Loyalty Pass (Barcode)',
+                          Icons.qr_code_rounded,
+                          onTap: () => context.push('/barcode'),
+                        ),
                         const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow('Punch Notifications', Icons.notifications_none_rounded, onTap: () => context.push('/notifications')),
+                        _buildSettingsRow(
+                          'Punch Notifications',
+                          Icons.notifications_none_rounded,
+                          onTap: () => context.push('/notifications'),
+                        ),
                         const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow('Explore Businesses', Icons.explore_outlined, onTap: () => context.push('/explore')),
+                        _buildSettingsRow(
+                          'Explore Businesses',
+                          Icons.explore_outlined,
+                          onTap: () => context.push('/explore'),
+                        ),
                         const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow('Privacy & security', Icons.shield_outlined, onTap: () => context.push('/privacy')),
+                        _buildSettingsRow(
+                          'Privacy & security',
+                          Icons.shield_outlined,
+                          onTap: () => context.push('/privacy'),
+                        ),
                         const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow('Terms & Conditions', Icons.description_outlined, onTap: () => context.push('/terms')),
+                        _buildSettingsRow(
+                          'Terms & Conditions',
+                          Icons.description_outlined,
+                          onTap: () => context.push('/terms'),
+                        ),
                         const Divider(height: 1, color: AppColors.line),
-                        _buildSettingsRow('Help & support', Icons.help_outline_rounded, onTap: () => SupportSheet.show(context)),
+                        _buildSettingsRow(
+                          'Help & support',
+                          Icons.help_outline_rounded,
+                          onTap: () => SupportSheet.show(context),
+                        ),
                       ],
                     ),
                   ),
@@ -218,7 +280,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // Notifications Section
                   Text(
                     'Notifications',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Container(
@@ -230,7 +296,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -239,11 +308,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 children: [
                                   Text(
                                     'Push notifications',
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.ink),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.ink,
+                                    ),
                                   ),
                                   Text(
                                     'Punches, rewards & reminders',
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.inkSoft),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      color: AppColors.inkSoft,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -255,7 +331,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   setState(() => _pushNotifications = v);
                                   await NotificationService().setPushEnabled(v);
                                   try {
-                                    await authProvider.setPushNotificationsEnabled(v);
+                                    await authProvider
+                                        .setPushNotificationsEnabled(v);
                                   } catch (_) {
                                     // Keep the local setting responsive if the API is offline.
                                   }
@@ -266,7 +343,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const Divider(height: 1, color: AppColors.line),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -275,11 +355,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 children: [
                                   Text(
                                     'Email updates',
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.ink),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.ink,
+                                    ),
                                   ),
                                   Text(
                                     'Offers from businesses you follow',
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.inkSoft),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      color: AppColors.inkSoft,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -287,7 +374,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 value: _emailUpdates,
                                 activeTrackColor: AppColors.teal,
                                 activeThumbColor: Colors.white,
-                                onChanged: (v) => setState(() => _emailUpdates = v),
+                                onChanged: (v) =>
+                                    setState(() => _emailUpdates = v),
                               ),
                             ],
                           ),
@@ -297,14 +385,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  _buildSettingsRow('Delete profile', Icons.delete_forever_outlined, onTap: _confirmDeleteAccount),
+                  _buildSettingsRow(
+                    'Delete profile',
+                    Icons.delete_forever_outlined,
+                    onTap: _confirmDeleteAccount,
+                  ),
                   const SizedBox(height: 20),
 
                   // Log Out Button
                   GestureDetector(
-                    onTap: () {
-                      authProvider.logout();
-                      context.go('/login');
+                    onTap: () async {
+                      final loggedOut = await PunchyConfirmationDialog.show(
+                        context,
+                        title: 'Log out?',
+                        description: 'Are you sure you want to log out?',
+                        confirmLabel: 'Log out',
+                        destructive: false,
+                        onConfirm: authProvider.logout,
+                      );
+                      if (loggedOut && context.mounted) {
+                        context.go('/login');
+                      }
                     },
                     child: Container(
                       height: 48,
@@ -316,7 +417,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.logout_rounded, color: AppColors.coralDark, size: 18),
+                          const Icon(
+                            Icons.logout_rounded,
+                            color: AppColors.coralDark,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Log out',
@@ -345,10 +450,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete profile?'),
-        content: const Text('This permanently deletes your account and loyalty data.'),
+        content: const Text(
+          'This permanently deletes your account and loyalty data.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -356,7 +469,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final auth = context.read<AuthProvider>();
     if (!await auth.requestDeleteAccountOtp() || !mounted) return;
     final otpController = TextEditingController();
-    final otp = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(title: const Text('Enter email code'), content: TextField(controller: otpController, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: '6-digit OTP')), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')), ElevatedButton(onPressed: () => Navigator.pop(ctx, otpController.text.trim()), child: const Text('Confirm deletion'))]));
+    final otp = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Enter email code'),
+        content: TextField(
+          controller: otpController,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          decoration: const InputDecoration(labelText: '6-digit OTP'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, otpController.text.trim()),
+            child: const Text('Confirm deletion'),
+          ),
+        ],
+      ),
+    );
     otpController.dispose();
     if (otp == null || otp.isEmpty || !mounted) return;
     final ok = await auth.deleteAccount(otp);
@@ -364,7 +498,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (ok) {
         context.go('/login');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not delete profile.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete profile.')),
+        );
       }
     }
   }
@@ -398,7 +534,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.inkFaint, size: 18),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.inkFaint,
+                size: 18,
+              ),
             ],
           ),
         ),

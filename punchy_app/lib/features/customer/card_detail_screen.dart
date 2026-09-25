@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_confirmation_dialog.dart';
 
 class CardDetailScreen extends StatefulWidget {
   final Map<String, dynamic> cardData;
@@ -82,71 +83,18 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     final cardId = _card['id'];
     if (cardId == null) return;
     final cardInfo = _card['card'] ?? {};
-    final biz = cardInfo['business'] ?? {};
-    final title = biz['name'] ?? cardInfo['title'] ?? 'this loyalty card';
+    final business = cardInfo['business'] ?? {};
+    final title = business['name'] ?? cardInfo['title'] ?? 'this loyalty card';
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Remove Card?',
-          style: GoogleFonts.plusJakartaSans(
-            fontWeight: FontWeight.w800,
-            fontSize: 17,
-            color: AppColors.ink,
-          ),
-        ),
-        content: Text(
-          'Are you sure you want to remove "$title" from your wallet? Your punch progress on this card will be removed.',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            color: AppColors.inkSoft,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.w700,
-                color: AppColors.inkSoft,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.coral,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              elevation: 0,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              'Confirm',
-              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
+    final removed = await PunchyConfirmationDialog.show(
+      context,
+      title: 'Remove Card?',
+      description:
+          'Remove "$title" from your wallet? Your punch progress on this card will be removed.',
+      confirmLabel: 'Remove',
+      onConfirm: () => _api.delete('/customer/cards/$cardId'),
     );
-
-    if (confirmed == true) {
-      try {
-        await _api.delete('/customer/cards/$cardId');
-        if (mounted) {
-          context.pop(true);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to remove card: $e')),
-          );
-        }
-      }
-    }
+    if (removed && mounted) context.pop(true);
   }
 
   @override
@@ -171,7 +119,8 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     final isCompleted =
         _card['isCompleted'] == true || punchCount >= punchesRequired;
     final expiry = DateTime.tryParse((cardInfo['validUntil'] ?? '').toString());
-    final isExpired = _card['isExpired'] == true ||
+    final isExpired =
+        _card['isExpired'] == true ||
         (expiry != null && expiry.isBefore(DateTime.now()));
 
     final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal')
@@ -702,12 +651,19 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.phone_outlined, color: AppColors.tealDark),
+                          const Icon(
+                            Icons.phone_outlined,
+                            color: AppColors.tealDark,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               bizPhone,
-                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.inkSoft, fontWeight: FontWeight.w600),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: AppColors.inkSoft,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           OutlinedButton.icon(

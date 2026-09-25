@@ -142,8 +142,14 @@ router.post('/verify-signup', otpRateLimiter, async (req: Request, res: Response
   const user = await prisma.user.create({ data: { email, publicId: await uniquePublicId(), passwordHash: pending.passwordHash, role: pending.role, name: pending.name || email.split('@')[0], phone: pending.phone, countryCode: pending.countryCode || 'PK' }, select: { id: true, publicId: true, email: true, name: true, role: true, phone: true, countryCode: true, createdAt: true } });
   if (user.role === 'BUSINESS') {
     const countryCode = pending.countryCode || 'PK';
-    await prisma.businessProfile.create({
+    const business = await prisma.businessProfile.create({
       data: { userId: user.id, name: pending.name || 'My Business', category: 'Cafe & Retail', status: 'APPROVED', countryCode, currencyCode: currencyForCountry(countryCode) },
+    });
+    const trialStart = new Date();
+    const trialEnd = new Date(trialStart);
+    trialEnd.setMonth(trialEnd.getMonth() + 2);
+    await prisma.businessSubscription.create({
+      data: { businessId: business.id, status: 'TRIALING', plan: 'TRIAL', price: 0, currency: business.currencyCode, startDate: trialStart, endDate: trialEnd, trialStart, trialEnd },
     });
   }
   const tokenPayload = { userId: user.id, email: user.email, role: user.role };

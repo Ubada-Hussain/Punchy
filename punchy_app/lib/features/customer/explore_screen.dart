@@ -26,6 +26,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   bool _isLoading = true;
   bool _locationUnavailable = false;
   String _selectedCategory = 'All';
+  String _selectedLocationScope = 'nearby';
+  final Set<String> _joiningCardIds = {};
 
   final List<String> _categories = [
     'All',
@@ -63,15 +65,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
       final params = <String, String>{
         'search': _searchController.text.trim(),
         'category': categoryParam,
+        'scope': _selectedLocationScope,
         if (position != null) 'lat': position.latitude.toString(),
         if (position != null) 'lng': position.longitude.toString(),
       };
       final query = '?${Uri(queryParameters: params).query}';
 
       final res = await _api.get('/customer/explore$query');
-      if (res is List && mounted) {
+      if (res is Map && res['businesses'] is List && mounted) {
         setState(() {
-          _businesses = res;
+          _businesses = res['businesses'] as List;
+          _locationUnavailable = res['locationAvailable'] != true;
           _isLoading = false;
         });
         return;
@@ -111,6 +115,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Future<void> _addCardToWallet(String cardId, String businessName) async {
+    if (_joiningCardIds.contains(cardId)) return;
+    setState(() => _joiningCardIds.add(cardId));
     try {
       final res = await _api.post('/customer/cards/join', {'cardId': cardId});
       final msg =
@@ -164,6 +170,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _joiningCardIds.remove(cardId));
     }
   }
 
@@ -352,7 +360,55 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
             ),
 
-            // Business & Cards List
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: SizedBox(
+                height: 40,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: 3,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    const scopes = <({String key, String label})>[
+                      (key: 'nearby', label: 'Nearby'),
+                      (key: 'city', label: 'In Your City'),
+                      (key: 'country', label: 'In Your Country'),
+                    ];
+                    final scope = scopes[index];
+                    final isSelected = _selectedLocationScope == scope.key;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _selectedLocationScope = scope.key);
+                        _fetchBusinesses();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.ink : AppColors.surface,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: isSelected ? AppColors.ink : AppColors.line,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            scope.label,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AppColors.inkSoft,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              // Business & Cards List
+            ),
             Expanded(
               child: _isLoading
                   ? const Center(
@@ -540,7 +596,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 SizedBox(
                   width: 82,
                   child: ElevatedButton(
-                    onPressed: card == null
+                    onPressed:
+                        card == null ||
+                            _joiningCardIds.contains(card['id'].toString())
                         ? null
                         : () => _addCardToWallet(
                             card['id'],
@@ -555,9 +613,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: const Text(
-                      'Join Card',
-                      style: TextStyle(
+                    child: Text(
+                      _joiningCardIds.contains(card?['id'].toString())
+                          ? '...'
+                          : 'Join Card',
+                      style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
                       ),

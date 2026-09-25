@@ -16,6 +16,11 @@ class NetworkException implements Exception {
 }
 
 class ApiClient {
+  /// Requests that change server state are coalesced while they are in flight.
+  /// This is a last line of defence for rapid taps from separate controls that
+  /// initiate the exact same action.
+  static final Map<String, Future<dynamic>> _pendingMutations = {};
+
   ApiClient({
     http.Client? client,
     String? baseUrl,
@@ -39,7 +44,9 @@ class ApiClient {
     try {
       return await call();
     } on SocketException catch (_) {
-      throw const NetworkException('Unable to connect. Please check your internet connection.');
+      throw const NetworkException(
+        'Unable to connect. Please check your internet connection.',
+      );
     } on http.ClientException catch (e) {
       throw NetworkException('Network error: ${e.message}');
     } on TimeoutException catch (_) {
@@ -56,67 +63,113 @@ class ApiClient {
   }
 
   Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
-    return _execute(() async {
-      final response = await _client
-          .post(
-            _uri(endpoint),
-            headers: await _getHeaders(),
-            body: jsonEncode(body),
-          )
-          .timeout(timeout);
-      return _handleResponse(response);
-    });
+    return _runMutation(
+      'POST',
+      endpoint,
+      body,
+      () => _execute(() async {
+        final response = await _client
+            .post(
+              _uri(endpoint),
+              headers: await _getHeaders(),
+              body: jsonEncode(body),
+            )
+            .timeout(timeout);
+        return _handleResponse(response);
+      }),
+    );
   }
 
   Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
-    return _execute(() async {
-      final response = await _client
-          .put(
-            _uri(endpoint),
-            headers: await _getHeaders(),
-            body: jsonEncode(body),
-          )
-          .timeout(timeout);
-      return _handleResponse(response);
-    });
+    return _runMutation(
+      'PUT',
+      endpoint,
+      body,
+      () => _execute(() async {
+        final response = await _client
+            .put(
+              _uri(endpoint),
+              headers: await _getHeaders(),
+              body: jsonEncode(body),
+            )
+            .timeout(timeout);
+        return _handleResponse(response);
+      }),
+    );
   }
 
   Future<dynamic> patch(String endpoint, Map<String, dynamic> body) async {
-    return _execute(() async {
-      final response = await _client
-          .patch(
-            _uri(endpoint),
-            headers: await _getHeaders(),
-            body: jsonEncode(body),
-          )
-          .timeout(timeout);
-      return _handleResponse(response);
-    });
+    return _runMutation(
+      'PATCH',
+      endpoint,
+      body,
+      () => _execute(() async {
+        final response = await _client
+            .patch(
+              _uri(endpoint),
+              headers: await _getHeaders(),
+              body: jsonEncode(body),
+            )
+            .timeout(timeout);
+        return _handleResponse(response);
+      }),
+    );
   }
 
   Future<dynamic> delete(String endpoint) async {
-    return _execute(() async {
-      final response = await _client
-          .delete(_uri(endpoint), headers: await _getHeaders())
-          .timeout(timeout);
-      return _handleResponse(response);
-    });
+    return _runMutation(
+      'DELETE',
+      endpoint,
+      null,
+      () => _execute(() async {
+        final response = await _client
+            .delete(_uri(endpoint), headers: await _getHeaders())
+            .timeout(timeout);
+        return _handleResponse(response);
+      }),
+    );
   }
 
   Future<dynamic> deleteWithBody(
     String endpoint,
     Map<String, dynamic> body,
   ) async {
-    return _execute(() async {
-      final response = await _client
-          .delete(
-            _uri(endpoint),
-            headers: await _getHeaders(),
-            body: jsonEncode(body),
-          )
-          .timeout(timeout);
-      return _handleResponse(response);
+    return _runMutation(
+      'DELETE',
+      endpoint,
+      body,
+      () => _execute(() async {
+        final response = await _client
+            .delete(
+              _uri(endpoint),
+              headers: await _getHeaders(),
+              body: jsonEncode(body),
+            )
+            .timeout(timeout);
+        return _handleResponse(response);
+      }),
+    );
+  }
+
+  Future<dynamic> _runMutation(
+    String method,
+    String endpoint,
+    Map<String, dynamic>? body,
+    Future<dynamic> Function() request,
+  ) {
+    final key =
+        '$baseUrl|$method|$endpoint|${body == null ? '' : jsonEncode(body)}';
+    final pending = _pendingMutations[key];
+    if (pending != null) return pending;
+
+    late final Future<dynamic> operation;
+    operation = request().whenComplete(() {
+      if (identical(_pendingMutations[key], operation)) {
+        _pendingMutations.remove(key);
+      }
     });
+    _pendingMutations[key] = operation;
+    return operation;
   }
 
   Future<dynamic> get(String endpoint) async {

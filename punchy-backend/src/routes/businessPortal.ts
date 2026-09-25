@@ -10,7 +10,7 @@ import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { sendNotification } from '../lib/notifications';
 import { notifyPunchEarned, notifyProgressMilestone } from '../lib/automatedNotifications';
-import { currencyForCountry, geocodeAddress, normalizeBusinessPhone } from '../lib/international';
+import { currencyForCountry, geocodeAddress, isSupportedCountry, normalizeBusinessPhone } from '../lib/international';
 
 const router = Router();
 const logoUpload = multer({
@@ -361,11 +361,17 @@ router.post('/setup', requireAuth, requireRole('BUSINESS'), async (req: Request,
     where: { id: req.user!.userId },
     select: { countryCode: true },
   });
-  const countryCode = owner?.countryCode?.toUpperCase() || 'PK';
+  const countryCode = owner?.countryCode?.toUpperCase();
+  if (!isSupportedCountry(countryCode)) {
+    res.status(400).json({ error: 'Select a valid business country before saving your profile.' });
+    return;
+  }
   const normalizedPhone = normalizeBusinessPhone(phone, countryCode);
   if (!normalizedPhone) { res.status(400).json({ error: 'Enter a valid phone number for the selected country.' }); return; }
   const geocoded = address ? await geocodeAddress(address) : null;
-  const currencyCode = currencyForCountry(countryCode);
+  // Currency always follows the registered business country, never an address or customer location.
+  const businessCountryCode = countryCode;
+  const currencyCode = currencyForCountry(businessCountryCode);
 
   if (phone) {
     await prisma.user.update({
@@ -382,9 +388,10 @@ router.post('/setup', requireAuth, requireRole('BUSINESS'), async (req: Request,
       description,
       website,
       logo,
-      locations: address ? [{ address }] : [],
+      locations: address ? [{ address, city: geocoded?.city, countryCode: businessCountryCode }] : [],
       ...(geocoded ? { location: geocoded.point } : {}),
-      countryCode,
+      ...(geocoded?.city ? { city: geocoded.city } : {}),
+      countryCode: businessCountryCode,
       currencyCode,
       status: 'APPROVED',
     },
@@ -395,9 +402,10 @@ router.post('/setup', requireAuth, requireRole('BUSINESS'), async (req: Request,
       description,
       website,
       logo,
-      locations: address ? [{ address }] : [],
+      locations: address ? [{ address, city: geocoded?.city, countryCode: businessCountryCode }] : [],
       ...(geocoded ? { location: geocoded.point } : {}),
-      countryCode,
+      city: geocoded?.city || null,
+      countryCode: businessCountryCode,
       currencyCode,
       status: 'APPROVED',
     },
@@ -464,15 +472,17 @@ router.get('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request, 
 router.post('/cards', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
   let business = await prisma.businessProfile.findUnique({ where: { userId: req.user!.userId } });
   if (!business) {
-    business = await prisma.businessProfile.create({
-      data: {
-        userId: req.user!.userId,
-        name: 'My Business',
-        category: 'Cafe & Retail',
-        status: 'APPROVED',
-      },
-    });
+    res.status(400).json({ error: 'Complete business setup and select a valid country before creating a card.' });
+    return;
   }
+  if (!isSupportedCountry(business.countryCode)) {
+    res.status(400).json({ error: 'Select a valid business country before creating a card.' });
+    return;
+  }
+  business = await prisma.businessProfile.update({
+    where: { id: business.id },
+    data: { currencyCode: currencyForCountry(business.countryCode) },
+  });
 
   // Enforce Single Active Card rule: Business can only hold 1 active card
   const existingCard = await prisma.loyaltyCard.findFirst({
@@ -537,8 +547,9 @@ router.get('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
 router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Request, res: Response): Promise<void> => {
   const existing = await prisma.loyaltyCard.findUnique({ where: { id: String(req.params.id) } });
   if (!existing) { res.status(404).json({ error: 'Card not found' }); return; }
-  const owner = await prisma.businessProfile.findFirst({ where: { id: existing.businessId, userId: req.user!.userId }, select: { id: true, currencyCode: true } });
+  const owner = await prisma.businessProfile.findFirst({ where: { id: existing.businessId, userId: req.user!.userId }, select: { id: true, countryCode: true, currencyCode: true } });
   if (!owner) { res.status(403).json({ error: 'Forbidden' }); return; }
+  if (!isSupportedCountry(owner.countryCode)) { res.status(400).json({ error: 'Select a valid business country before updating a card.' }); return; }
   const parsed = CardSchema.partial().safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
@@ -561,7 +572,7 @@ router.put('/cards/:id', requireAuth, requireRole('BUSINESS'), async (req: Reque
       rewardDescription: parsed.data.rewardDescription,
       ...(parsed.data.visualStyle !== undefined ? { visualStyle: parsed.data.visualStyle as any } : {}),
       ...(parsed.data.pricePerPunch !== undefined ? { pricePerPunch: parsed.data.pricePerPunch } : {}),
-      currency: owner.currencyCode,
+      currency: currencyForCountry(owner.countryCode),
       ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
       ...(parsed.data.validUntil !== undefined
         ? { validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null }

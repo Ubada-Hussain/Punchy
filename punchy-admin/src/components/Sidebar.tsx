@@ -78,6 +78,8 @@ const NAV = [
   { href: '/businesses',    label: 'Businesses',     icon: 'store'    },
   { href: '/customers',     label: 'Customers',      icon: 'users'    },
   { href: '/analytics',     label: 'Analytics',      icon: 'chart'    },
+  { href: '/subscription-pricing', label: 'Subscription Pricing', icon: 'settings' },
+  { href: '/business-subscriptions', label: 'Business Subscriptions', icon: 'store' },
   { href: '/nfc-qr',        label: 'NFC & QR',       icon: 'nfc'      },
   { href: '/notifications', label: 'Notifications',  icon: 'bell'     },
   { href: '/support',       label: 'Support',        icon: 'ticket'   },

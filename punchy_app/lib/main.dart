@@ -20,6 +20,7 @@ import 'features/business/business_profile_screen.dart';
 import 'features/business/business_scanner_screen.dart';
 import 'features/business/business_staff_screen.dart';
 import 'features/business/business_notification_screen.dart';
+import 'features/business/subscription_screen.dart';
 import 'features/staff/staff_portal_screen.dart';
 import 'features/admin/admin_dashboard_screen.dart';
 import 'features/admin/admin_businesses_screen.dart';
@@ -263,6 +264,10 @@ class _PunchyAppState extends State<PunchyApp> {
           builder: (context, state) => const CustomerListScreen(),
         ),
         GoRoute(
+          path: '/business/subscription',
+          builder: (context, state) => const SubscriptionScreen(),
+        ),
+        GoRoute(
           path: '/business/profile',
           builder: (context, state) => const BusinessProfileScreen(),
         ),
@@ -316,9 +321,8 @@ class _PunchyAppState extends State<PunchyApp> {
         ),
         GoRoute(
           path: '/offline',
-          builder: (context, state) => OfflineScreen(
-            onRetry: authProvider.retryConnection,
-          ),
+          builder: (context, state) =>
+              OfflineScreen(onRetry: authProvider.retryConnection),
         ),
         GoRoute(
           path: '/server-error',

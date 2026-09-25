@@ -47,15 +47,17 @@ class ExploreBusinessDetailScreen extends StatelessWidget {
     if (card == null) return;
     try {
       await ApiClient().post('/customer/cards/join', {'cardId': card!['id']});
-      if (context.mounted)
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Card added to your wallet.')),
         );
+      }
     } catch (_) {
-      if (context.mounted)
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not add this card.')),
         );
+      }
     }
   }
 

@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -76,7 +74,8 @@ void main() {
       };
 
       // Real profile name field is used
-      final displayName = (user['name'] != null && user['name'].toString().trim().isNotEmpty)
+      final displayName =
+          (user['name'] != null && user['name'].toString().trim().isNotEmpty)
           ? user['name'].toString().trim()
           : (user['email'] ?? 'Valued Customer');
 
@@ -91,7 +90,9 @@ void main() {
         'email': 'john.doe@example.com',
       };
 
-      final displayName = (userWithoutName['name'] != null && userWithoutName['name'].toString().trim().isNotEmpty)
+      final displayName =
+          (userWithoutName['name'] != null &&
+              userWithoutName['name'].toString().trim().isNotEmpty)
           ? userWithoutName['name'].toString().trim()
           : (userWithoutName['email'] ?? 'Valued Customer');
 

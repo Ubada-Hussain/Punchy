@@ -30,6 +30,8 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   bool _useNFC = false;
   bool _isSaving = false;
   bool _isDeleting = false;
+  bool _isLoadingBusinessCurrency = true;
+  String? _currencyError;
   DateTime _validUntil = DateTime.now().add(const Duration(days: 365));
 
   String get _currencySymbol =>
@@ -113,29 +115,46 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
     } else {
       _nameController.text = 'Coffee Lovers Card';
       _rewardController.text = '1 Free Coffee';
-      _loadBusinessCurrency();
     }
+    _loadBusinessCurrency();
   }
 
   Future<void> _loadBusinessCurrency() async {
     try {
       final profile = await _api.get('/business/profile');
       String? currency;
+      String? countryCode;
       if (profile is Map && profile['business'] is Map) {
+        countryCode = profile['business']['countryCode']
+            ?.toString()
+            .toUpperCase();
         currency = profile['business']['currencyCode']
             ?.toString()
             .toUpperCase();
       }
-      if (currency != null && currency.isNotEmpty && mounted) {
+      if (currency != null &&
+          currency.isNotEmpty &&
+          countryCode != null &&
+          countryCode.length == 2 &&
+          mounted) {
         final selectedCurrency = currency;
         setState(() {
           if (!_currencies.contains(selectedCurrency)) {
             _currencies.add(selectedCurrency);
           }
           _selectedCurrency = selectedCurrency;
+          _currencyError = null;
+          _isLoadingBusinessCurrency = false;
         });
       }
     } catch (_) {}
+    if (mounted && _isLoadingBusinessCurrency) {
+      setState(() {
+        _isLoadingBusinessCurrency = false;
+        _currencyError =
+            'Select a valid business country before saving this card.';
+      });
+    }
   }
 
   String _formatDate(DateTime dt) {
@@ -197,6 +216,14 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   }
 
   Future<void> _saveCard() async {
+    if (_isLoadingBusinessCurrency || _currencyError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_currencyError ?? 'Checking your business country…'),
+        ),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     final theme = _colorNames[_selectedColorIndex];
     final priceVal = double.tryParse(_priceController.text.trim()) ?? 350.0;
@@ -610,8 +637,9 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                       children: [
                         GestureDetector(
                           onTap: () {
-                            if (_punchesRequired > 2)
+                            if (_punchesRequired > 2) {
                               setState(() => _punchesRequired--);
+                            }
                           },
                           child: Container(
                             width: 32,
@@ -642,8 +670,9 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                         ),
                         GestureDetector(
                           onTap: () {
-                            if (_punchesRequired < 20)
+                            if (_punchesRequired < 20) {
                               setState(() => _punchesRequired++);
+                            }
                           },
                           child: Container(
                             width: 32,
@@ -770,13 +799,26 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                         // Currency is determined by the business signup country.
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(
-                            '$_currencySymbol $_selectedCurrency',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.ink,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '$_currencySymbol ',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                              Text(
+                                _selectedCurrency,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         Container(width: 1, height: 32, color: AppColors.line),

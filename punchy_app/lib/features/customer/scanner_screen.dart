@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/hardware_scanner_service.dart';
@@ -14,7 +15,8 @@ class ScannerScreen extends StatefulWidget {
   State<ScannerScreen> createState() => _ScannerScreenState();
 }
 
-class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProviderStateMixin {
+class _ScannerScreenState extends State<ScannerScreen>
+    with SingleTickerProviderStateMixin {
   final ApiClient _api = ApiClient();
   final MobileScannerController _scannerController = MobileScannerController();
 
@@ -58,7 +60,10 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: AppColors.ink,
-              content: Text(err, style: GoogleFonts.plusJakartaSans(color: Colors.white)),
+              content: Text(
+                err,
+                style: GoogleFonts.plusJakartaSans(color: Colors.white),
+              ),
             ),
           );
         }
@@ -86,15 +91,24 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
           SnackBar(
             backgroundColor: AppColors.ink,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             content: Row(
               children: [
-                const Icon(Icons.check_circle_rounded, color: AppColors.teal, size: 22),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppColors.teal,
+                  size: 22,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     msg,
-                    style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -105,22 +119,32 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
       }
     } catch (e) {
       if (mounted) {
-        final errorMsg = e.toString().contains('expired') || e.toString().contains('EXPIRED')
+        final errorMsg =
+            e.toString().contains('expired') || e.toString().contains('EXPIRED')
             ? 'This loyalty card has expired.'
             : 'Could not record punch. Please check your connection.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppColors.coral,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             content: Row(
               children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 22),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     errorMsg,
-                    style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -164,7 +188,11 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Center(
-                        child: Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: Colors.white),
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -206,7 +234,9 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _modeIndex == 0 ? _buildQRViewfinder() : _buildNFCPulse(),
+                child: _modeIndex == 0
+                    ? _buildQRViewfinder()
+                    : _buildNFCPulse(),
               ),
             ),
             const SizedBox(height: 16),
@@ -214,7 +244,7 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
             // Subtitle Guidance
             Text(
               _modeIndex == 0
-                  ? 'Point camera at store QR code or tap simulate'
+                  ? 'Point camera at the store QR code'
                   : 'Hold phone near the counter NFC reader',
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
@@ -267,10 +297,26 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
             ),
 
           // Corner Brackets (Gold)
-          Positioned(top: 24, left: 24, child: _buildCorner(isTop: true, isLeft: true)),
-          Positioned(top: 24, right: 24, child: _buildCorner(isTop: true, isLeft: false)),
-          Positioned(bottom: 24, left: 24, child: _buildCorner(isTop: false, isLeft: true)),
-          Positioned(bottom: 24, right: 24, child: _buildCorner(isTop: false, isLeft: false)),
+          Positioned(
+            top: 24,
+            left: 24,
+            child: _buildCorner(isTop: true, isLeft: true),
+          ),
+          Positioned(
+            top: 24,
+            right: 24,
+            child: _buildCorner(isTop: true, isLeft: false),
+          ),
+          Positioned(
+            bottom: 24,
+            left: 24,
+            child: _buildCorner(isTop: false, isLeft: true),
+          ),
+          Positioned(
+            bottom: 24,
+            right: 24,
+            child: _buildCorner(isTop: false, isLeft: false),
+          ),
 
           // Animated Gold Laser Line
           AnimatedBuilder(
@@ -306,16 +352,26 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
       height: 26,
       decoration: BoxDecoration(
         border: Border(
-          top: isTop ? const BorderSide(color: AppColors.gold, width: 3) : BorderSide.none,
-          bottom: !isTop ? const BorderSide(color: AppColors.gold, width: 3) : BorderSide.none,
-          left: isLeft ? const BorderSide(color: AppColors.gold, width: 3) : BorderSide.none,
-          right: !isLeft ? const BorderSide(color: AppColors.gold, width: 3) : BorderSide.none,
+          top: isTop
+              ? const BorderSide(color: AppColors.gold, width: 3)
+              : BorderSide.none,
+          bottom: !isTop
+              ? const BorderSide(color: AppColors.gold, width: 3)
+              : BorderSide.none,
+          left: isLeft
+              ? const BorderSide(color: AppColors.gold, width: 3)
+              : BorderSide.none,
+          right: !isLeft
+              ? const BorderSide(color: AppColors.gold, width: 3)
+              : BorderSide.none,
         ),
         borderRadius: BorderRadius.only(
           topLeft: isTop && isLeft ? const Radius.circular(8) : Radius.zero,
           topRight: isTop && !isLeft ? const Radius.circular(8) : Radius.zero,
           bottomLeft: !isTop && isLeft ? const Radius.circular(8) : Radius.zero,
-          bottomRight: !isTop && !isLeft ? const Radius.circular(8) : Radius.zero,
+          bottomRight: !isTop && !isLeft
+              ? const Radius.circular(8)
+              : Radius.zero,
         ),
       ),
     );
@@ -331,7 +387,10 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
             height: 140,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.purple.withValues(alpha: 0.25), width: 2),
+              border: Border.all(
+                color: AppColors.purple.withValues(alpha: 0.25),
+                width: 2,
+              ),
             ),
           ),
           Container(
@@ -339,7 +398,10 @@ class _ScannerScreenState extends State<ScannerScreen> with SingleTickerProvider
             height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.purple.withValues(alpha: 0.45), width: 2),
+              border: Border.all(
+                color: AppColors.purple.withValues(alpha: 0.45),
+                width: 2,
+              ),
             ),
           ),
           Container(

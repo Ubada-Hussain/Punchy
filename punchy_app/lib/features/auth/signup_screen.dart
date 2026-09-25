@@ -26,6 +26,7 @@ class _SignupScreenState extends State<SignupScreen> {
   int _roleIndex = 0; // 0 = Customer, 1 = Business
   String _countryCode = 'PK';
   String _countryName = 'Pakistan';
+  String _countryFlag = '🇵🇰';
   String _dialCode = '+92';
 
   void _handleSignup() async {
@@ -257,6 +258,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       onSelect: (country) => setState(() {
                         _countryCode = country.countryCode;
                         _countryName = country.name;
+                        _countryFlag = country.flagEmoji;
                         _dialCode = '+${country.phoneCode}';
                       }),
                     ),
@@ -265,7 +267,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         prefixIcon: Icon(Icons.public_outlined, size: 18),
                       ),
                       child: Text(
-                        '$_countryName ($_dialCode)',
+                        '$_countryFlag $_countryName ($_countryCode)',
                         style: GoogleFonts.plusJakartaSans(
                           fontWeight: FontWeight.w600,
                         ),
@@ -341,8 +343,9 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ),
                     validator: (val) {
-                      if (val == null || val.isEmpty)
+                      if (val == null || val.isEmpty) {
                         return 'Please enter a password';
+                      }
                       return PasswordPolicy.isValid(val)
                           ? null
                           : PasswordPolicy.message;
