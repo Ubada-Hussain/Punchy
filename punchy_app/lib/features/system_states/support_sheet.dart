@@ -1,8 +1,11 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/theme/app_colors.dart';
-import '../../core/api/api_client.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../../core/api/api_client.dart';
+import '../../core/theme/app_colors.dart';
 
 class SupportSheet extends StatefulWidget {
   const SupportSheet({super.key});
@@ -23,41 +26,23 @@ class SupportSheet extends StatefulWidget {
 }
 
 class _SupportSheetState extends State<SupportSheet> {
-  final _subject = TextEditingController();
-  final _body = TextEditingController();
-  bool _sending = false;
-
-  @override
-  void dispose() { _subject.dispose(); _body.dispose(); super.dispose(); }
-
-  Future<void> _openChat() async {
-    final subject = _subject.text.trim();
-    final body = _body.text.trim();
-    if (subject.length < 5 || body.length < 10) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a subject and describe your issue.')));
-      return;
-    }
-    setState(() => _sending = true);
-    try {
-      await ApiClient().post('/tickets', {'subject': subject, 'body': body});
-      if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Support request submitted. An agent will respond soon.')));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Could not submit support request.')));
-    } finally { if (mounted) setState(() => _sending = false); }
-  }
-
   Future<void> _showChatForm() async {
-    await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
-      title: const Text('Submit Complaint'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: _subject, decoration: const InputDecoration(labelText: 'Subject')),
-        TextField(controller: _body, maxLines: 4, decoration: const InputDecoration(labelText: 'Describe your issue')),
-      ]),
-      actions: [TextButton(onPressed: _sending ? null : () => Navigator.pop(dialogContext), child: const Text('Cancel')), ElevatedButton(onPressed: _sending ? null : _openChat, child: Text(_sending ? 'Sending…' : 'Send'))],
-    ));
+    final submitted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _ComplaintDialog(),
+    );
+    if (submitted == true && mounted) {
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Support request submitted. An agent will respond soon.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _openEmailSupport() async {
@@ -66,8 +51,13 @@ class _SupportSheetState extends State<SupportSheet> {
       path: 'support.punchy@gmail.com',
       queryParameters: {'subject': 'Punchy Support Request'},
     );
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No email app is available on this device.')));
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No email app is available on this device.'),
+        ),
+      );
     }
   }
 
@@ -92,7 +82,11 @@ class _SupportSheetState extends State<SupportSheet> {
                         color: AppColors.surfaceAlt,
                         borderRadius: BorderRadius.circular(11),
                       ),
-                      child: const Icon(Icons.help_outline_rounded, size: 18, color: AppColors.tealDark),
+                      child: const Icon(
+                        Icons.help_outline_rounded,
+                        size: 18,
+                        color: AppColors.tealDark,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Text(
@@ -106,7 +100,11 @@ class _SupportSheetState extends State<SupportSheet> {
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.inkSoft),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 20,
+                    color: AppColors.inkSoft,
+                  ),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -121,8 +119,6 @@ class _SupportSheetState extends State<SupportSheet> {
               ),
             ),
             const SizedBox(height: 14),
-
-            // Options
             _buildOption(
               icon: Icons.mail_outline_rounded,
               title: 'Email Support',
@@ -134,14 +130,14 @@ class _SupportSheetState extends State<SupportSheet> {
               icon: Icons.chat_bubble_outline_rounded,
               title: 'Submit Complaint',
               subtitle: 'Send an issue to the Punchy support team',
-              onTap: () { _showChatForm(); },
+              onTap: _showChatForm,
             ),
             const SizedBox(height: 10),
             _buildOption(
               icon: Icons.article_outlined,
               title: 'Help Center & FAQs',
               subtitle: 'Troubleshooting guides and policies',
-              onTap: () => _showFaqs(),
+              onTap: _showFaqs,
             ),
             const SizedBox(height: 16),
           ],
@@ -151,20 +147,54 @@ class _SupportSheetState extends State<SupportSheet> {
   }
 
   void _showFaqs() {
-    showDialog<void>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Help Center & FAQs'),
-      content: const SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('How do I earn a punch?', style: TextStyle(fontWeight: FontWeight.w800)),
-        Text('Show your Punchy barcode to a participating business or use an enabled NFC tap.'),
-        SizedBox(height: 12), Text('Why is my punch blocked?', style: TextStyle(fontWeight: FontWeight.w800)),
-        Text('A three-minute cooldown prevents duplicate punches for the same customer and card.'),
-        SizedBox(height: 12), Text('How do I delete my account?', style: TextStyle(fontWeight: FontWeight.w800)),
-        Text('Open Profile, choose Delete profile, then confirm using the code sent to your email.'),
-        SizedBox(height: 12), Text('How can I contact support?', style: TextStyle(fontWeight: FontWeight.w800)),
-        Text('Use Submit Complaint or email support.punchy@gmail.com.'),
-      ])),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
-    ));
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Help Center & FAQs'),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'How do I earn a punch?',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              Text(
+                'Show your Punchy barcode to a participating business or use an enabled NFC tap.',
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Why is my punch blocked?',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              Text(
+                'A three-minute cooldown prevents duplicate punches for the same customer and card.',
+              ),
+              SizedBox(height: 12),
+              Text(
+                'How do I delete my account?',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              Text(
+                'Open Profile, choose Delete profile, then confirm using the code sent to your email.',
+              ),
+              SizedBox(height: 12),
+              Text(
+                'How can I contact support?',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              Text('Use Submit Complaint or email support.punchy@gmail.com.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildOption({
@@ -220,11 +250,129 @@ class _SupportSheetState extends State<SupportSheet> {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: AppColors.inkFaint, size: 18),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.inkFaint,
+                  size: 18,
+                ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ComplaintDialog extends StatefulWidget {
+  const _ComplaintDialog();
+
+  @override
+  State<_ComplaintDialog> createState() => _ComplaintDialogState();
+}
+
+class _ComplaintDialogState extends State<_ComplaintDialog> {
+  static final Random _random = Random.secure();
+  final _subject = TextEditingController();
+  final _body = TextEditingController();
+  final ApiClient _api = ApiClient();
+  late final String _clientRequestId =
+      '${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(1 << 32)}';
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _subject.dispose();
+    _body.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_sending) return;
+    final subject = _subject.text.trim();
+    final body = _body.text.trim();
+    if (subject.length < 5 || body.length < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a subject and describe your issue.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _sending = true);
+    try {
+      await _api.post('/tickets', {
+        'subject': subject,
+        'body': body,
+        'clientRequestId': _clientRequestId,
+      });
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is ApiException
+                  ? error.message
+                  : 'Could not submit support request.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_sending,
+      child: AlertDialog(
+        title: const Text('Submit Complaint'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _subject,
+              enabled: !_sending,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Subject'),
+            ),
+            TextField(
+              controller: _body,
+              enabled: !_sending,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Describe your issue',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: _sending ? null : () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: _sending ? null : _submit,
+            child: _sending
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Sending…'),
+                    ],
+                  )
+                : const Text('Send'),
+          ),
+        ],
       ),
     );
   }

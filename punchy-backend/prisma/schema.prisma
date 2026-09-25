@@ -283,6 +283,7 @@ model SupportTicket {
   author     User         @relation("TicketAuthor", fields: [authorId], references: [id])
   subject    String
   body       String
+  dedupeKey  String       @unique @default(cuid())
   status     TicketStatus @default(OPEN)
   resolvedBy String?      @db.ObjectId
   resolver   User?        @relation("TicketResolver", fields: [resolvedBy], references: [id])

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
@@ -7,25 +9,50 @@ import { parsePagination } from '../lib/pagination';
 const router = Router();
 
 const TicketSchema = z.object({
-  subject: z.string().min(5),
-  body: z.string().min(10),
+  subject: z.string().trim().min(5).max(160),
+  body: z.string().trim().min(10).max(5000),
+  clientRequestId: z.string().trim().min(8).max(128).optional(),
 });
+
+export function supportTicketDedupeKey(
+  authorId: string,
+  subject: string,
+  body: string,
+  clientRequestId?: string,
+  now = Date.now(),
+): string {
+  const requestIdentity = clientRequestId
+    ? `client:${clientRequestId}`
+    : `minute:${Math.floor(now / 60_000)}:${subject.toLowerCase()}:${body}`;
+  return createHash('sha256')
+    .update(`${authorId}\u0000${requestIdentity}`)
+    .digest('hex');
+}
 
 // POST /tickets
 router.post('/', requireAuthAllowSuspended, async (req: Request, res: Response): Promise<void> => {
   const parsed = TicketSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
-  const recentDuplicate = await prisma.supportTicket.findFirst({
-    where: { authorId: req.user!.userId, subject: parsed.data.subject, body: parsed.data.body, createdAt: { gte: new Date(Date.now() - 60_000) } },
-    orderBy: { createdAt: 'desc' },
-  });
-  if (recentDuplicate) { res.status(200).json(recentDuplicate); return; }
+  const { clientRequestId, subject, body } = parsed.data;
+  const dedupeKey = supportTicketDedupeKey(req.user!.userId, subject, body, clientRequestId);
+  const existing = await prisma.supportTicket.findUnique({ where: { dedupeKey } });
+  if (existing) { res.status(200).json(existing); return; }
 
-  const ticket = await prisma.supportTicket.create({
-    data: { authorId: req.user!.userId, ...parsed.data },
-  });
-  res.status(201).json(ticket);
+  try {
+    const ticket = await prisma.supportTicket.create({
+      data: { authorId: req.user!.userId, subject, body, dedupeKey },
+    });
+    res.status(201).json(ticket);
+  } catch (error) {
+    // Two identical requests can pass the read at the same time. The unique
+    // database key is the final guard and both callers receive the same ticket.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const duplicate = await prisma.supportTicket.findUnique({ where: { dedupeKey } });
+      if (duplicate) { res.status(200).json(duplicate); return; }
+    }
+    throw error;
+  }
 });
 
 // GET /tickets — admin sees all, others see their own

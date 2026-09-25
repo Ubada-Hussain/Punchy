@@ -16,6 +16,10 @@ class NetworkException implements Exception {
 }
 
 class ApiClient {
+  // Share one connection pool across screens so navigation does not pay a new
+  // DNS/TCP/TLS handshake for every page-level API client.
+  static final http.Client _sharedClient = http.Client();
+
   /// Requests that change server state are coalesced while they are in flight.
   /// This is a last line of defence for rapid taps from separate controls that
   /// initiate the exact same action.
@@ -26,7 +30,7 @@ class ApiClient {
     String? baseUrl,
     TokenStore? tokenStore,
     this.timeout = const Duration(seconds: 20),
-  }) : _client = client ?? http.Client(),
+  }) : _client = client ?? _sharedClient,
        _tokenStore = tokenStore ?? const SecureTokenStore(),
        baseUrl =
            baseUrl ??
@@ -269,16 +273,30 @@ class SharedPreferencesTokenStore implements TokenStore {
 class SecureTokenStore implements TokenStore {
   const SecureTokenStore();
   static const _storage = FlutterSecureStorage();
+  static String? _cachedAccessToken;
+  static bool _accessTokenLoaded = false;
 
   @override
-  Future<String?> read() => _storage.read(key: 'access_token');
+  Future<String?> read() async {
+    if (_accessTokenLoaded) return _cachedAccessToken;
+    _cachedAccessToken = await _storage.read(key: 'access_token');
+    _accessTokenLoaded = true;
+    return _cachedAccessToken;
+  }
 
   @override
-  Future<void> write(String token) =>
-      _storage.write(key: 'access_token', value: token);
+  Future<void> write(String token) async {
+    _cachedAccessToken = token;
+    _accessTokenLoaded = true;
+    await _storage.write(key: 'access_token', value: token);
+  }
 
   @override
-  Future<void> delete() => _storage.delete(key: 'access_token');
+  Future<void> delete() async {
+    _cachedAccessToken = null;
+    _accessTokenLoaded = true;
+    await _storage.delete(key: 'access_token');
+  }
 
   Future<String?> readRefreshToken() => _storage.read(key: 'refresh_token');
   Future<void> writeRefreshToken(String token) =>
@@ -291,6 +309,8 @@ class SecureTokenStore implements TokenStore {
   Future<void> deleteCachedUser() => _storage.delete(key: 'cached_user');
 
   Future<void> clearAll() async {
+    _cachedAccessToken = null;
+    _accessTokenLoaded = true;
     await _storage.delete(key: 'access_token');
     await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'cached_user');
