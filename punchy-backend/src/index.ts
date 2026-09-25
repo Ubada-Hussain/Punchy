@@ -84,11 +84,12 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 const PORT = parseInt(process.env.PORT || '4000');
+const HOST = process.env.HOST || '127.0.0.1';
 const weakSecrets = ['change-me-to-a-long-random-secret', 'change-me-to-another-long-random-secret'];
 if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET || weakSecrets.includes(process.env.JWT_SECRET) || weakSecrets.includes(process.env.JWT_REFRESH_SECRET))) {
   throw new Error('Production JWT secrets are missing or use a default value. Refusing to start.');
 }
-app.listen(PORT, () => console.log(`Punchy API listening on port ${PORT}`));
+app.listen(PORT, HOST, () => console.log(`Punchy API listening on http://${HOST}:${PORT}`));
 void ensureBusinessLocationIndex(prisma);
 if (process.env.NODE_ENV !== 'test') {
   const intervalMs = 30_000;
