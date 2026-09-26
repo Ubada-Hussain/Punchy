@@ -61,33 +61,40 @@ enum SubscriptionPlan {
   YEARLY
 }
 
+enum SubscriptionPaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ─── User ────────────────────────────────────────────────────────────────────
 
 model User {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  publicId      String?  @unique
-  email         String   @unique
-  name          String?
-  phone         String?
-  countryCode   String?  @default("PK")
-  passwordHash  String
-  role          Role     @default(CUSTOMER)
-  isBlocked     Boolean  @default(false)
-  isStaffActive Boolean  @default(true) // Controlled by parent business owner
-  pushNotificationsEnabled Boolean @default(true)
-  businessId    String?  @db.ObjectId   // Link for STAFF role to parent business
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                       String   @id @default(auto()) @map("_id") @db.ObjectId
+  publicId                 String?  @unique
+  email                    String   @unique
+  name                     String?
+  phone                    String?
+  countryCode              String?  @default("PK")
+  passwordHash             String
+  role                     Role     @default(CUSTOMER)
+  isBlocked                Boolean  @default(false)
+  isStaffActive            Boolean  @default(true) // Controlled by parent business owner
+  pushNotificationsEnabled Boolean  @default(true)
+  businessId               String?  @db.ObjectId // Link for STAFF role to parent business
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   businessProfile   BusinessProfile?
-  staffBusiness     BusinessProfile? @relation("BusinessStaff", fields: [businessId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  staffBusiness     BusinessProfile?      @relation("BusinessStaff", fields: [businessId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customerCards     CustomerCard[]
   refreshTokens     RefreshToken[]
-  sentNotifications Notification[]  @relation("NotificationCreator")
-  supportTickets    SupportTicket[] @relation("TicketAuthor")
-  resolvedTickets   SupportTicket[] @relation("TicketResolver")
+  sentNotifications Notification[]        @relation("NotificationCreator")
+  supportTickets    SupportTicket[]       @relation("TicketAuthor")
+  resolvedTickets   SupportTicket[]       @relation("TicketResolver")
+  verifiedPayments  SubscriptionPayment[] @relation("PaymentVerifier")
   activityLogs      ActivityLog[]
-  fcmTokens         String[] @default([])
+  fcmTokens         String[]              @default([])
 }
 
 model RefreshToken {
@@ -113,17 +120,17 @@ model PasswordResetOtp {
 }
 
 model SignupVerification {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  email     String   @unique
-  otpHash   String
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  email        String   @unique
+  otpHash      String
   passwordHash String
-  role      Role
-  name      String?
-  phone     String?
-  countryCode String? @default("PK")
-  expiresAt DateTime
-  attempts  Int      @default(0)
-  createdAt DateTime @default(now())
+  role         Role
+  name         String?
+  phone        String?
+  countryCode  String?  @default("PK")
+  expiresAt    DateTime
+  attempts     Int      @default(0)
+  createdAt    DateTime @default(now())
 }
 
 // ─── Business ────────────────────────────────────────────────────────────────
@@ -149,11 +156,11 @@ model BusinessProfile {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  loyaltyCards LoyaltyCard[]
-  staffMembers User[]        @relation("BusinessStaff")
-  subscriptions BusinessSubscription[]
+  loyaltyCards       LoyaltyCard[]
+  staffMembers       User[]                 @relation("BusinessStaff")
+  subscriptions      BusinessSubscription[]
+  paymentSubmissions SubscriptionPayment[]
 }
-
 
 model CountrySubscriptionPricing {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -181,8 +188,58 @@ model BusinessSubscription {
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
+  paidSubmissions SubscriptionPayment[] @relation("PaymentSubscription")
+
   @@index([businessId, status, endDate])
 }
+
+model PaymentMethod {
+  id                 String                @id @default(auto()) @map("_id") @db.ObjectId
+  name               String
+  logoUrl            String?
+  accountName        String
+  accountNumber      String?
+  bankName           String?
+  iban               String?
+  instructions       String?
+  isActive           Boolean               @default(true)
+  sortOrder          Int                   @default(0)
+  paymentSubmissions SubscriptionPayment[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+}
+
+model SubscriptionPayment {
+  id                String                    @id @default(auto()) @map("_id") @db.ObjectId
+  businessId        String                    @db.ObjectId
+  business          BusinessProfile           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  paymentMethodId   String?                   @db.ObjectId
+  paymentMethod     PaymentMethod?            @relation(fields: [paymentMethodId], references: [id])
+  paymentMethodName String
+  plan              SubscriptionPlan
+  transactionId     String
+  transactionKey    String                    @unique
+  requestKey        String                    @unique
+  amount            Float
+  currency          String
+  accountName       String
+  accountNumber     String?
+  bankName          String?
+  iban              String?
+  instructions      String?
+  status            SubscriptionPaymentStatus @default(PENDING)
+  adminNote         String?
+  verifiedById      String?                   @db.ObjectId
+  verifiedBy        User?                     @relation("PaymentVerifier", fields: [verifiedById], references: [id])
+  verifiedAt        DateTime?
+  subscriptionId    String?                   @db.ObjectId
+  subscription      BusinessSubscription?     @relation("PaymentSubscription", fields: [subscriptionId], references: [id])
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([businessId, status, createdAt])
+}
+
 // ─── Loyalty Card ────────────────────────────────────────────────────────────
 
 model LoyaltyCard {
@@ -193,7 +250,7 @@ model LoyaltyCard {
   punchesRequired   Int             @default(10)
   rewardDescription String
   visualStyle       Json            @default("{}")
-  validUntil        DateTime?       // Validity expiration date
+  validUntil        DateTime? // Validity expiration date
   pricePerPunch     Float?          @default(0)
   currency          String?         @default("PKR")
   isActive          Boolean         @default(true)

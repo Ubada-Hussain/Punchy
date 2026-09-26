@@ -79,6 +79,8 @@ const NAV = [
   { href: '/customers',     label: 'Customers',      icon: 'users'    },
   { href: '/analytics',     label: 'Analytics',      icon: 'chart'    },
   { href: '/subscription-pricing', label: 'Subscription Pricing', icon: 'settings' },
+  { href: '/payment-methods', label: 'Payment Methods', icon: 'settings' },
+  { href: '/payment-submissions', label: 'Payment Submissions', icon: 'ticket' },
   { href: '/business-subscriptions', label: 'Business Subscriptions', icon: 'store' },
   { href: '/nfc-qr',        label: 'NFC & QR',       icon: 'nfc'      },
   { href: '/notifications', label: 'Notifications',  icon: 'bell'     },

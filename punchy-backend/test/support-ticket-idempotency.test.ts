@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { supportTicketDedupeKey } from '../src/routes/tickets';
+import { SupportTicketSchema, supportTicketDedupeKey } from '../src/routes/tickets';
+
+test('support ticket input trims current text and only rejects empty fields', () => {
+  const parsed = SupportTicketSchema.parse({
+    subject: '  A  ',
+    body: '  B  ',
+    clientRequestId: 'request-123',
+  });
+  assert.equal(parsed.subject, 'A');
+  assert.equal(parsed.body, 'B');
+
+  assert.equal(SupportTicketSchema.safeParse({ subject: '   ', body: 'Issue' }).success, false);
+  assert.equal(SupportTicketSchema.safeParse({ subject: 'Subject', body: '\n\t' }).success, false);
+});
 
 test('support ticket request id stays idempotent across retries', () => {
   const first = supportTicketDedupeKey('user-1', 'Need help', 'The scanner is not working.', 'request-123', 0);

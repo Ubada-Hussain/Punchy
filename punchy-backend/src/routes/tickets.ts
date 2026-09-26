@@ -8,9 +8,9 @@ import { parsePagination } from '../lib/pagination';
 
 const router = Router();
 
-const TicketSchema = z.object({
-  subject: z.string().trim().min(5).max(160),
-  body: z.string().trim().min(10).max(5000),
+export const SupportTicketSchema = z.object({
+  subject: z.string().trim().min(1).max(160),
+  body: z.string().trim().min(1).max(5000),
   clientRequestId: z.string().trim().min(8).max(128).optional(),
 });
 
@@ -31,7 +31,7 @@ export function supportTicketDedupeKey(
 
 // POST /tickets
 router.post('/', requireAuthAllowSuspended, async (req: Request, res: Response): Promise<void> => {
-  const parsed = TicketSchema.safeParse(req.body);
+  const parsed = SupportTicketSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
   const { clientRequestId, subject, body } = parsed.data;

@@ -8,7 +8,9 @@ import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
 
 class SupportSheet extends StatefulWidget {
-  const SupportSheet({super.key});
+  const SupportSheet({super.key, this.apiClient});
+
+  final ApiClient? apiClient;
 
   static void show(BuildContext context) {
     showModalBottomSheet(
@@ -26,29 +28,51 @@ class SupportSheet extends StatefulWidget {
 }
 
 class _SupportSheetState extends State<SupportSheet> {
+  String? _supportEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSupportContact();
+  }
+
+  Future<void> _loadSupportContact() async {
+    try {
+      final result = await ApiClient().get('/subscriptions/support-contact');
+      if (mounted)
+        setState(
+          () => _supportEmail = (result as Map)['supportEmail']?.toString(),
+        );
+    } catch (_) {
+      if (mounted) setState(() => _supportEmail = null);
+    }
+  }
+
   Future<void> _showChatForm() async {
     final submitted = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const _ComplaintDialog(),
+      builder: (_) => _ComplaintDialog(api: widget.apiClient ?? ApiClient()),
     );
     if (submitted == true && mounted) {
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.of(context).pop();
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Support request submitted. An agent will respond soon.',
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Complaint submitted successfully.')),
       );
     }
   }
 
   Future<void> _openEmailSupport() async {
+    if (_supportEmail == null || _supportEmail!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Support contact is not available right now.'),
+        ),
+      );
+      return;
+    }
     final uri = Uri(
       scheme: 'mailto',
-      path: 'support.punchy@gmail.com',
+      path: _supportEmail!,
       queryParameters: {'subject': 'Punchy Support Request'},
     );
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
@@ -122,7 +146,7 @@ class _SupportSheetState extends State<SupportSheet> {
             _buildOption(
               icon: Icons.mail_outline_rounded,
               title: 'Email Support',
-              subtitle: 'support.punchy@gmail.com',
+              subtitle: _supportEmail ?? 'Loading support contact…',
               onTap: _openEmailSupport,
             ),
             const SizedBox(height: 10),
@@ -151,7 +175,7 @@ class _SupportSheetState extends State<SupportSheet> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Help Center & FAQs'),
-        content: const SingleChildScrollView(
+        content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -183,7 +207,11 @@ class _SupportSheetState extends State<SupportSheet> {
                 'How can I contact support?',
                 style: TextStyle(fontWeight: FontWeight.w800),
               ),
-              Text('Use Submit Complaint or email support.punchy@gmail.com.'),
+              Text(
+                _supportEmail == null
+                    ? 'Use Submit Complaint or contact the Punchy support team.'
+                    : 'Use Submit Complaint or email $_supportEmail.',
+              ),
             ],
           ),
         ),
@@ -265,7 +293,9 @@ class _SupportSheetState extends State<SupportSheet> {
 }
 
 class _ComplaintDialog extends StatefulWidget {
-  const _ComplaintDialog();
+  const _ComplaintDialog({required this.api});
+
+  final ApiClient api;
 
   @override
   State<_ComplaintDialog> createState() => _ComplaintDialogState();
@@ -275,10 +305,12 @@ class _ComplaintDialogState extends State<_ComplaintDialog> {
   static final Random _random = Random.secure();
   final _subject = TextEditingController();
   final _body = TextEditingController();
-  final ApiClient _api = ApiClient();
   late final String _clientRequestId =
       '${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(1 << 32)}';
   bool _sending = false;
+  String? _subjectError;
+  String? _bodyError;
+  String? _submissionError;
 
   @override
   void dispose() {
@@ -289,36 +321,49 @@ class _ComplaintDialogState extends State<_ComplaintDialog> {
 
   Future<void> _submit() async {
     if (_sending) return;
+
+    // Read directly from both controllers at tap time. This avoids validating
+    // a stale onChanged value when the keyboard has just updated either field.
     final subject = _subject.text.trim();
     final body = _body.text.trim();
-    if (subject.length < 5 || body.length < 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a subject and describe your issue.'),
-        ),
-      );
+    final subjectError = subject.isEmpty ? 'Please enter a subject.' : null;
+    final bodyError = body.isEmpty ? 'Please describe your issue.' : null;
+    if (subjectError != null || bodyError != null) {
+      setState(() {
+        _subjectError = subjectError;
+        _bodyError = bodyError;
+        _submissionError = null;
+      });
       return;
     }
 
-    setState(() => _sending = true);
+    // This state change is synchronous and occurs before the first await, so a
+    // second tap cannot start another request.
+    setState(() {
+      _sending = true;
+      _subjectError = null;
+      _bodyError = null;
+      _submissionError = null;
+    });
     try {
-      await _api.post('/tickets', {
+      await widget.api.post('/tickets', {
         'subject': subject,
         'body': body,
         'clientRequestId': _clientRequestId,
       });
-      if (mounted) Navigator.of(context).pop(true);
+      if (!mounted) return;
+      _subject.clear();
+      _body.clear();
+      Navigator.of(context).pop(true);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              error is ApiException
-                  ? error.message
-                  : 'Could not submit support request.',
-            ),
-          ),
-        );
+        setState(() {
+          _submissionError = switch (error) {
+            NetworkException() => error.message,
+            ApiException() => error.message,
+            _ => 'Could not submit complaint. Please try again.',
+          };
+        });
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -335,19 +380,38 @@ class _ComplaintDialogState extends State<_ComplaintDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
+              key: const Key('complaint_subject_input'),
               controller: _subject,
               enabled: !_sending,
               textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(labelText: 'Subject'),
+              decoration: InputDecoration(
+                labelText: 'Subject',
+                errorText: _subjectError,
+              ),
             ),
             TextField(
+              key: const Key('complaint_issue_input'),
               controller: _body,
               enabled: !_sending,
               maxLines: 4,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Describe your issue',
+                errorText: _bodyError,
               ),
             ),
+            if (_submissionError != null) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _submissionError!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -356,6 +420,7 @@ class _ComplaintDialogState extends State<_ComplaintDialog> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
+            key: const Key('complaint_send_button'),
             onPressed: _sending ? null : _submit,
             child: _sending
                 ? const Row(
