@@ -4,28 +4,55 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+
 import '../theme/app_colors.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Android already displays FCM messages that contain a `notification`
+  // payload while the app is backgrounded. Showing a local notification here
+  // as well would duplicate the same alert. Only data-only messages need the
+  // manual fallback below.
+  if (message.notification != null) return;
+
   await Firebase.initializeApp();
   final plugin = FlutterLocalNotificationsPlugin();
-  await plugin.initialize(const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')));
-  await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(const AndroidNotificationChannel(
-    'punchy_alerts_v2', 'Punchy notifications',
-    description: 'Account, punch and support notifications', importance: Importance.high,
-    playSound: true, enableVibration: true,
-  ));
+  await plugin.initialize(
+    const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    ),
+  );
+  await plugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'punchy_alerts_v2',
+          'Punchy notifications',
+          description: 'Account, punch and support notifications',
+          importance: Importance.high,
+          playSound: true,
+          enableVibration: true,
+        ),
+      );
   await plugin.show(
     DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
     message.notification?.title ?? message.data['title'] ?? 'Punchy',
     message.notification?.body ?? message.data['body'] ?? '',
-    const NotificationDetails(android: AndroidNotificationDetails(
-      'punchy_alerts_v2', 'Punchy notifications',
-      channelDescription: 'Account, punch and support notifications', importance: Importance.high,
-      priority: Priority.high, playSound: true, enableVibration: true,
-      visibility: NotificationVisibility.public, icon: '@mipmap/ic_launcher',
-    )),
+    const NotificationDetails(
+      android: AndroidNotificationDetails(
+        'punchy_alerts_v2',
+        'Punchy notifications',
+        channelDescription: 'Account, punch and support notifications',
+        importance: Importance.high,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+        visibility: NotificationVisibility.public,
+        icon: '@mipmap/ic_launcher',
+      ),
+    ),
   );
 }
 
@@ -34,47 +61,83 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+  final ValueNotifier<int> inboxRevision = ValueNotifier<int>(0);
   bool _initialized = false;
+  Future<void>? _initialization;
 
-  Future<void> initialize() async {
-    if (_initialized) return;
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const settings = InitializationSettings(android: android);
-    await _localNotifications.initialize(settings);
-    await FirebaseMessaging.instance.requestPermission(alert: true, badge: true, sound: true, provisional: false);
-    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
-    final androidPlugin = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    await androidPlugin?.requestNotificationsPermission();
-    await androidPlugin?.createNotificationChannel(const AndroidNotificationChannel(
-      'punchy_alerts_v2',
-      'Punchy notifications',
-      description: 'Account, punch and support notifications',
-      importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
-    ));
-    FirebaseMessaging.onMessage.listen((message) async {
-      await _localNotifications.show(
-        DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
-        message.notification?.title ?? 'Punchy',
-        message.notification?.body ?? '',
-        const NotificationDetails(android: AndroidNotificationDetails(
-          'punchy_alerts_v2', 'Punchy notifications',
-          channelDescription: 'Account, punch and support notifications',
-          importance: Importance.high, priority: Priority.high,
-          playSound: true, enableVibration: true, visibility: NotificationVisibility.public,
-          icon: '@mipmap/ic_launcher',
-        )),
+  void notifyInboxChanged() => inboxRevision.value += 1;
+
+  Future<void> initialize() {
+    if (_initialized) return Future<void>.value();
+    return _initialization ??= _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const settings = InitializationSettings(android: android);
+      await _localNotifications.initialize(settings);
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
       );
-    });
-    FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('latest_fcm_token', token);
-      } catch (_) {}
-    });
-    _initialized = true;
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      await androidPlugin?.requestNotificationsPermission();
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'punchy_alerts_v2',
+          'Punchy notifications',
+          description: 'Account, punch and support notifications',
+          importance: Importance.high,
+          playSound: true,
+          enableVibration: true,
+        ),
+      );
+      FirebaseMessaging.onMessage.listen((message) async {
+        await _localNotifications.show(
+          DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
+          message.notification?.title ?? 'Punchy',
+          message.notification?.body ?? '',
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'punchy_alerts_v2',
+              'Punchy notifications',
+              channelDescription: 'Account, punch and support notifications',
+              importance: Importance.high,
+              priority: Priority.high,
+              playSound: true,
+              enableVibration: true,
+              visibility: NotificationVisibility.public,
+              icon: '@mipmap/ic_launcher',
+            ),
+          ),
+        );
+        notifyInboxChanged();
+      });
+      FirebaseMessaging.onMessageOpenedApp.listen((_) => notifyInboxChanged());
+      FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('latest_fcm_token', token);
+        } catch (_) {}
+      });
+      _initialized = true;
+    } finally {
+      if (!_initialized) _initialization = null;
+    }
   }
 
   /// Check if user has push notifications enabled in Settings

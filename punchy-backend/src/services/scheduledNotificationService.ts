@@ -1,6 +1,9 @@
 import prisma from '../lib/prisma';
 import { sendNotification } from '../lib/notifications';
 
+let lastCustomerReminderDay: string | null = null;
+let customerReminderInFlight = false;
+
 /** Delivers due admin notifications. Safe to run repeatedly because sentAt is
  * checked and set after dispatch; production multi-instance deployments should
  * add a distributed lease/queue around this worker. */
@@ -23,9 +26,7 @@ export async function processScheduledNotifications(): Promise<number> {
       const customerIds = Array.from(new Set(
         (business?.loyaltyCards ?? []).flatMap((card) => card.customerCards.map((cc) => cc.customerId)),
       ));
-      for (const customerId of customerIds) {
-        await sendNotification({ userId: customerId, title: notification.title, body: notification.body });
-      }
+      await sendNotification({ userIds: customerIds, title: notification.title, body: notification.body });
     } else {
       result = await sendNotification({
         userId: notification.targetType === 'USER' ? notification.targetId ?? undefined : undefined,
@@ -43,6 +44,10 @@ export async function processScheduledNotifications(): Promise<number> {
 }
 
 export async function processDailyCustomerReminders(now = new Date()): Promise<number> {
+  const dayKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}`;
+  if (lastCustomerReminderDay === dayKey || customerReminderInFlight) return 0;
+  customerReminderInFlight = true;
+  try {
   const admin = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } });
   if (!admin) return 0;
 
@@ -59,41 +64,39 @@ export async function processDailyCustomerReminders(now = new Date()): Promise<n
     },
     select: { id: true },
   });
+  const customerIds = eligibleCustomers.map((customer) => customer.id);
+  if (customerIds.length === 0) {
+    lastCustomerReminderDay = dayKey;
+    return 0;
+  }
 
-  let count = 0;
-  for (const customer of eligibleCustomers) {
-    const existing = await prisma.notification.findFirst({
-      where: {
-        targetType: 'USER',
-        targetId: customer.id,
-        title,
-        createdAt: { gte: todayStart },
-      },
-      select: { id: true },
-    });
-    if (existing) continue;
-
-    await prisma.notification.create({
-      data: {
-        targetType: 'USER',
-        targetId: customer.id,
+  const existingNotifications = await prisma.notification.findMany({
+    where: {
+      targetType: 'USER',
+      targetId: { in: customerIds },
+      title,
+      createdAt: { gte: todayStart },
+    },
+    select: { targetId: true },
+  });
+  const alreadyNotified = new Set(existingNotifications.map((item) => item.targetId));
+  const pendingIds = customerIds.filter((customerId) => !alreadyNotified.has(customerId));
+  if (pendingIds.length) {
+    await prisma.notification.createMany({
+      data: pendingIds.map((targetId) => ({
+        targetType: 'USER' as const,
+        targetId,
         title,
         body,
         createdBy: admin.id,
         sentAt: new Date(),
-      },
+      })),
     });
-
-    try {
-      await sendNotification({
-        userId: customer.id,
-        title,
-        body,
-      });
-    } catch (e) {
-      console.error(`[Daily reminder] failed for user ${customer.id}`, e);
-    }
-    count += 1;
+    await sendNotification({ userIds: pendingIds, title, body });
   }
-  return count;
+  lastCustomerReminderDay = dayKey;
+  return pendingIds.length;
+  } finally {
+    customerReminderInFlight = false;
+  }
 }

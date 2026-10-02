@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/api/api_client.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_skeleton.dart';
+import '../../core/widgets/delete_account_flow_dialog.dart';
 import '../../core/widgets/punchy_confirmation_dialog.dart';
 import '../system_states/support_sheet.dart';
 
@@ -100,6 +102,10 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     final memberSince = _formatMemberSince(
       _profileData?['memberSince'] ?? user?['createdAt'],
     );
+    final publicId =
+        _profileData?['publicId']?.toString().trim() ??
+        user?['publicId']?.toString().trim() ??
+        '';
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -166,10 +172,8 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
 
             // Scrollable Content
             Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: AppColors.teal),
-                    )
+              child: _isLoading && _profileData == null
+                  ? const PunchySkeleton(rows: 4)
                   : RefreshIndicator(
                       color: AppColors.teal,
                       onRefresh: _loadProfile,
@@ -241,7 +245,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                                       ),
                                     ),
                                     Text(
-                                      'ID: ${user?['publicId'] ?? '—'}',
+                                      'ID: ${publicId.isEmpty ? 'Loading…' : publicId}',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
@@ -349,7 +353,8 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                                   'Subscription & Billing',
                                   'Trial status and country pricing',
                                   Icons.workspace_premium_outlined,
-                                  onTap: () => context.push('/business/subscription'),
+                                  onTap: () =>
+                                      context.push('/business/subscription'),
                                 ),
                                 const Divider(height: 1, color: AppColors.line),
                                 _buildSettingsRow(
@@ -449,6 +454,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                                     description:
                                         'Are you sure you want to log out?',
                                     confirmLabel: 'Log out',
+                                    processingLabel: 'Logging out…',
                                     destructive: false,
                                     onConfirm: authProvider.logout,
                                   );
@@ -520,42 +526,8 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     );
     if (confirm != true || !mounted) return;
     final auth = context.read<AuthProvider>();
-    if (!await auth.requestDeleteAccountOtp() || !mounted) return;
-    final otpController = TextEditingController();
-    final otp = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Enter email code'),
-        content: TextField(
-          controller: otpController,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          decoration: const InputDecoration(labelText: '6-digit OTP'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, otpController.text.trim()),
-            child: const Text('Confirm deletion'),
-          ),
-        ],
-      ),
-    );
-    otpController.dispose();
-    if (otp == null || otp.isEmpty || !mounted) return;
-    final ok = await auth.deleteAccount(otp);
-    if (mounted) {
-      if (ok) {
-        context.go('/login');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not delete profile.')),
-        );
-      }
-    }
+    final deleted = await DeleteAccountFlowDialog.show(context, auth);
+    if (deleted && mounted) context.go('/login');
   }
 
   Widget _buildSummaryBox(String title, String value, IconData icon) {

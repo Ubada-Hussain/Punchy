@@ -14,7 +14,10 @@ const router = Router();
 const paymentLogoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 }, fileFilter: (_req, file, cb) => cb(null, file.mimetype.startsWith('image/')) });
 const PaymentMethodSchema = z.object({ name: z.string().trim().min(1).max(80), logoUrl: z.string().trim().url().optional().or(z.literal('')), accountName: z.string().trim().min(1).max(160), accountNumber: z.string().trim().max(80).optional().default(''), bankName: z.string().trim().max(120).optional().default(''), iban: z.string().trim().max(80).optional().default(''), instructions: z.string().trim().max(2000).optional().default(''), isActive: z.boolean().default(true), sortOrder: z.number().int().min(0).default(0) });
 const PaymentSubmissionSchema = z.object({ paymentMethodId: z.string().min(1), plan: z.enum(['MONTHLY', 'YEARLY']), transactionId: z.string().trim().min(1).max(160), clientRequestId: z.string().trim().min(8).max(128) });
-const PaymentDecisionSchema = z.object({ action: z.enum(['APPROVE', 'REJECT']), adminNote: z.string().trim().max(1000).optional().default('') });
+const PaymentDecisionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('APPROVE'), adminNote: z.string().trim().max(1000).optional().default('') }),
+  z.object({ action: z.literal('REJECT'), adminNote: z.string().trim().min(3, 'A rejection reason is required.').max(1000) }),
+]);
 const hashKey = (value: string) => createHash('sha256').update(value).digest('hex');
 
 const PricingSchema = z.object({
@@ -25,6 +28,7 @@ const PricingSchema = z.object({
   isActive: z.boolean().default(true),
 });
 const AssignmentSchema = z.object({ plan: z.enum(['MONTHLY', 'YEARLY']) });
+const FreeSubscriptionSchema = z.object({ status: z.enum(['ACTIVE', 'INACTIVE']), months: z.number().int().min(1).max(120) });
 
 function addMonths(date: Date, months: number) {
   const next = new Date(date);
@@ -43,10 +47,16 @@ router.get('/business/current', requireAuth, requireRole('BUSINESS'), async (req
   }
 
   const now = new Date();
-  let subscription = await prisma.businessSubscription.findFirst({
-    where: { businessId: business.id },
-    orderBy: { endDate: 'desc' },
-  });
+  const [loadedSubscription, pricing] = await Promise.all([
+    prisma.businessSubscription.findFirst({
+      where: { businessId: business.id },
+      orderBy: { endDate: 'desc' },
+    }),
+    prisma.countrySubscriptionPricing.findUnique({
+      where: { countryCode: business.countryCode.toUpperCase() },
+    }),
+  ]);
+  let subscription = loadedSubscription;
   if (subscription?.status === 'TRIALING' && subscription.endDate <= now) {
     subscription = await prisma.businessSubscription.update({
       where: { id: subscription.id },
@@ -59,9 +69,6 @@ router.get('/business/current', requireAuth, requireRole('BUSINESS'), async (req
     });
   }
 
-  const pricing = await prisma.countrySubscriptionPricing.findUnique({
-    where: { countryCode: business.countryCode.toUpperCase() },
-  });
   const activePricing = pricing?.isActive ? pricing : null;
   const yearlySavings = activePricing ? Math.max(0, activePricing.monthlyPrice * 12 - activePricing.yearlyPrice) : null;
   const [paymentMethods, paymentSubmissions, supportConfig] = await Promise.all([
@@ -123,6 +130,37 @@ router.get('/businesses', requireAuth, requireRole('ADMIN'), async (req, res) =>
     orderBy: { name: 'asc' },
   });
   res.json(businesses);
+});
+
+router.put('/businesses/:businessId/free-subscription', requireAuth, requireRole('ADMIN'), async (req, res) => {
+  const parsed = FreeSubscriptionSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+
+  const business = await prisma.businessProfile.findUnique({ where: { id: String(req.params.businessId) } });
+  if (!business) { res.status(404).json({ error: 'Business not found.' }); return; }
+
+  const latest = await prisma.businessSubscription.findFirst({ where: { businessId: business.id }, orderBy: { endDate: 'desc' } });
+  if (latest && latest.plan !== 'TRIAL') {
+    res.status(400).json({ error: 'This business has a paid subscription. Free subscription controls apply only to free subscriptions.' });
+    return;
+  }
+
+  const now = new Date();
+  const active = parsed.data.status === 'ACTIVE';
+  const endDate = active ? addMonths(now, parsed.data.months) : now;
+  const data = {
+    status: active ? 'TRIALING' as const : 'INACTIVE' as const,
+    startDate: now,
+    endDate,
+    trialStart: active ? now : null,
+    trialEnd: active ? endDate : null,
+    freeMonths: parsed.data.months,
+  };
+  const subscription = latest
+    ? await prisma.businessSubscription.update({ where: { id: latest.id }, data })
+    : await prisma.businessSubscription.create({ data: { businessId: business.id, plan: 'TRIAL', price: 0, currency: business.currencyCode, ...data } });
+  await prisma.activityLog.create({ data: { userId: req.user!.userId, action: 'ADMIN_FREE_SUBSCRIPTION_UPDATED', metadata: { businessId: business.id, subscriptionId: subscription.id, status: parsed.data.status, months: parsed.data.months } } });
+  res.json({ subscription });
 });
 
 router.post('/businesses/:businessId/assign', requireAuth, requireRole('ADMIN'), async (req, res) => {
@@ -280,12 +318,13 @@ router.post('/payments/:id/decision', requireAuth, requireRole('ADMIN'), async (
   const parsed = PaymentDecisionSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   const paymentId = String(req.params.id);
-  const payment = await prisma.subscriptionPayment.findUnique({ where: { id: paymentId } });
+  const payment = await prisma.subscriptionPayment.findUnique({ where: { id: paymentId }, include: { business: { select: { userId: true, name: true } } } });
   if (!payment) { res.status(404).json({ error: 'Payment submission not found.' }); return; }
   if (payment.status !== 'PENDING') { res.status(409).json({ error: 'This payment submission has already been reviewed.' }); return; }
   if (parsed.data.action === 'REJECT') {
     const result = await prisma.subscriptionPayment.updateMany({ where: { id: paymentId, status: 'PENDING' }, data: { status: 'REJECTED', adminNote: parsed.data.adminNote || null, verifiedById: req.user!.userId, verifiedAt: new Date() } });
     if (!result.count) { res.status(409).json({ error: 'This payment submission has already been reviewed.' }); return; }
+    await prisma.activityLog.create({ data: { userId: req.user!.userId, action: 'ADMIN_PAYMENT_REJECTED', metadata: { paymentId, businessId: payment.businessId, transactionId: payment.transactionId, reason: parsed.data.adminNote } } });
     res.json({ message: 'Payment submission rejected.' });
     return;
   }
@@ -305,6 +344,7 @@ router.post('/payments/:id/decision', requireAuth, requireRole('ADMIN'), async (
     throw error;
   });
   if (!result) { res.status(409).json({ error: 'This payment submission has already been reviewed.' }); return; }
+  await prisma.activityLog.create({ data: { userId: req.user!.userId, action: 'ADMIN_PAYMENT_APPROVED', metadata: { paymentId, businessId: payment.businessId, subscriptionId: result.id, previousStatus: 'PENDING', newStatus: 'APPROVED' } } });
   res.json({ message: 'Payment approved and subscription activated.', subscription: result });
 });
 export default router;

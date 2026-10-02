@@ -54,7 +54,10 @@ router.get('/platform', requireAuth, requireRole('ADMIN'), async (req: Request, 
 router.get('/business/:businessId', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const businessId = String(req.params.businessId);
 
-  const business = await prisma.businessProfile.findUnique({ where: { id: businessId } });
+  const business = await prisma.businessProfile.findUnique({
+    where: { id: businessId },
+    select: { id: true, userId: true, name: true, status: true },
+  });
   if (!business) { res.status(404).json({ error: 'Business not found' }); return; }
 
   const isOwner = req.user!.role === 'BUSINESS' && business.userId === req.user!.userId;
@@ -62,40 +65,65 @@ router.get('/business/:businessId', requireAuth, async (req: Request, res: Respo
 
   const cards = await prisma.loyaltyCard.findMany({
     where: { businessId },
-    include: {
-      _count: { select: { customerCards: true } },
-      customerCards: {
-        select: {
-          customerId: true,
-          punchTransactions: { select: { id: true } },
-          redemptions: { select: { id: true } },
-        },
+    select: { id: true, title: true },
+  });
+  const cardIds = cards.map((card) => card.id);
+  const [customerCards, recentActivity] = await Promise.all([
+    prisma.customerCard.findMany({
+      where: { cardId: { in: cardIds } },
+      select: { id: true, customerId: true, cardId: true },
+    }),
+    prisma.activityLog.findMany({
+      where: {
+        metadata: { path: ['businessId'], equals: businessId },
+        createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
       },
-    },
-  });
-
-  const totalCustomers = new Set(cards.flatMap(c => c.customerCards.map(cc => cc.customerId))).size;
-  const totalPunches = cards.reduce((s, c) => s + c.customerCards.reduce((s2, cc) => s2 + cc.punchTransactions.length, 0), 0);
-  const totalRedemptions = cards.reduce((s, c) => s + c.customerCards.reduce((s2, cc) => s2 + cc.redemptions.length, 0), 0);
-
-  const recentActivity = await prisma.activityLog.findMany({
-    where: {
-      metadata: { path: ['businessId'], equals: businessId },
-      createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-    include: { user: { select: { email: true } } },
-  });
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: {
+        id: true, action: true, metadata: true, createdAt: true,
+        user: { select: { email: true } },
+      },
+    }),
+  ]);
+  const customerCardIds = customerCards.map((card) => card.id);
+  const [punchCounts, redemptionCounts] = await Promise.all([
+    prisma.punchTransaction.groupBy({
+      by: ['customerCardId'],
+      where: { customerCardId: { in: customerCardIds } },
+      _count: { _all: true },
+    }),
+    prisma.redemption.groupBy({
+      by: ['customerCardId'],
+      where: { customerCardId: { in: customerCardIds } },
+      _count: { _all: true },
+    }),
+  ]);
+  const punchesByCustomerCard = new Map(punchCounts.map((row) => [row.customerCardId, row._count._all]));
+  const redemptionsByCustomerCard = new Map(redemptionCounts.map((row) => [row.customerCardId, row._count._all]));
+  const customersByCard = new Map<string, number>();
+  const punchesByCard = new Map<string, number>();
+  const redemptionsByCard = new Map<string, number>();
+  const uniqueCustomers = new Set<string>();
+  for (const customerCard of customerCards) {
+    uniqueCustomers.add(customerCard.customerId);
+    customersByCard.set(customerCard.cardId, (customersByCard.get(customerCard.cardId) ?? 0) + 1);
+    punchesByCard.set(customerCard.cardId, (punchesByCard.get(customerCard.cardId) ?? 0) + (punchesByCustomerCard.get(customerCard.id) ?? 0));
+    redemptionsByCard.set(customerCard.cardId, (redemptionsByCard.get(customerCard.cardId) ?? 0) + (redemptionsByCustomerCard.get(customerCard.id) ?? 0));
+  }
+  const totalCustomers = uniqueCustomers.size;
+  const totalPunches = [...punchesByCard.values()].reduce((sum, count) => sum + count, 0);
+  const totalRedemptions = [...redemptionsByCard.values()].reduce((sum, count) => sum + count, 0);
 
   res.json({
     business: { id: business.id, name: business.name, status: business.status },
     totals: { totalCustomers, totalPunches, totalRedemptions },
-    cards: cards.map(c => ({
-      id: c.id, title: c.title,
-      customers: c._count.customerCards,
-      punches: c.customerCards.reduce((s, cc) => s + cc.punchTransactions.length, 0),
-      redemptions: c.customerCards.reduce((s, cc) => s + cc.redemptions.length, 0),
+    cards: cards.map((card) => ({
+      id: card.id,
+      title: card.title,
+      customers: customersByCard.get(card.id) ?? 0,
+      punches: punchesByCard.get(card.id) ?? 0,
+      redemptions: redemptionsByCard.get(card.id) ?? 0,
     })),
     recentActivity,
   });

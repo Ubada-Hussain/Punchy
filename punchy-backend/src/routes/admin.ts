@@ -4,9 +4,26 @@ import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { sendNotification } from '../lib/notifications';
 import { clearMaintenanceCache } from '../middleware/maintenance';
+import { parsePagination } from '../lib/pagination';
 
 const router = Router();
 const PermanentDeleteSchema = z.object({ confirmationKey: z.string().min(1) });
+const SearchSchema = z.object({ q: z.string().trim().min(2).max(160) });
+const ReportSchema = z.enum(['customers', 'subscriptions', 'payments', 'support', 'activity']);
+
+function startOfMonth(monthOffset = 0): Date {
+  const date = new Date();
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + monthOffset, 1));
+}
+
+function csvCell(value: unknown): string {
+  const text = value == null ? '' : value instanceof Date ? value.toISOString() : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function csv(rows: unknown[][]): string {
+  return `\uFEFF${rows.map(row => row.map(csvCell).join(',')).join('\r\n')}\r\n`;
+}
 
 function hasValidDeletionKey(key: string): boolean {
   const expected = process.env.ADMIN_DELETION_KEY;
@@ -30,6 +47,182 @@ router.patch('/config', requireAuth, requireRole('ADMIN'), async (req: Request, 
   })));
   if (entries.some(([key]) => key === 'maintenanceMode')) clearMaintenanceCache();
   res.json({ message: 'Settings saved' });
+});
+
+// GET /admin/overview — one real-data source for the Admin dashboard.
+router.get('/overview', requireAuth, requireRole('ADMIN'), async (_req: Request, res: Response): Promise<void> => {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
+  const thirtyDaysAhead = new Date(now.getTime() + 30 * 86_400_000);
+  const trendStart = startOfMonth(-5);
+  const [
+    totalCustomers, activeCustomers, suspendedCustomers, newCustomers,
+    totalBusinesses, activeSubscriptions, trialSubscriptions, expiredSubscriptions,
+    pendingPayments, approvedPayments, rejectedPayments, approvedRevenue,
+    upcomingExpirations, openTickets, recentActions, customerDates, paymentRows,
+    plans, countries,
+  ] = await Promise.all([
+    prisma.user.count({ where: { role: 'CUSTOMER' } }),
+    prisma.user.count({ where: { role: 'CUSTOMER', isBlocked: false } }),
+    prisma.user.count({ where: { role: 'CUSTOMER', isBlocked: true } }),
+    prisma.user.count({ where: { role: 'CUSTOMER', createdAt: { gte: thirtyDaysAgo } } }),
+    prisma.businessProfile.count(),
+    prisma.businessSubscription.count({ where: { status: 'ACTIVE', endDate: { gt: now } } }),
+    prisma.businessSubscription.count({ where: { status: 'TRIALING', endDate: { gt: now } } }),
+    prisma.businessSubscription.count({ where: { OR: [{ status: 'EXPIRED' }, { endDate: { lte: now } }] } }),
+    prisma.subscriptionPayment.count({ where: { status: 'PENDING' } }),
+    prisma.subscriptionPayment.count({ where: { status: 'APPROVED' } }),
+    prisma.subscriptionPayment.count({ where: { status: 'REJECTED' } }),
+    prisma.subscriptionPayment.groupBy({ by: ['currency'], where: { status: 'APPROVED' }, _sum: { amount: true } }),
+    prisma.businessSubscription.count({ where: { status: { in: ['ACTIVE', 'TRIALING'] }, endDate: { gt: now, lte: thirtyDaysAhead } } }),
+    prisma.supportTicket.count({ where: { status: { in: ['OPEN', 'IN_PROGRESS'] } } }),
+    prisma.activityLog.findMany({
+      orderBy: { createdAt: 'desc' }, take: 10,
+      select: { id: true, action: true, metadata: true, createdAt: true, user: { select: { email: true, role: true } } },
+    }),
+    prisma.user.findMany({ where: { role: 'CUSTOMER', createdAt: { gte: trendStart } }, select: { createdAt: true } }),
+    prisma.subscriptionPayment.findMany({ where: { status: 'APPROVED', verifiedAt: { gte: trendStart } }, select: { amount: true, currency: true, verifiedAt: true } }),
+    prisma.businessSubscription.groupBy({ by: ['plan'], _count: { _all: true } }),
+    prisma.businessProfile.groupBy({ by: ['countryCode'], _count: { _all: true }, orderBy: { _count: { countryCode: 'desc' } }, take: 8 }),
+  ]);
+
+  const trend = Array.from({ length: 6 }, (_, index) => {
+    const month = startOfMonth(index - 5);
+    const next = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 1));
+    return {
+      key: month.toISOString().slice(0, 7),
+      label: month.toLocaleDateString('en', { month: 'short', timeZone: 'UTC' }),
+      customers: customerDates.filter(row => row.createdAt >= month && row.createdAt < next).length,
+      revenue: paymentRows.filter(row => row.verifiedAt && row.verifiedAt >= month && row.verifiedAt < next).reduce((sum, row) => sum + row.amount, 0),
+    };
+  });
+
+  res.json({
+    generatedAt: now,
+    customers: { total: totalCustomers, active: activeCustomers, new: newCustomers, suspended: suspendedCustomers },
+    businesses: { total: totalBusinesses },
+    subscriptions: { active: activeSubscriptions, trialing: trialSubscriptions, expired: expiredSubscriptions, upcomingExpirations },
+    payments: { pending: pendingPayments, approved: approvedPayments, rejected: rejectedPayments, revenueByCurrency: approvedRevenue.map(row => ({ currency: row.currency, amount: row._sum.amount ?? 0 })) },
+    support: { open: openTickets },
+    trends: trend,
+    distributions: {
+      plans: plans.map(row => ({ label: row.plan, value: row._count._all })),
+      countries: countries.map(row => ({ label: row.countryCode || 'Unknown', value: row._count._all })),
+    },
+    recentActions,
+  });
+});
+
+// GET /admin/search — centralized identifier search across existing sources of truth.
+router.get('/search', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  const parsed = SearchSchema.safeParse(req.query);
+  if (!parsed.success) { res.status(400).json({ error: 'Enter at least two characters.' }); return; }
+  const q = parsed.data.q;
+  const isObjectId = /^[a-f\d]{24}$/i.test(q);
+  const [customers, businesses, payments, tickets] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: 'CUSTOMER', OR: [
+        { email: { contains: q, mode: 'insensitive' } }, { name: { contains: q, mode: 'insensitive' } },
+        { phone: { contains: q, mode: 'insensitive' } }, { publicId: { contains: q, mode: 'insensitive' } },
+      ] },
+      select: { id: true, publicId: true, name: true, email: true, phone: true, isBlocked: true }, take: 6,
+    }),
+    prisma.businessProfile.findMany({
+      where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { user: { is: { OR: [
+        { email: { contains: q, mode: 'insensitive' } }, { phone: { contains: q, mode: 'insensitive' } }, { publicId: { contains: q, mode: 'insensitive' } },
+      ] } } }] },
+      select: { id: true, name: true, status: true, user: { select: { email: true, publicId: true } } }, take: 6,
+    }),
+    prisma.subscriptionPayment.findMany({
+      where: { OR: [...(isObjectId ? [{ id: q }] : []), { transactionId: { contains: q, mode: 'insensitive' } }] },
+      select: { id: true, transactionId: true, status: true, amount: true, currency: true, business: { select: { name: true } } }, take: 6,
+    }),
+    prisma.supportTicket.findMany({
+      where: { OR: [...(isObjectId ? [{ id: q }] : []), { subject: { contains: q, mode: 'insensitive' } }, { author: { is: { email: { contains: q, mode: 'insensitive' } } } }] },
+      select: { id: true, subject: true, status: true, author: { select: { email: true } } }, take: 6,
+    }),
+  ]);
+  res.json({ customers, businesses, payments, tickets });
+});
+
+// GET /admin/audit — read-only view over the existing append-only ActivityLog source.
+router.get('/audit', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  const pagination = parsePagination(req.query);
+  if (pagination.error) { res.status(400).json({ error: pagination.error }); return; }
+  const search = String(req.query.search ?? '').trim();
+  const where = search ? { OR: [
+    { action: { contains: search, mode: 'insensitive' as const } },
+    { user: { is: { email: { contains: search, mode: 'insensitive' as const } } } },
+  ] } : {};
+  const skip = (pagination.page - 1) * pagination.limit;
+  const [events, total] = await Promise.all([
+    prisma.activityLog.findMany({ where, skip, take: pagination.limit, orderBy: { createdAt: 'desc' }, include: { user: { select: { email: true, role: true } } } }),
+    prisma.activityLog.count({ where }),
+  ]);
+  res.json({ events, total, page: pagination.page, limit: pagination.limit, totalPages: Math.ceil(total / pagination.limit) });
+});
+
+// GET /admin/operations — sanitized operational state only; no secrets or stack traces.
+router.get('/operations', requireAuth, requireRole('ADMIN'), async (_req: Request, res: Response): Promise<void> => {
+  const started = Date.now();
+  const [maintenance, scheduledNotifications, expiredSubscriptions] = await Promise.all([
+    prisma.adminConfig.findUnique({ where: { key: 'maintenanceMode' } }),
+    prisma.notification.count({ where: { sentAt: null, scheduledAt: { not: null } } }),
+    prisma.businessSubscription.count({ where: { status: { in: ['ACTIVE', 'TRIALING'] }, endDate: { lte: new Date() } } }),
+  ]);
+  res.json({
+    checkedAt: new Date(),
+    services: [
+      { name: 'API', status: 'healthy', detail: 'Request handling is operational' },
+      { name: 'Database', status: 'healthy', detail: `${Date.now() - started} ms query latency` },
+      { name: 'Scheduled notifications', status: 'healthy', detail: `${scheduledNotifications} queued` },
+      { name: 'Subscription lifecycle', status: expiredSubscriptions ? 'attention' : 'healthy', detail: `${expiredSubscriptions} due for expiry processing` },
+    ],
+    maintenanceMode: maintenance?.value === true || maintenance?.value === 'true',
+  });
+});
+
+// GET /admin/security — safe security posture summary from existing auth records.
+router.get('/security', requireAuth, requireRole('ADMIN'), async (_req: Request, res: Response): Promise<void> => {
+  const now = new Date();
+  const since = new Date(now.getTime() - 30 * 86_400_000);
+  const [activeSessions, suspendedAccounts, passwordResetRequests, events] = await Promise.all([
+    prisma.refreshToken.count({ where: { expiresAt: { gt: now } } }),
+    prisma.user.count({ where: { isBlocked: true } }),
+    prisma.passwordResetOtp.count({ where: { createdAt: { gte: since } } }),
+    prisma.activityLog.findMany({
+      where: { action: { in: ['ADMIN_BLOCKED_USER', 'ADMIN_UNBLOCKED_USER', 'ADMIN_BUSINESS_STATUS_UPDATED', 'PASSWORD_CHANGED', 'ACCOUNT_DELETE_REQUESTED'] } },
+      orderBy: { createdAt: 'desc' }, take: 20, include: { user: { select: { email: true, role: true } } },
+    }),
+  ]);
+  res.json({ activeSessions, suspendedAccounts, passwordResetRequests, events });
+});
+
+// GET /admin/reports/:report.csv — bounded exports backed by existing models.
+router.get('/reports/:report.csv', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  const parsed = ReportSchema.safeParse(req.params.report);
+  if (!parsed.success) { res.status(404).json({ error: 'Unknown report' }); return; }
+  let rows: unknown[][];
+  if (parsed.data === 'customers') {
+    const data = await prisma.user.findMany({ where: { role: 'CUSTOMER' }, orderBy: { createdAt: 'desc' }, take: 5000, select: { publicId: true, name: true, email: true, phone: true, countryCode: true, isBlocked: true, createdAt: true } });
+    rows = [['Customer ID', 'Name', 'Email', 'Phone', 'Country', 'Status', 'Registered'], ...data.map(row => [row.publicId, row.name, row.email, row.phone, row.countryCode, row.isBlocked ? 'SUSPENDED' : 'ACTIVE', row.createdAt])];
+  } else if (parsed.data === 'subscriptions') {
+    const data = await prisma.businessSubscription.findMany({ orderBy: { createdAt: 'desc' }, take: 5000, include: { business: { select: { name: true } } } });
+    rows = [['Subscription ID', 'Business', 'Plan', 'Status', 'Price', 'Currency', 'Start', 'End'], ...data.map(row => [row.id, row.business.name, row.plan, row.status, row.price, row.currency, row.startDate, row.endDate])];
+  } else if (parsed.data === 'payments') {
+    const data = await prisma.subscriptionPayment.findMany({ orderBy: { createdAt: 'desc' }, take: 5000, include: { business: { select: { name: true } }, verifiedBy: { select: { email: true } } } });
+    rows = [['Payment ID', 'Business', 'Transaction ID', 'Method', 'Plan', 'Amount', 'Currency', 'Status', 'Submitted', 'Reviewed by', 'Reviewed'], ...data.map(row => [row.id, row.business.name, row.transactionId, row.paymentMethodName, row.plan, row.amount, row.currency, row.status, row.createdAt, row.verifiedBy?.email, row.verifiedAt])];
+  } else if (parsed.data === 'support') {
+    const data = await prisma.supportTicket.findMany({ orderBy: { createdAt: 'desc' }, take: 5000, include: { author: { select: { email: true, role: true } }, resolver: { select: { email: true } } } });
+    rows = [['Ticket ID', 'Customer', 'Role', 'Subject', 'Status', 'Created', 'Resolved', 'Resolved by'], ...data.map(row => [row.id, row.author.email, row.author.role, row.subject, row.status, row.createdAt, row.resolvedAt, row.resolver?.email])];
+  } else {
+    const data = await prisma.activityLog.findMany({ orderBy: { createdAt: 'desc' }, take: 5000, include: { user: { select: { email: true, role: true } } } });
+    rows = [['Event ID', 'Actor', 'Role', 'Action', 'Timestamp', 'Metadata'], ...data.map(row => [row.id, row.user.email, row.user.role, row.action, row.createdAt, JSON.stringify(row.metadata)])];
+  }
+  await prisma.activityLog.create({ data: { userId: req.user!.userId, action: 'ADMIN_REPORT_EXPORTED', metadata: { report: parsed.data, rowCount: rows.length - 1 } } });
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="punchy-${parsed.data}-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv(rows));
 });
 
 /**
@@ -138,11 +331,23 @@ router.put('/businesses/:id/status', requireAuth, requireRole('ADMIN'), async (r
     },
   });
 
-  // Notify business owner
+  // Persist the direct notification so the business sees the same message in
+  // its Punchy inbox as it receives through FCM.
+  const businessNotification = await prisma.notification.create({
+    data: {
+      targetType: 'USER',
+      targetId: business.userId,
+      title: `Business Profile ${status === 'APPROVED' ? 'Approved! 🎉' : status}`,
+      body: `Your business profile "${business.name}" has been marked as ${status}.`,
+      createdBy: req.user!.userId,
+      sentAt: new Date(),
+    },
+  });
   await sendNotification({
     userId: business.userId,
-    title: `Business Profile ${status === 'APPROVED' ? 'Approved! 🎉' : status}`,
-    body: `Your business profile "${business.name}" has been marked as ${status}.`,
+    title: businessNotification.title,
+    body: businessNotification.body,
+    data: { notificationId: businessNotification.id },
   });
 
   res.json({ message: `Business status updated to ${status}`, business });
@@ -152,36 +357,41 @@ router.put('/businesses/:id/status', requireAuth, requireRole('ADMIN'), async (r
  * GET /admin/customers — List all customer accounts
  */
 router.get('/customers', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response): Promise<void> => {
-  const { search } = req.query;
+  const pagination = parsePagination(req.query);
+  if (pagination.error) { res.status(400).json({ error: pagination.error }); return; }
+  const { search, status, country } = req.query;
   const where: Record<string, unknown> = { role: 'CUSTOMER' };
 
   if (search) {
-    where.email = { contains: String(search), mode: 'insensitive' };
+    const value = String(search).trim();
+    where.OR = [
+      { email: { contains: value, mode: 'insensitive' } },
+      { name: { contains: value, mode: 'insensitive' } },
+      { phone: { contains: value, mode: 'insensitive' } },
+      { publicId: { contains: value, mode: 'insensitive' } },
+    ];
   }
+  if (status === 'ACTIVE') where.isBlocked = false;
+  if (status === 'SUSPENDED') where.isBlocked = true;
+  if (country) where.countryCode = String(country).toUpperCase();
 
-  const customers = await prisma.user.findMany({
-    where,
-    select: {
-      id: true,
-      publicId: true,
-      email: true,
-      phone: true,
-      isBlocked: true,
-      createdAt: true,
-      customerCards: {
-        select: {
-          id: true,
-          punchCount: true,
-          isCompleted: true,
-          card: { select: { title: true } },
+  const [customers, total] = await Promise.all([
+    prisma.user.findMany({
+      where, skip: (pagination.page - 1) * pagination.limit, take: pagination.limit,
+      select: {
+        id: true, publicId: true, name: true, email: true, phone: true, countryCode: true,
+        isBlocked: true, createdAt: true,
+        customerCards: {
+          select: { id: true, punchCount: true, isCompleted: true, card: { select: { title: true } } },
         },
+        _count: { select: { customerCards: true } },
       },
-      _count: { select: { customerCards: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.user.count({ where }),
+  ]);
 
-  res.json(customers);
+  res.json({ customers, total, page: pagination.page, limit: pagination.limit, totalPages: Math.ceil(total / pagination.limit) });
 });
 
 // GET /admin/customers/:id — customer detail for the admin portal
@@ -189,10 +399,13 @@ router.get('/customers/:id', requireAuth, requireRole('ADMIN'), async (req: Requ
   const customer = await prisma.user.findFirst({
     where: { id: String(req.params.id), role: 'CUSTOMER' },
     select: {
-      id: true, publicId: true, email: true, name: true, phone: true, isBlocked: true, createdAt: true,
+      id: true, publicId: true, email: true, name: true, phone: true, countryCode: true, isBlocked: true, createdAt: true, updatedAt: true,
       customerCards: {
         select: { id: true, punchCount: true, isCompleted: true, card: { select: { title: true, business: { select: { name: true } } } } },
       },
+      supportTickets: { orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, subject: true, status: true, createdAt: true, resolvedAt: true } },
+      activityLogs: { orderBy: { createdAt: 'desc' }, take: 30, select: { id: true, action: true, metadata: true, createdAt: true } },
+      refreshTokens: { where: { expiresAt: { gt: new Date() } }, select: { id: true, createdAt: true, expiresAt: true } },
     },
   });
   if (!customer) { res.status(404).json({ error: 'Customer not found' }); return; }

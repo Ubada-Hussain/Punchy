@@ -7,8 +7,12 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/notification_count_badge.dart';
 import '../../core/widgets/punchy_empty_state.dart';
+import '../../core/widgets/punchy_async_button.dart';
+import '../../core/widgets/punchy_skeleton.dart';
 import 'explore_business_detail_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
@@ -18,16 +22,26 @@ class ExploreScreen extends StatefulWidget {
   State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> {
+class _ExploreScreenState extends State<ExploreScreen>
+    with WidgetsBindingObserver {
   final ApiClient _api = ApiClient();
   final TextEditingController _searchController = TextEditingController();
 
   List<dynamic> _businesses = [];
   bool _isLoading = true;
   bool _locationUnavailable = false;
+  bool _loadFailed = false;
+  bool _locationChecked = false;
+  bool _locationResolutionAttempted = false;
+  Position? _cachedPosition;
+  Future<Position?>? _positionFuture;
+  Map<String, dynamic>? _resolvedLocation;
+  int _requestId = 0;
+  String? _activeFiltersKey;
+  String? _lastSuccessfulFiltersKey;
   String _selectedCategory = 'All';
-  String _selectedLocationScope = 'nearby';
-  final Set<String> _joiningCardIds = {};
+  String _selectedLocationScope = 'city';
+  int _unreadNotificationsCount = 0;
 
   final List<String> _categories = [
     'All',
@@ -41,53 +55,156 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    NotificationService().inboxRevision.addListener(_handleInboxChanged);
     _fetchBusinesses();
+    _loadUnreadNotifications();
   }
 
-  Future<void> _fetchBusinesses() async {
-    setState(() => _isLoading = true);
+  void _handleInboxChanged() => _loadUnreadNotifications();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _loadUnreadNotifications();
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final res = await _api.get('/notifications/unread-count');
+      if (mounted && res is Map<String, dynamic>) {
+        setState(() {
+          _unreadNotificationsCount =
+              int.tryParse(res['unreadCount']?.toString() ?? '') ?? 0;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _openNotifications() async {
+    await context.push('/notifications');
+    await _loadUnreadNotifications();
+  }
+
+  Future<void> _fetchBusinesses({bool force = false}) async {
+    final filtersKey =
+        '$_selectedLocationScope|$_selectedCategory|${_searchController.text.trim()}';
+    if (!force &&
+        (_activeFiltersKey == filtersKey ||
+            (!_isLoading && _lastSuccessfulFiltersKey == filtersKey))) {
+      return;
+    }
+    final requestId = ++_requestId;
+    _activeFiltersKey = filtersKey;
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
+    }
+    final startedAt = DateTime.now();
     try {
       final categoryParam = _selectedCategory == 'All'
           ? ''
           : _selectedCategory.replaceAll(RegExp(r'[^\w\s]'), '').trim();
-      Position? position;
-      try {
-        var permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-        }
-        if (permission != LocationPermission.denied &&
-            permission != LocationPermission.deniedForever) {
-          position = await Geolocator.getCurrentPosition();
-        }
-      } catch (_) {}
-      if (mounted) setState(() => _locationUnavailable = position == null);
+      var position = _cachedPosition;
+      if (!_locationChecked && _resolvedLocation == null) {
+        position = await (_positionFuture ??= _loadPositionOnce());
+      }
+      if (mounted && requestId == _requestId) {
+        setState(
+          () => _locationUnavailable =
+              position == null && _resolvedLocation == null,
+        );
+      }
       final params = <String, String>{
         'search': _searchController.text.trim(),
         'category': categoryParam,
         'scope': _selectedLocationScope,
-        if (position != null) 'lat': position.latitude.toString(),
-        if (position != null) 'lng': position.longitude.toString(),
+        if (position != null && !_locationResolutionAttempted)
+          'lat': position.latitude.toString(),
+        if (position != null && !_locationResolutionAttempted)
+          'lng': position.longitude.toString(),
+        if (_resolvedLocation?['countryCode'] != null)
+          'currentCountryCode': _resolvedLocation!['countryCode'].toString(),
+        if (_resolvedLocation?['city'] != null)
+          'currentCity': _resolvedLocation!['city'].toString(),
       };
       final query = '?${Uri(queryParameters: params).query}';
 
       final res = await _api.get('/customer/explore$query');
-      if (res is Map && res['businesses'] is List && mounted) {
+      if (res is Map &&
+          res['businesses'] is List &&
+          mounted &&
+          requestId == _requestId) {
+        final location = res['location'];
         setState(() {
           _businesses = res['businesses'] as List;
           _locationUnavailable = res['locationAvailable'] != true;
+          if (location is Map) {
+            _resolvedLocation = Map<String, dynamic>.from(location);
+          }
+          _locationResolutionAttempted = true;
           _isLoading = false;
+          _loadFailed = false;
+          _lastSuccessfulFiltersKey = filtersKey;
         });
+        if (_activeFiltersKey == filtersKey) _activeFiltersKey = null;
+        debugPrint(
+          'Explore load: ${DateTime.now().difference(startedAt).inMilliseconds} ms (location + API + filtering)',
+        );
         return;
       }
-    } catch (_) {}
+    } catch (error) {
+      debugPrint(
+        'Explore load failed after ${DateTime.now().difference(startedAt).inMilliseconds} ms: $error',
+      );
+      if (mounted && requestId == _requestId) {
+        setState(() => _loadFailed = true);
+      }
+    }
 
-    if (mounted) {
+    if (mounted && requestId == _requestId) {
       setState(() {
-        _businesses = [];
+        if (_businesses.isEmpty) _businesses = [];
         _isLoading = false;
       });
+      if (_activeFiltersKey == filtersKey) _activeFiltersKey = null;
     }
+  }
+
+  Future<Position?> _loadPositionOnce() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever ||
+          !await Geolocator.isLocationServiceEnabled()) {
+        return null;
+      }
+      return _cachedPosition = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+    } catch (_) {
+      return null;
+    } finally {
+      _locationChecked = true;
+    }
+  }
+
+  Future<void> _refreshExplore() async {
+    // A user-requested refresh also gets a fresh GPS fix in case they moved.
+    _cachedPosition = null;
+    _positionFuture = null;
+    _locationChecked = false;
+    _resolvedLocation = null;
+    _locationResolutionAttempted = false;
+    _lastSuccessfulFiltersKey = null;
+    await _fetchBusinesses(force: true);
   }
 
   String _formatDate(dynamic dateVal) {
@@ -114,9 +231,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
-  Future<void> _addCardToWallet(String cardId, String businessName) async {
-    if (_joiningCardIds.contains(cardId)) return;
-    setState(() => _joiningCardIds.add(cardId));
+  Future<bool> _addCardToWallet(String cardId, String businessName) async {
     try {
       final res = await _api.post('/customer/cards/join', {'cardId': cardId});
       final msg =
@@ -151,27 +266,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         );
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppColors.ink,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            content: Text(
-              'Could not add card to wallet. Please check connection.',
-              style: GoogleFonts.plusJakartaSans(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _joiningCardIds.remove(cardId));
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -217,7 +314,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
                 color: AppColors.surfaceAlt,
                 child: Text(
-                  'Location is off — showing all businesses. Enable it to discover nearby places.',
+                  'Location is unavailable — showing all businesses. Enable location to see businesses in your city or country.',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11.5,
                     color: AppColors.inkSoft,
@@ -230,26 +327,44 @@ class _ExploreScreenState extends State<ExploreScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Discover Rewards',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.ink,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Discover Rewards',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                          ),
                         ),
-                      ),
-                      Text(
-                        'Find businesses and join cards without scanning',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: AppColors.inkSoft,
-                          fontWeight: FontWeight.w500,
+                        Text(
+                          'Find businesses and join cards without scanning',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: AppColors.inkSoft,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Refresh Explore',
+                    onPressed: _isLoading ? null : _refreshExplore,
+                    icon: _isLoading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(
+                            Icons.refresh_rounded,
+                            color: AppColors.inkSoft,
+                          ),
                   ),
                   GestureDetector(
                     onTap: () => context.push('/profile'),
@@ -327,6 +442,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   final isSelected = _selectedCategory == cat;
                   return GestureDetector(
                     onTap: () {
+                      if (isSelected) return;
                       setState(() => _selectedCategory = cat);
                       _fetchBusinesses();
                     },
@@ -366,11 +482,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 height: 40,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: 3,
+                  itemCount: 2,
                   separatorBuilder: (_, _) => const SizedBox(width: 8),
                   itemBuilder: (context, index) {
                     const scopes = <({String key, String label})>[
-                      (key: 'nearby', label: 'Nearby'),
                       (key: 'city', label: 'In Your City'),
                       (key: 'country', label: 'In Your Country'),
                     ];
@@ -378,6 +493,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     final isSelected = _selectedLocationScope == scope.key;
                     return GestureDetector(
                       onTap: () {
+                        if (isSelected) return;
                         setState(() => _selectedLocationScope = scope.key);
                         _fetchBusinesses();
                       },
@@ -410,9 +526,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
               // Business & Cards List
             ),
             Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: AppColors.teal),
+              child: _isLoading && _businesses.isEmpty
+                  ? const PunchySkeleton(rows: 3)
+                  : _loadFailed && _businesses.isEmpty
+                  ? Center(
+                      child: PunchyEmptyState(
+                        icon: Icons.wifi_off_rounded,
+                        heading: 'Could not load Explore',
+                        subtext: 'Check your connection and try again.',
+                        actionLabel: 'Try again',
+                        onAction: _fetchBusinesses,
+                      ),
                     )
                   : _businesses.isEmpty
                   ? Center(
@@ -425,18 +549,56 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                       ),
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 90),
-                      itemCount: _businesses.length,
-                      separatorBuilder: (_, index) =>
-                          const SizedBox(height: 14),
-                      itemBuilder: (context, index) {
-                        final b = _businesses[index];
-                        final cards = (b['loyaltyCards'] as List?) ?? [];
-                        final card = cards.isNotEmpty ? cards.first : null;
+                  : Stack(
+                      children: [
+                        ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 90),
+                          itemCount: _businesses.length,
+                          separatorBuilder: (_, index) =>
+                              const SizedBox(height: 14),
+                          itemBuilder: (context, index) {
+                            final b = _businesses[index];
+                            final cards = (b['loyaltyCards'] as List?) ?? [];
+                            final card = cards.isNotEmpty ? cards.first : null;
 
-                        return _buildReferenceBusinessCard(b, card, index);
-                      },
+                            return _buildReferenceBusinessCard(b, card, index);
+                          },
+                        ),
+                        if (_isLoading)
+                          const Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: LinearProgressIndicator(
+                              minHeight: 2,
+                              color: AppColors.teal,
+                            ),
+                          ),
+                        if (_loadFailed)
+                          Positioned(
+                            top: 8,
+                            left: 20,
+                            right: 20,
+                            child: Material(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              child: ListTile(
+                                dense: true,
+                                leading: const Icon(
+                                  Icons.wifi_off_rounded,
+                                  color: AppColors.coral,
+                                ),
+                                title: const Text(
+                                  'Refresh failed. Showing saved results.',
+                                ),
+                                trailing: TextButton(
+                                  onPressed: _fetchBusinesses,
+                                  child: const Text('Retry'),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
             ),
           ],
@@ -594,32 +756,29 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
                 const SizedBox(height: 9),
                 SizedBox(
-                  width: 82,
-                  child: ElevatedButton(
-                    onPressed:
-                        card == null ||
-                            _joiningCardIds.contains(card['id'].toString())
-                        ? null
+                  width: 104,
+                  child: PunchyAsyncButton(
+                    label: 'Join Card',
+                    processingLabel: 'Joining…',
+                    enabled: card != null,
+                    onPressed: card == null
+                        ? () async => false
                         : () => _addCardToWallet(
-                            card['id'],
+                            card['id'].toString(),
                             business['name']?.toString() ?? 'Business',
                           ),
+                    errorMessage: 'Could not add card to wallet. Please check your connection.',
                     style: ElevatedButton.styleFrom(
                       backgroundColor: accent,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: Text(
-                      _joiningCardIds.contains(card?['id'].toString())
-                          ? '...'
-                          : 'Join Card',
-                      style: const TextStyle(
+                      textStyle: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                   ),
@@ -1131,7 +1290,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 Icons.notifications_none_rounded,
                 'Alerts',
                 false,
-                onTap: () => context.push('/notifications'),
+                badgeCount: _unreadNotificationsCount,
+                onTap: _openNotifications,
               ),
               _buildNavItem(
                 Icons.person_outline_rounded,
@@ -1151,16 +1311,28 @@ class _ExploreScreenState extends State<ExploreScreen> {
     String label,
     bool active, {
     VoidCallback? onTap,
+    int badgeCount = 0,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 22,
-            color: active ? AppColors.tealDark : AppColors.inkFaint,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                icon,
+                size: 22,
+                color: active ? AppColors.tealDark : AppColors.inkFaint,
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  top: -9,
+                  right: -12,
+                  child: NotificationCountBadge(count: badgeCount),
+                ),
+            ],
           ),
           const SizedBox(height: 2),
           Text(
@@ -1178,6 +1350,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   void dispose() {
+    NotificationService().inboxRevision.removeListener(_handleInboxChanged);
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
   }

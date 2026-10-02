@@ -5,7 +5,10 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/notification_count_badge.dart';
+import '../../core/widgets/punchy_skeleton.dart';
 import 'card_detail_screen.dart';
 
 class CustomerDashboardScreen extends StatefulWidget {
@@ -16,16 +19,52 @@ class CustomerDashboardScreen extends StatefulWidget {
       _CustomerDashboardScreenState();
 }
 
-class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
+class _CustomerDashboardScreenState extends State<CustomerDashboardScreen>
+    with WidgetsBindingObserver {
   final ApiClient _api = ApiClient();
   bool _isLoading = true;
   List<dynamic> _cards = [];
   int _activeNavIndex = 0;
+  int _unreadNotificationsCount = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    NotificationService().inboxRevision.addListener(_handleInboxChanged);
     _loadCards();
+    _loadUnreadNotifications();
+  }
+
+  void _handleInboxChanged() => _loadUnreadNotifications();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _loadUnreadNotifications();
+  }
+
+  @override
+  void dispose() {
+    NotificationService().inboxRevision.removeListener(_handleInboxChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final res = await _api.get('/notifications/unread-count');
+      if (mounted && res is Map<String, dynamic>) {
+        setState(() {
+          _unreadNotificationsCount =
+              int.tryParse(res['unreadCount']?.toString() ?? '') ?? 0;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _openNotifications() async {
+    await context.push('/notifications');
+    await Future.wait([_loadCards(), _loadUnreadNotifications()]);
   }
 
   Future<void> _loadCards() async {
@@ -238,24 +277,35 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                         ),
                         // Bell notification icon
                         GestureDetector(
-                          onTap: () => context
-                              .push('/notifications')
-                              .then((_) => _loadCards()),
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              border: Border.all(color: AppColors.line),
-                              borderRadius: BorderRadius.circular(11),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.notifications_none_rounded,
-                                color: AppColors.ink,
-                                size: 18,
+                          onTap: _openNotifications,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  border: Border.all(color: AppColors.line),
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.notifications_none_rounded,
+                                    color: AppColors.ink,
+                                    size: 18,
+                                  ),
+                                ),
                               ),
-                            ),
+                              if (_unreadNotificationsCount > 0)
+                                Positioned(
+                                  top: -7,
+                                  right: -7,
+                                  child: NotificationCountBadge(
+                                    count: _unreadNotificationsCount,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ],
@@ -323,15 +373,8 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                     const SizedBox(height: 12),
 
                     // Wallet Cards List
-                    if (_isLoading)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(30),
-                          child: CircularProgressIndicator(
-                            color: AppColors.teal,
-                          ),
-                        ),
-                      )
+                    if (_isLoading && _cards.isEmpty)
+                      const PunchySkeleton(rows: 2)
                     else if (_cards.isEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -369,7 +412,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Explore nearby businesses to join loyalty cards and start collecting punches!',
+                              'Explore businesses in your city or country to join loyalty cards and start collecting punches!',
                               textAlign: TextAlign.center,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
@@ -706,8 +749,8 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
             2,
             Icons.notifications_none_rounded,
             'Alerts',
-            onTap: () =>
-                context.push('/notifications').then((_) => _loadCards()),
+            badgeCount: _unreadNotificationsCount,
+            onTap: _openNotifications,
           ),
           _buildNavItem(
             3,
@@ -725,6 +768,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
     IconData icon,
     String label, {
     VoidCallback? onTap,
+    int badgeCount = 0,
   }) {
     final isActive = _activeNavIndex == index;
     return GestureDetector(
@@ -736,10 +780,21 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 21,
-            color: isActive ? AppColors.teal : AppColors.inkFaint,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                icon,
+                size: 21,
+                color: isActive ? AppColors.teal : AppColors.inkFaint,
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  top: -9,
+                  right: -12,
+                  child: NotificationCountBadge(count: badgeCount),
+                ),
+            ],
           ),
           const SizedBox(height: 3),
           Text(

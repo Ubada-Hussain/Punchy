@@ -51,6 +51,7 @@ enum SubscriptionTier {
 enum SubscriptionStatus {
   TRIALING
   ACTIVE
+  INACTIVE
   PAYMENT_PENDING
   EXPIRED
 }
@@ -95,6 +96,9 @@ model User {
   verifiedPayments  SubscriptionPayment[] @relation("PaymentVerifier")
   activityLogs      ActivityLog[]
   fcmTokens         String[]              @default([])
+
+  @@index([businessId, role, createdAt])
+  @@index([role, createdAt])
 }
 
 model RefreshToken {
@@ -104,6 +108,8 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
 }
 
 model PasswordResetOtp {
@@ -160,6 +166,8 @@ model BusinessProfile {
   staffMembers       User[]                 @relation("BusinessStaff")
   subscriptions      BusinessSubscription[]
   paymentSubmissions SubscriptionPayment[]
+
+  @@index([status, countryCode, createdAt])
 }
 
 model CountrySubscriptionPricing {
@@ -185,6 +193,7 @@ model BusinessSubscription {
   endDate    DateTime
   trialStart DateTime?
   trialEnd   DateTime?
+  freeMonths Int?
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
@@ -207,6 +216,8 @@ model PaymentMethod {
   paymentSubmissions SubscriptionPayment[]
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
+
+  @@index([isActive, sortOrder, name])
 }
 
 model SubscriptionPayment {
@@ -259,6 +270,9 @@ model LoyaltyCard {
 
   punchMethods  PunchMethod[]
   customerCards CustomerCard[]
+
+  @@index([businessId, isActive, createdAt])
+  @@index([isActive, validUntil])
 }
 
 // ─── Punch Method ─────────────────────────────────────────────────────────────
@@ -274,6 +288,8 @@ model PunchMethod {
   createdAt  DateTime        @default(now())
 
   punchTransactions PunchTransaction[]
+
+  @@index([cardId, isActive])
 }
 
 // ─── Customer Card (join + state) ────────────────────────────────────────────
@@ -293,6 +309,8 @@ model CustomerCard {
   redemptions       Redemption[]
 
   @@unique([customerId, cardId])
+  @@index([customerId, joinedAt])
+  @@index([cardId, joinedAt])
 }
 
 // ─── Punch Transaction ────────────────────────────────────────────────────────
@@ -305,6 +323,9 @@ model PunchTransaction {
   punchMethod    PunchMethod     @relation(fields: [punchMethodId], references: [id])
   method         PunchMethodType
   timestamp      DateTime        @default(now())
+
+  @@index([customerCardId, timestamp])
+  @@index([timestamp])
 }
 
 // ─── Redemption ───────────────────────────────────────────────────────────────
@@ -315,6 +336,8 @@ model Redemption {
   customerCard   CustomerCard @relation(fields: [customerCardId], references: [id], onDelete: Cascade)
   redeemedAt     DateTime     @default(now())
   verifiedBy     String?      @db.ObjectId
+
+  @@index([customerCardId, redeemedAt])
 }
 
 // ─── Notification ─────────────────────────────────────────────────────────────
@@ -330,6 +353,11 @@ model Notification {
   createdBy   String             @db.ObjectId
   creator     User               @relation("NotificationCreator", fields: [createdBy], references: [id])
   createdAt   DateTime           @default(now())
+
+  @@index([targetType, createdAt])
+  @@index([createdBy, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([scheduledAt, sentAt])
 }
 
 // ─── Support Ticket ───────────────────────────────────────────────────────────
@@ -347,6 +375,9 @@ model SupportTicket {
   createdAt  DateTime     @default(now())
   resolvedAt DateTime?
   updatedAt  DateTime     @updatedAt
+
+  @@index([authorId, createdAt])
+  @@index([status, createdAt])
 }
 
 // ─── Admin Config ─────────────────────────────────────────────────────────────
@@ -368,4 +399,7 @@ model ActivityLog {
   action    String
   metadata  Json     @default("{}")
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }

@@ -2,8 +2,7 @@ import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { reverseGeocodeLocation } from '../lib/international';
-
-export const EXPLORE_RADIUS_METERS = 10_000;
+import { filterExploreBusinesses } from '../lib/exploreLocation';
 
 const router = Router();
 
@@ -47,8 +46,11 @@ router.get('/cards/:id', requireAuth, requireRole('CUSTOMER'), async (req: Reque
           },
         },
       },
-      punchTransactions: { orderBy: { timestamp: 'desc' }, take: 50 },
-      redemptions: { orderBy: { redeemedAt: 'desc' } },
+      punchTransactions: {
+        select: { method: true, timestamp: true },
+        orderBy: { timestamp: 'desc' },
+        take: 50,
+      },
     },
   });
   if (!card) { res.status(404).json({ error: 'Card not found' }); return; }
@@ -77,21 +79,30 @@ router.post('/cards/:id/redeem', requireAuth, requireRole('CUSTOMER'), async (re
 // GET /customer/explore — browse businesses from the customer's current location.
 router.get('/explore', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const { category, search, lat, lng } = req.query;
-  const requestedScope = ['nearby', 'city', 'country'].includes(String(req.query.scope))
-    ? String(req.query.scope) : 'nearby';
+  const requestedScope: 'city' | 'country' = req.query.scope === 'country' ? 'country' : 'city';
   const latitude = Number(lat); const longitude = Number(lng);
   const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
-  const currentLocation = hasCoordinates
-    ? await reverseGeocodeLocation(latitude, longitude)
+  // The client sends its resolved location after the first GPS lookup so tab,
+  // category and search changes do not call the geocoder repeatedly.
+  const suppliedLocation = typeof req.query.currentCountryCode === 'string'
+    ? { city: typeof req.query.currentCity === 'string' ? req.query.currentCity : undefined, countryCode: req.query.currentCountryCode }
     : null;
+  const locationStartedAt = Date.now();
+  const currentLocation = suppliedLocation ?? (hasCoordinates
+    ? await reverseGeocodeLocation(latitude, longitude)
+    : null);
+  const locationDurationMs = Date.now() - locationStartedAt;
   const where: Record<string, unknown> = {
     status: 'APPROVED',
+    loyaltyCards: {
+      some: {
+        isActive: true,
+        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      },
+    },
   };
   // Location permission/reverse lookup failures fall back to an unfiltered
   // Explore list; wallet cards are never queried or filtered here.
-  if (currentLocation && requestedScope === 'country' && currentLocation.countryCode) {
-    where.countryCode = currentLocation.countryCode;
-  }
 
   if (category && category !== 'All') {
     where.category = { contains: String(category), mode: 'insensitive' };
@@ -104,46 +115,47 @@ router.get('/explore', requireAuth, async (req: Request, res: Response): Promise
     ];
   }
 
+  const countryCode = currentLocation?.countryCode?.trim().toUpperCase();
+  const city = currentLocation?.city?.trim();
+  // City's canonical field is indexed; include legacy rows without a canonical
+  // city only inside the customer's country, then retain their location fallback.
+  if (requestedScope === 'country' && countryCode) {
+    // Country codes are stored as ISO uppercase; plain equality uses the index.
+    where.countryCode = countryCode;
+  } else if (requestedScope === 'city' && city && countryCode) {
+    where.countryCode = countryCode;
+    // Keep location-array legacy records eligible; the exact city check below
+    // handles both the canonical city and cities embedded in locations.
+  }
+
+  const databaseStartedAt = Date.now();
   const businesses = await prisma.businessProfile.findMany({
     where,
-    include: {
+    select: {
+      id: true, name: true, logo: true, category: true, description: true,
+      website: true, currencyCode: true, locations: true, city: true, countryCode: true,
+      user: { select: { phone: true } },
       loyaltyCards: {
         where: {
           isActive: true,
           OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
         },
-        include: {
-          punchMethods: { where: { isActive: true } },
-          _count: { select: { customerCards: true } },
+        select: {
+          id: true, title: true, punchesRequired: true, rewardDescription: true,
+          visualStyle: true, validUntil: true, pricePerPunch: true, currency: true,
         },
+        take: 1,
       },
-      user: { select: { phone: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
-  if (!hasCoordinates || requestedScope !== 'nearby') {
-    res.json({ businesses, location: currentLocation, locationAvailable: Boolean(currentLocation) });
-    return;
-  }
-
-  // Prisma's MongoDB client does not expose $near; issue the native Mongo command,
-  // then retain Prisma's populated card data and Mongo's distance ordering.
-  try {
-    const raw = await prisma.$runCommandRaw({
-      find: 'BusinessProfile',
-      filter: { status: 'APPROVED', location: { $near: { $geometry: { type: 'Point', coordinates: [longitude, latitude] }, $maxDistance: EXPLORE_RADIUS_METERS } } },
-      projection: { _id: 1 },
-    }) as { cursor?: { firstBatch?: Array<{ _id: unknown }> } };
-    const nearbyIds = (raw.cursor?.firstBatch ?? []).map((item) => {
-      const id = item._id as { $oid?: string; toString?: () => string };
-      return id?.$oid || id?.toString?.() || String(id);
-    });
-    const byId = new Map(businesses.map((business) => [business.id, business]));
-    res.json({ businesses: nearbyIds.map((id) => byId.get(id)).filter(Boolean), location: currentLocation, locationAvailable: Boolean(currentLocation) });
-  } catch (error) {
-    console.warn('Nearby-business query failed; returning unranked businesses:', error);
-    res.json({ businesses, location: currentLocation, locationAvailable: Boolean(currentLocation) });
-  }
+  const databaseDurationMs = Date.now() - databaseStartedAt;
+  const filterStartedAt = Date.now();
+  const matchingBusinesses = filterExploreBusinesses(businesses, currentLocation, requestedScope);
+  const filterDurationMs = Date.now() - filterStartedAt;
+  res.setHeader('Server-Timing', `location;dur=${locationDurationMs}, database;dur=${databaseDurationMs}, filter;dur=${filterDurationMs}`);
+  console.info(`[Explore] scope=${requestedScope} location=${locationDurationMs}ms database=${databaseDurationMs}ms filter=${filterDurationMs}ms results=${matchingBusinesses.length}`);
+  res.json({ businesses: matchingBusinesses, location: currentLocation, locationAvailable: Boolean(currentLocation) });
 });
 
 // POST /customer/cards/join — join card without scan

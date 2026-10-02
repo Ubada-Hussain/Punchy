@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_client.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/notification_count_badge.dart';
+import '../../core/widgets/punchy_skeleton.dart';
 import 'create_card_screen.dart';
 
 class BusinessDashboardScreen extends StatefulWidget {
@@ -15,7 +18,8 @@ class BusinessDashboardScreen extends StatefulWidget {
       _BusinessDashboardScreenState();
 }
 
-class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
+class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
+    with WidgetsBindingObserver {
   final ApiClient _api = ApiClient();
   int _activeNavIndex = 0;
   int _selectedCardIndex = 0;
@@ -26,7 +30,23 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    NotificationService().inboxRevision.addListener(_handleInboxChanged);
     _loadDashboard();
+  }
+
+  void _handleInboxChanged() => _loadDashboard();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _loadDashboard();
+  }
+
+  @override
+  void dispose() {
+    NotificationService().inboxRevision.removeListener(_handleInboxChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _loadDashboard() async {
@@ -228,7 +248,11 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
               : cards.first)
         : null;
     final recentActivity = (_dashboardData?['recentActivity'] as List?) ?? [];
-    final hasUnread = _dashboardData?['hasUnreadNotifications'] == true;
+    final unreadNotificationsCount =
+        int.tryParse(
+          _dashboardData?['unreadNotificationsCount']?.toString() ?? '',
+        ) ??
+        0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7FAF7),
@@ -237,10 +261,8 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
         child: Column(
           children: [
             Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: AppColors.teal),
-                    )
+              child: _isLoading && _dashboardData == null
+                  ? const PunchySkeleton(rows: 4)
                   : RefreshIndicator(
                       color: AppColors.teal,
                       onRefresh: _loadDashboard,
@@ -251,7 +273,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                         ),
                         children: [
                           // 1. Header (Reference Image 2)
-                          _buildHeader(business, hasUnread),
+                          _buildHeader(business, unreadNotificationsCount),
                           const SizedBox(height: 16),
 
                           // 2. Three Stat Cards in a Row (Reference Image 2)
@@ -274,7 +296,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
             ),
 
             // 5. Bottom Navigation Bar matching Image 2
-            _buildBottomNav(hasUnread, activeCard),
+            _buildBottomNav(unreadNotificationsCount, activeCard),
           ],
         ),
       ),
@@ -284,7 +306,10 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
   /// Header matching Reference Image 2:
   /// Business Logo, Name + Verified Checkmark, Category, Full Address with Location Pin,
   /// Notification Bell (with red dot), and Settings Gear.
-  Widget _buildHeader(Map<String, dynamic> business, bool hasUnread) {
+  Widget _buildHeader(
+    Map<String, dynamic> business,
+    int unreadNotificationsCount,
+  ) {
     final name = business['name'] ?? 'My Business';
     final category = business['category'] ?? 'Food & Beverages';
     final address = business['address']?.toString() ?? '';
@@ -425,18 +450,12 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                   ),
                 ),
               ),
-              if (hasUnread)
+              if (unreadNotificationsCount > 0)
                 Positioned(
-                  top: 2,
-                  right: 2,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEF4444),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
-                    ),
+                  top: -7,
+                  right: -7,
+                  child: NotificationCountBadge(
+                    count: unreadNotificationsCount,
                   ),
                 ),
             ],
@@ -815,7 +834,9 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
         ? priceVal.toInt().toString()
         : priceVal.toString();
     final validDate = _formatDate(activeCard['validUntil']);
-    final expiry = DateTime.tryParse((activeCard['validUntil'] ?? '').toString());
+    final expiry = DateTime.tryParse(
+      (activeCard['validUntil'] ?? '').toString(),
+    );
     final isExpired = expiry != null && expiry.isBefore(DateTime.now());
     final custCount = activeCard['_count']?['customerCards'] ?? 0;
 
@@ -888,12 +909,18 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: (isExpired ? AppColors.coral : const Color(0xFF10A37F))
-                                      .withValues(alpha: 0.28),
+                                  color:
+                                      (isExpired
+                                              ? AppColors.coral
+                                              : const Color(0xFF10A37F))
+                                          .withValues(alpha: 0.28),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color: (isExpired ? AppColors.coral : const Color(0xFF10A37F))
-                                        .withValues(alpha: 0.5),
+                                    color:
+                                        (isExpired
+                                                ? AppColors.coral
+                                                : const Color(0xFF10A37F))
+                                            .withValues(alpha: 0.5),
                                     width: 0.8,
                                   ),
                                 ),
@@ -902,7 +929,9 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.w700,
-                                    color: isExpired ? AppColors.coral : const Color(0xFF6EE7B7),
+                                    color: isExpired
+                                        ? AppColors.coral
+                                        : const Color(0xFF6EE7B7),
                                   ),
                                 ),
                               ),
@@ -1409,7 +1438,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
 
   /// Bottom Navigation Bar matching Reference Image 2:
   /// Home, Cards, Raised Center Circular Scan Button with Mint Glow, Notifications (with red dot), Profile
-  Widget _buildBottomNav(bool hasUnread, dynamic activeCard) {
+  Widget _buildBottomNav(int unreadNotificationsCount, dynamic activeCard) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
       decoration: BoxDecoration(
@@ -1518,17 +1547,12 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen> {
                             ? AppColors.tealDark
                             : AppColors.inkSoft,
                       ),
-                      if (hasUnread)
+                      if (unreadNotificationsCount > 0)
                         Positioned(
-                          top: -1,
-                          right: -2,
-                          child: Container(
-                            width: 7,
-                            height: 7,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFEF4444),
-                              shape: BoxShape.circle,
-                            ),
+                          top: -9,
+                          right: -12,
+                          child: NotificationCountBadge(
+                            count: unreadNotificationsCount,
                           ),
                         ),
                     ],

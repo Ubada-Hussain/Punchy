@@ -50,6 +50,24 @@ export const api = {
   patch:  <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   put:    <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT',   body: JSON.stringify(body) }),
   delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body: JSON.stringify(body) }),
+  download: async (path: string, filename?: string) => {
+    const token = getToken();
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const res = await fetch(`${API_BASE}${normalizedPath}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || 'export.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  },
 
   // Auth helpers
   login: (email: string, password: string) =>
@@ -124,13 +142,16 @@ export interface PunchMethod {
 export interface User {
   id: string;
   publicId?: string;
+  name?: string;
   email: string;
   phone?: string;
+  countryCode?: string;
   role: 'CUSTOMER' | 'BUSINESS' | 'ADMIN' | 'STAFF';
   isBlocked: boolean;
   isStaffActive?: boolean;
   businessId?: string;
   createdAt: string;
+  updatedAt?: string;
   businessProfile?: { name: string; status: string };
 }
 

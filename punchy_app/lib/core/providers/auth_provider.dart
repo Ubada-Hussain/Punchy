@@ -97,23 +97,11 @@ class AuthProvider extends ChangeNotifier {
 
       if (_token != null) {
         await fetchProfile();
-        if (_token != null) await _registerDeviceToken();
-      } else {
-        // No session stored, verify server reachability without blocking
-        try {
-          await _api.get('/health');
-          _isOffline = false;
-        } catch (e) {
-          if (e is NetworkException ||
-              e is SocketException ||
-              e is TimeoutException) {
-            _isOffline = true;
-          }
-        }
+        if (_token != null) unawaited(_registerDeviceToken());
       }
 
-      // Health/maintenance is supplemental and must not delay login or the
-      // first route when no session exists.
+      // One health request handles offline/maintenance state without delaying
+      // auth readiness. Do not make a second reachability request at startup.
       unawaited(checkMaintenance());
     } catch (e) {
       debugPrint('AuthProvider _loadToken error: $e');
@@ -260,10 +248,9 @@ class AuthProvider extends ChangeNotifier {
         await _tokenStore.writeCachedUser(jsonEncode(_user));
       }
 
-      // Refresh the complete server profile so generated fields (including
-      // the immutable public ID) are available immediately after sign-in.
-      await fetchProfile();
-      await _registerDeviceToken();
+      // Login returns the fields needed by routing and the UI, including the
+      // immutable public ID. Avoid a duplicate /auth/me round trip here.
+      unawaited(_registerDeviceToken());
 
       _isLoading = false;
       notifyListeners();
@@ -385,7 +372,7 @@ class AuthProvider extends ChangeNotifier {
       if (_user != null) {
         await _tokenStore.writeCachedUser(jsonEncode(_user));
       }
-      await _registerDeviceToken();
+      unawaited(_registerDeviceToken());
 
       _isLoading = false;
       notifyListeners();
@@ -426,7 +413,7 @@ class AuthProvider extends ChangeNotifier {
       if (_user != null) {
         await _tokenStore.writeCachedUser(jsonEncode(_user));
       }
-      await _registerDeviceToken();
+      unawaited(_registerDeviceToken());
 
       _isLoading = false;
       notifyListeners();
@@ -468,15 +455,22 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await _tokenStore.clearAll();
-    _token = null;
-    _user = null;
-    _isSuspended = false;
-    _isOffline = false;
-    notifyListeners();
+    try {
+      await _auth.logout(await _tokenStore.readRefreshToken());
+    } catch (_) {
+      // Always clear the local session, including when the device is offline.
+    } finally {
+      await _tokenStore.clearAll();
+      _token = null;
+      _user = null;
+      _isSuspended = false;
+      _isOffline = false;
+      notifyListeners();
+    }
   }
 
   Future<bool> requestDeleteAccountOtp() async {
+    _errorMessage = null;
     try {
       await _auth.requestDeleteAccountOtp();
       return true;
@@ -490,11 +484,15 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> deleteAccount(String otp) async {
+    _errorMessage = null;
     try {
       await _auth.deleteAccount(otp);
       await logout();
       return true;
-    } catch (_) {
+    } catch (e) {
+      _errorMessage = e is ApiException
+          ? e.message
+          : 'Could not delete profile. Check the code and try again.';
       return false;
     }
   }

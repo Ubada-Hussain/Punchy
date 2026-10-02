@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/api/api_client.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_skeleton.dart';
 import '../../core/widgets/punchy_empty_state.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -16,6 +19,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final ApiClient _api = ApiClient();
   List<dynamic> _notifications = [];
   bool _isLoading = true;
+  bool _requestInFlight = false;
+  bool _reloadQueued = false;
+  bool _isDeletingAll = false;
   int _selectedFilter = 0; // 0 = All Updates, 1 = Broadcasts, 2 = Direct
 
   Future<void> _deleteNotification(String id) async {
@@ -23,30 +29,92 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await _api.delete('/notifications/$id');
       await _loadNotifications();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Could not delete notification.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e is ApiException ? e.message : 'Could not delete notification.',
+            ),
+          ),
+        );
+      }
     }
   }
 
   Future<void> _deleteAllNotifications() async {
-    final ids = _notifications.map((n) => n['id']?.toString()).whereType<String>().toList();
-    for (final id in ids) { await _deleteNotification(id); }
+    if (_isDeletingAll) return;
+    setState(() => _isDeletingAll = true);
+    try {
+      await _api.delete('/notifications');
+      if (!mounted) return;
+      setState(() => _notifications = []);
+      NotificationService().notifyInboxChanged();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e is ApiException ? e.message : 'Could not delete notifications.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDeletingAll = false);
+    }
   }
 
   @override
   void initState() {
     super.initState();
+    NotificationService().inboxRevision.addListener(_handleInboxChanged);
     _loadNotifications();
   }
 
+  void _handleInboxChanged() {
+    if (_requestInFlight) {
+      _reloadQueued = true;
+      return;
+    }
+    _loadNotifications();
+  }
+
+  void _finishRequest() {
+    _requestInFlight = false;
+    if (_reloadQueued && mounted) {
+      _reloadQueued = false;
+      _loadNotifications();
+    }
+  }
+
+  @override
+  void dispose() {
+    NotificationService().inboxRevision.removeListener(_handleInboxChanged);
+    super.dispose();
+  }
+
   Future<void> _loadNotifications() async {
-    setState(() => _isLoading = true);
+    if (_requestInFlight) return;
+    _requestInFlight = true;
+    if (mounted) setState(() => _isLoading = true);
     try {
       final res = await _api.get('/notifications');
-      if (res is Map<String, dynamic> && res['notifications'] is List && mounted) {
+      if (res is Map<String, dynamic> &&
+          res['notifications'] is List &&
+          mounted) {
         setState(() {
           _notifications = res['notifications'];
           _isLoading = false;
         });
+        final asOf = res['asOf']?.toString();
+        if (asOf != null && asOf.isNotEmpty) {
+          try {
+            await _api.post('/notifications/read', {'readThrough': asOf});
+          } catch (_) {
+            // The inbox is still usable; retry the read marker on next open.
+          }
+        }
+        _finishRequest();
         return;
       }
     } catch (_) {}
@@ -57,6 +125,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _isLoading = false;
       });
     }
+    _finishRequest();
   }
 
   String _formatTime(dynamic dateVal) {
@@ -68,7 +137,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
       if (diff.inHours < 24) return '${diff.inHours}h ago';
       if (diff.inDays < 7) return '${diff.inDays}d ago';
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       return '${dt.day} ${months[dt.month - 1]}';
     } catch (_) {
       return 'Recently';
@@ -79,7 +161,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     final filteredList = _notifications.where((n) {
       final target = (n['targetType'] ?? 'ALL').toString().toUpperCase();
-      if (_selectedFilter == 1) return target == 'ALL' || target == 'CUSTOMERS' || target == 'BUSINESSES';
+      if (_selectedFilter == 1) {
+        return target == 'ALL' ||
+            target == 'CUSTOMERS' ||
+            target == 'BUSINESSES';
+      }
       if (_selectedFilter == 2) return target == 'USER';
       return true;
     }).toList();
@@ -106,7 +192,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Center(
-                        child: Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: AppColors.ink),
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                   ),
@@ -120,15 +210,37 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                   IconButton(
                     tooltip: 'Delete all notifications',
-                    onPressed: _notifications.isEmpty ? null : () async {
-                      final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-                        title: const Text('Delete notifications?'),
-                        content: const Text('Delete all notifications?'),
-                        actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete all'))],
-                      ));
-                      if (ok == true) await _deleteAllNotifications();
-                    },
-                    icon: const Icon(Icons.delete_outline_rounded),
+                    onPressed: _notifications.isEmpty || _isDeletingAll
+                        ? null
+                        : () async {
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Delete notifications?'),
+                                content: const Text(
+                                  'Delete all notifications?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Delete all'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (ok == true) await _deleteAllNotifications();
+                          },
+                    icon: _isDeletingAll
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.delete_outline_rounded),
                   ),
                 ],
               ),
@@ -151,8 +263,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
             // Notifications List / Empty State
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.teal))
+              child: _isLoading && _notifications.isEmpty
+                  ? const PunchySkeleton(rows: 4)
                   : RefreshIndicator(
                       color: AppColors.teal,
                       onRefresh: _loadNotifications,
@@ -170,12 +282,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.fromLTRB(18, 8, 18, 20),
                               itemCount: filteredList.length,
-                              separatorBuilder: (_, index) => const SizedBox(height: 12),
+                              separatorBuilder: (_, index) =>
+                                  const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 final notif = filteredList[index];
-                                final creatorName = notif['creator']?['name'] ?? notif['creator']?['email']?.split('@')[0] ?? 'Punchy Platform';
-                                final time = _formatTime(notif['sentAt'] ?? notif['createdAt']);
-                                final target = (notif['targetType'] ?? 'ALL').toString();
+                                final creatorName =
+                                    notif['creator']?['name'] ??
+                                    notif['creator']?['email']?.split('@')[0] ??
+                                    'Punchy Platform';
+                                final time = _formatTime(
+                                  notif['sentAt'] ?? notif['createdAt'],
+                                );
+                                final target = (notif['targetType'] ?? 'ALL')
+                                    .toString();
 
                                 return Container(
                                   padding: const EdgeInsets.all(16),
@@ -185,71 +304,99 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     border: Border.all(color: AppColors.line),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.03),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.03,
+                                        ),
                                         blurRadius: 12,
                                         offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       // Top row with creator and time
                                       Row(
                                         children: [
                                           IconButton(
                                             tooltip: 'Delete notification',
-                                            onPressed: () => _deleteNotification(notif['id'].toString()),
-                                            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                                            onPressed: () =>
+                                                _deleteNotification(
+                                                  notif['id'].toString(),
+                                                ),
+                                            icon: const Icon(
+                                              Icons.delete_outline_rounded,
+                                              size: 18,
+                                            ),
                                           ),
                                           Container(
                                             width: 36,
                                             height: 36,
                                             decoration: BoxDecoration(
                                               color: AppColors.surfaceAlt,
-                                              borderRadius: BorderRadius.circular(11),
+                                              borderRadius:
+                                                  BorderRadius.circular(11),
                                             ),
                                             child: const Center(
-                                              child: Icon(Icons.notifications_active_outlined, size: 18, color: AppColors.tealDark),
+                                              child: Icon(
+                                                Icons
+                                                    .notifications_active_outlined,
+                                                size: 18,
+                                                color: AppColors.tealDark,
+                                              ),
                                             ),
                                           ),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 Text(
                                                   creatorName,
-                                                  style: GoogleFonts.plusJakartaSans(
-                                                    fontSize: 13.5,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: AppColors.ink,
-                                                  ),
+                                                  style:
+                                                      GoogleFonts.plusJakartaSans(
+                                                        fontSize: 13.5,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        color: AppColors.ink,
+                                                      ),
                                                 ),
                                                 Text(
                                                   time,
-                                                  style: GoogleFonts.plusJakartaSans(
-                                                    fontSize: 11,
-                                                    color: AppColors.inkFaint,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
+                                                  style:
+                                                      GoogleFonts.plusJakartaSans(
+                                                        fontSize: 11,
+                                                        color:
+                                                            AppColors.inkFaint,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
                                                 ),
                                               ],
                                             ),
                                           ),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 3,
+                                            ),
                                             decoration: BoxDecoration(
-                                              color: AppColors.teal.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(999),
+                                              color: AppColors.teal.withValues(
+                                                alpha: 0.12,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
                                             ),
                                             child: Text(
                                               target,
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w800,
-                                                color: AppColors.tealDark,
-                                              ),
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: AppColors.tealDark,
+                                                  ),
                                             ),
                                           ),
                                         ],
@@ -298,7 +445,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         decoration: BoxDecoration(
           color: isSelected ? AppColors.teal : AppColors.surface,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: isSelected ? AppColors.teal : AppColors.line),
+          border: Border.all(
+            color: isSelected ? AppColors.teal : AppColors.line,
+          ),
         ),
         child: Text(
           label,

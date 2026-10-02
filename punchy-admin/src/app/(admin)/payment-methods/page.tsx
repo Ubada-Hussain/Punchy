@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element -- payment method logos use Admin-configured external URLs */
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';

@@ -34,6 +34,7 @@ class _StaffPortalScreenState extends State<StaffPortalScreen>
   Timer? _cooldownTimer;
   bool _isCheckingStatus = false;
   bool _scannerOpen = false;
+  bool _isLoggingOut = false;
 
   @override
   void initState() {
@@ -470,16 +471,28 @@ class _StaffPortalScreenState extends State<StaffPortalScreen>
                   ),
                   // Log Out Button
                   IconButton(
-                    tooltip: 'Log Out',
-                    onPressed: () async {
-                      await auth.logout();
-                      if (context.mounted) context.go('/login');
-                    },
-                    icon: const Icon(
-                      Icons.logout_rounded,
-                      color: Colors.white70,
-                      size: 20,
-                    ),
+                    tooltip: _isLoggingOut ? 'Logging out…' : 'Log Out',
+                    onPressed: _isLoggingOut
+                        ? null
+                        : () async {
+                            setState(() => _isLoggingOut = true);
+                            await auth.logout();
+                            if (context.mounted) context.go('/login');
+                          },
+                    icon: _isLoggingOut
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white70,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.logout_rounded,
+                            color: Colors.white70,
+                            size: 20,
+                          ),
                   ),
                 ],
               ),

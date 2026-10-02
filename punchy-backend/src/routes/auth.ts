@@ -2,7 +2,6 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { v4 as uuid } from 'uuid';
-import crypto from 'crypto';
 import https from 'https';
 import prisma from '../lib/prisma';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../lib/jwt';
@@ -12,6 +11,14 @@ import { OAuth2Client } from 'google-auth-library';
 import { authRateLimiter, otpRateLimiter } from '../middleware/rateLimit';
 import { strongPassword } from '../lib/passwordPolicy';
 import { currencyForCountry, normalizeBusinessPhone } from '../lib/international';
+import {
+  generateSixDigitOtp,
+  isOtpValid,
+  OtpRequestThrottledError,
+  otpCooldownRemainingSeconds,
+  withOtpRequestGuard,
+} from '../lib/otpRequestGuard';
+import { ensureUserPublicId, uniquePublicId } from '../lib/userPublicId';
 
 const router = Router();
 router.use(authRateLimiter);
@@ -67,11 +74,12 @@ const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '919748165158-eg03lb2d2dvbglej5vq3suvl12nfsp6e.apps.googleusercontent.com';
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-async function uniquePublicId() {
-  for (;;) {
-    const value = String(crypto.randomInt(100000, 1000000));
-    if (!(await prisma.user.findUnique({ where: { publicId: value } }))) return value;
-  }
+function respondWithOtpCooldown(res: Response, error: OtpRequestThrottledError): void {
+  res.setHeader('Retry-After', error.retryAfterSeconds);
+  res.status(429).json({
+    error: error.message,
+    retryAfterSeconds: error.retryAfterSeconds,
+  });
 }
 
 router.post('/google', async (req: Request, res: Response): Promise<void> => {
@@ -81,10 +89,29 @@ router.post('/google', async (req: Request, res: Response): Promise<void> => {
     const ticket = await googleClient.verifyIdToken({ idToken: token, audience: GOOGLE_CLIENT_ID });
     const payload = ticket.getPayload();
     if (!payload?.email || payload.email_verified !== true) { res.status(401).json({ error: 'Google account email is not verified' }); return; }
-    let user = await prisma.user.findUnique({ where: { email: payload.email }, include: { businessProfile: true, staffBusiness: true } });
+    let user = await prisma.user.findUnique({
+      where: { email: payload.email },
+      select: {
+        id: true, publicId: true, email: true, name: true, role: true,
+        phone: true, isBlocked: true, isStaffActive: true, businessId: true,
+        createdAt: true,
+        businessProfile: { select: { status: true, name: true } },
+        staffBusiness: { select: { status: true, name: true } },
+      },
+    });
     if (!user) {
-      user = await prisma.user.create({ data: { email: payload.email, publicId: await uniquePublicId(), name: payload.name || payload.email.split('@')[0], passwordHash: await bcrypt.hash(uuid(), 12), role: 'CUSTOMER' }, include: { businessProfile: true, staffBusiness: true } });
+      user = await prisma.user.create({
+        data: { email: payload.email, publicId: await uniquePublicId(), name: payload.name || payload.email.split('@')[0], passwordHash: await bcrypt.hash(uuid(), 12), role: 'CUSTOMER' },
+        select: {
+          id: true, publicId: true, email: true, name: true, role: true,
+          phone: true, isBlocked: true, isStaffActive: true, businessId: true,
+          createdAt: true,
+          businessProfile: { select: { status: true, name: true } },
+          staffBusiness: { select: { status: true, name: true } },
+        },
+      });
     }
+    user.publicId = await ensureUserPublicId(user.id, user.publicId);
     const isBusinessSuspended = user.role === 'BUSINESS' && user.businessProfile?.status === 'SUSPENDED';
     const isStaffBusinessSuspended = user.role === 'STAFF' && user.staffBusiness?.status === 'SUSPENDED';
     if (user.isBlocked || isBusinessSuspended || isStaffBusinessSuspended) {
@@ -117,15 +144,53 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     res.status(409).json({ error: 'Email already registered' }); return;
   }
 
-  const otp = crypto.randomInt(100000, 1000000).toString();
-  const otpHash = await bcrypt.hash(otp, 12);
-  const passwordHash = await bcrypt.hash(password, 12);
-  await prisma.signupVerification.upsert({
-    where: { email },
-    update: { otpHash, passwordHash, role, name, phone: normalizedPhone, countryCode, expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS), attempts: 0 },
-    create: { email, otpHash, passwordHash, role, name, phone: normalizedPhone, countryCode, expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS) },
-  });
-  await sendOtpEmail({ to: email, otp, type: 'SIGNUP_VERIFICATION' });
+  try {
+    await withOtpRequestGuard(`signup:${email}`, async () => {
+      const previous = await prisma.signupVerification.findUnique({
+        where: { email },
+        select: { createdAt: true },
+      });
+      const retryAfterSeconds = otpCooldownRemainingSeconds(previous?.createdAt);
+      if (retryAfterSeconds > 0) throw new OtpRequestThrottledError(retryAfterSeconds);
+
+      const issuedAt = new Date();
+      const otp = generateSixDigitOtp();
+      const otpHash = await bcrypt.hash(otp, 12);
+      const passwordHash = await bcrypt.hash(password, 12);
+      await prisma.signupVerification.upsert({
+        where: { email },
+        update: {
+          otpHash,
+          passwordHash,
+          role,
+          name,
+          phone: normalizedPhone,
+          countryCode,
+          expiresAt: new Date(issuedAt.getTime() + PASSWORD_RESET_TTL_MS),
+          attempts: 0,
+          createdAt: issuedAt,
+        },
+        create: {
+          email,
+          otpHash,
+          passwordHash,
+          role,
+          name,
+          phone: normalizedPhone,
+          countryCode,
+          expiresAt: new Date(issuedAt.getTime() + PASSWORD_RESET_TTL_MS),
+          createdAt: issuedAt,
+        },
+      });
+      await sendOtpEmail({ to: email, otp, type: 'SIGNUP_VERIFICATION' });
+    });
+  } catch (error) {
+    if (error instanceof OtpRequestThrottledError) {
+      respondWithOtpCooldown(res, error);
+      return;
+    }
+    throw error;
+  }
   res.status(202).json({ verificationRequired: true, email, message: 'Verification code sent to your email.' });
 });
 
@@ -134,7 +199,14 @@ router.post('/verify-signup', otpRateLimiter, async (req: Request, res: Response
   if (!parsed.success) { res.status(400).json({ error: 'Enter a valid 6-digit verification code.' }); return; }
   const email = parsed.data.email.toLowerCase();
   const pending = await prisma.signupVerification.findUnique({ where: { email } });
-  if (!pending || pending.expiresAt < new Date() || pending.attempts >= PASSWORD_RESET_MAX_ATTEMPTS || !(await bcrypt.compare(parsed.data.otp, pending.otpHash))) {
+  const isValid = pending ? await isOtpValid({
+    candidate: parsed.data.otp,
+    hash: pending.otpHash,
+    expiresAt: pending.expiresAt,
+    attempts: pending.attempts,
+    maxAttempts: PASSWORD_RESET_MAX_ATTEMPTS,
+  }) : false;
+  if (!pending || !isValid) {
     if (pending) await prisma.signupVerification.update({ where: { id: pending.id }, data: { attempts: { increment: 1 } } });
     res.status(400).json({ error: 'Invalid or expired verification code.' }); return;
   }
@@ -145,11 +217,9 @@ router.post('/verify-signup', otpRateLimiter, async (req: Request, res: Response
     const business = await prisma.businessProfile.create({
       data: { userId: user.id, name: pending.name || 'My Business', category: 'Cafe & Retail', status: 'APPROVED', countryCode, currencyCode: currencyForCountry(countryCode) },
     });
-    const trialStart = new Date();
-    const trialEnd = new Date(trialStart);
-    trialEnd.setMonth(trialEnd.getMonth() + 2);
+    const createdAt = new Date();
     await prisma.businessSubscription.create({
-      data: { businessId: business.id, status: 'TRIALING', plan: 'TRIAL', price: 0, currency: business.currencyCode, startDate: trialStart, endDate: trialEnd, trialStart, trialEnd },
+      data: { businessId: business.id, status: 'INACTIVE', plan: 'TRIAL', price: 0, currency: business.currencyCode, startDate: createdAt, endDate: createdAt },
     });
   }
   const tokenPayload = { userId: user.id, email: user.email, role: user.role };
@@ -169,15 +239,19 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   const { email, password } = parsed.data;
   const user = await prisma.user.findUnique({
     where: { email },
-    include: {
-      businessProfile: true,
-      staffBusiness: true,
+    select: {
+      id: true, publicId: true, email: true, passwordHash: true, name: true,
+      role: true, phone: true, isBlocked: true, isStaffActive: true,
+      businessId: true, createdAt: true,
+      businessProfile: { select: { status: true, name: true } },
+      staffBusiness: { select: { status: true, name: true } },
     },
   });
 
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     res.status(401).json({ error: 'Invalid credentials' }); return;
   }
+  user.publicId = await ensureUserPublicId(user.id, user.publicId);
 
   const isBusinessSuspended = user.role === 'BUSINESS' && user.businessProfile?.status === 'SUSPENDED';
   const isStaffBusinessSuspended = user.role === 'STAFF' && user.staffBusiness?.status === 'SUSPENDED';
@@ -202,6 +276,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   res.json({
     user: {
       id: user.id,
+      publicId: user.publicId,
       email: user.email,
       name: user.name || user.email.split('@')[0],
       role: user.role,
@@ -356,6 +431,8 @@ router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void
     return;
   }
 
+  const publicId = await ensureUserPublicId(user.id, user.publicId);
+
   const isBusinessSuspended = user.role === 'BUSINESS' && user.businessProfile?.status === 'SUSPENDED';
   const isStaffBusinessSuspended = user.role === 'STAFF' && user.staffBusiness?.status === 'SUSPENDED';
   const isSuspended = user.isBlocked || isBusinessSuspended || isStaffBusinessSuspended;
@@ -363,6 +440,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void
   res.json({
     user: {
       ...user,
+      publicId,
       isSuspended,
       businessName: user.staffBusiness?.name ?? user.businessProfile?.name,
     },
@@ -408,12 +486,37 @@ router.put('/profile', requireAuth, async (req: Request, res: Response): Promise
 });
 
 router.post('/account/delete-request', requireAuth, otpRateLimiter, async (req: Request, res: Response): Promise<void> => {
-  const user = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { email: true, role: true } });
+  const user = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { id: true, email: true, role: true } });
   if (!user || user.role === 'ADMIN') { res.status(404).json({ error: 'Account not found' }); return; }
-  const otp = crypto.randomInt(100000, 1000000).toString();
-  await prisma.passwordResetOtp.deleteMany({ where: { email: user.email, purpose: 'DELETE_ACCOUNT' } });
-  await prisma.passwordResetOtp.create({ data: { email: user.email, otpHash: await bcrypt.hash(otp, 12), expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS), purpose: 'DELETE_ACCOUNT' } });
-  await sendOtpEmail({ to: user.email, otp, type: 'DELETE_ACCOUNT' });
+  try {
+    await withOtpRequestGuard(`delete-account:${user.id}`, async () => {
+      const previous = await prisma.passwordResetOtp.findFirst({
+        where: { email: user.email, purpose: 'DELETE_ACCOUNT' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      });
+      const retryAfterSeconds = otpCooldownRemainingSeconds(previous?.createdAt);
+      if (retryAfterSeconds > 0) throw new OtpRequestThrottledError(retryAfterSeconds);
+
+      const otp = generateSixDigitOtp();
+      await prisma.passwordResetOtp.deleteMany({ where: { email: user.email, purpose: 'DELETE_ACCOUNT' } });
+      await prisma.passwordResetOtp.create({
+        data: {
+          email: user.email,
+          otpHash: await bcrypt.hash(otp, 12),
+          expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+          purpose: 'DELETE_ACCOUNT',
+        },
+      });
+      await sendOtpEmail({ to: user.email, otp, type: 'DELETE_ACCOUNT' });
+    });
+  } catch (error) {
+    if (error instanceof OtpRequestThrottledError) {
+      respondWithOtpCooldown(res, error);
+      return;
+    }
+    throw error;
+  }
   res.json({ message: 'A verification code was sent to your email.' });
 });
 
@@ -423,7 +526,14 @@ router.delete('/account', requireAuth, async (req: Request, res: Response): Prom
   if (!user || user.role === 'ADMIN') { res.status(404).json({ error: 'Account not found' }); return; }
   const parsedOtp = DeleteOtpSchema.safeParse(req.body);
   const pendingDelete = parsedOtp.success ? await prisma.passwordResetOtp.findFirst({ where: { email: user.email, purpose: 'DELETE_ACCOUNT', expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } }) : null;
-  if (!pendingDelete || pendingDelete.attempts >= PASSWORD_RESET_MAX_ATTEMPTS || !(await bcrypt.compare(parsedOtp.success ? parsedOtp.data.otp : '', pendingDelete.otpHash))) {
+  const isValidDeleteOtp = pendingDelete && parsedOtp.success ? await isOtpValid({
+    candidate: parsedOtp.data.otp,
+    hash: pendingDelete.otpHash,
+    expiresAt: pendingDelete.expiresAt,
+    attempts: pendingDelete.attempts,
+    maxAttempts: PASSWORD_RESET_MAX_ATTEMPTS,
+  }) : false;
+  if (!pendingDelete || !isValidDeleteOtp) {
     if (pendingDelete) await prisma.passwordResetOtp.update({ where: { id: pendingDelete.id }, data: { attempts: { increment: 1 } } });
     res.status(400).json({ error: 'A valid email verification code is required before deleting your account.' }); return;
   }
@@ -488,6 +598,7 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
     res.status(403).json({ error: 'User not found or blocked' });
     return;
   }
+  user.publicId = await ensureUserPublicId(user.id, user.publicId);
   const tokenPayload = { userId: user.id, email: user.email, role: user.role };
   const newAccess = signAccessToken(tokenPayload);
   const newRefresh = signRefreshToken(tokenPayload);

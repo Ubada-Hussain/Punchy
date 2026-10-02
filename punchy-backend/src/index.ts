@@ -42,6 +42,26 @@ app.use((req, res, next) => {
   res.locals.requestId = requestId;
   next();
 });
+const configuredSlowRequestThresholdMs = Number(process.env.SLOW_REQUEST_LOG_MS || 500);
+const slowRequestThresholdMs = Number.isFinite(configuredSlowRequestThresholdMs) && configuredSlowRequestThresholdMs > 0
+  ? configuredSlowRequestThresholdMs
+  : 500;
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  res.once('finish', () => {
+    const durationMs = Date.now() - startedAt;
+    if (durationMs >= slowRequestThresholdMs) {
+      console.warn(JSON.stringify({
+        type: 'slow_api_request',
+        method: req.method,
+        route: `${req.baseUrl}${req.route?.path ?? req.path}`,
+        status: res.statusCode,
+        durationMs,
+      }));
+    }
+  });
+  next();
+});
 app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static(path.resolve(process.env.UPLOAD_DIR || '/var/www/punchy-backend/uploads')));
 app.use(maintenanceGuard);

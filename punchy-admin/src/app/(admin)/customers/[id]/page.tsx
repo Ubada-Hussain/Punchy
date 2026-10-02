@@ -1,90 +1,31 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import { api, type User } from '@/lib/api';
 
-function statusBadge(isBlocked: boolean) {
-  if (isBlocked) return <span className="badge b-suspended">BLOCKED</span>;
-  return <span className="badge b-active">ACTIVE</span>;
-}
+type Customer = User & {
+  customerCards: { id: string; punchCount: number; isCompleted: boolean; card: { title: string; business: { name: string } } }[];
+  supportTickets: { id: string; subject: string; status: string; createdAt: string; resolvedAt?: string }[];
+  activityLogs: { id: string; action: string; metadata: unknown; createdAt: string }[];
+  refreshTokens: { id: string; createdAt: string; expiresAt: string }[];
+};
+const title = (value: string) => value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
 export default function CustomerDetailPage() {
-  const params = useParams();
-  const id = params.id as string;
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.get<{ customer: User }>(`/admin/customers/${id}`)
-      .then(res => setUser(res.customer))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  if (loading) return (
-    <div className="admin-content">
-      <div className="loading-page"><div className="loading-spinner"/><span>Loading customer…</span></div>
-    </div>
-  );
-
-  if (!user) return (
-    <div className="admin-content">
-      <div className="empty-state">Customer not found</div>
-    </div>
-  );
-
-  const name = user.email.split('@')[0];
-
-  return (
-    <>
-      <div className="admin-topbar">
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <Link href="/customers" style={{ color:'var(--ink)', display:'flex' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" style={{ stroke:'currentColor', fill:'none', strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round' }}>
-              <path d="M19 12H5M11 5l-7 7 7 7"/>
-            </svg>
-          </Link>
-          <h3>{name}</h3>
-        </div>
-        <div className="top-actions">
-          {user.isBlocked ? (
-            <button className="btn btn-primary btn-xs">Unblock Account</button>
-          ) : (
-            <button className="btn btn-danger-ghost btn-xs">Block Account</button>
-          )}
-        </div>
-      </div>
-      <div className="admin-content">
-        <div className="panel">
-          <div className="profile-hero">
-            <div className="p-logo" style={{ background:'var(--grad-purple)', color:'#fff' }}>
-              {name.substring(0,2).toUpperCase()}
-            </div>
-            <div style={{ flex:1 }}>
-              <div className="p-name">{name}</div>
-              <div className="p-meta">
-                {user.email} · Joined {new Date(user.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
-              </div>
-            </div>
-            {statusBadge(user.isBlocked)}
-          </div>
-        </div>
-
-        <div className="panel" style={{ padding:0 }}>
-          <div className="panel-head" style={{ padding:'16px 18px 0' }}><h4>Loyalty Cards</h4></div>
-          <div className="empty-state" style={{ padding:20 }}>
-            No loyalty cards added yet.
-          </div>
-        </div>
-
-        <div className="panel" style={{ padding:0 }}>
-          <div className="panel-head" style={{ padding:'16px 18px 0' }}><h4>Activity Log</h4></div>
-          <div className="empty-state" style={{ padding:20 }}>
-            No activity found.
-          </div>
-        </div>
-      </div>
-    </>
-  );
+  const id = useParams<{ id: string }>().id;
+  const [customer, setCustomer] = useState<Customer | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [working, setWorking] = useState(false);
+  const load = useCallback(() => { setLoading(true); api.get<{customer: Customer}>(`/admin/customers/${id}`).then(result => setCustomer(result.customer)).catch(err => setError(err instanceof Error ? err.message : 'Unable to load customer')).finally(() => setLoading(false)); }, [id]);
+  useEffect(() => { const timer = window.setTimeout(load, 0); return () => window.clearTimeout(timer); }, [load]);
+  async function toggle() { if (!customer) return; const verb = customer.isBlocked ? 'restore' : 'suspend'; if (!confirm(`${verb[0].toUpperCase()}${verb.slice(1)} ${customer.name || customer.email}?`)) return; setWorking(true); try { await api.post(`/admin/customers/${id}/toggle-block`, {}); await load(); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to update account'); } finally { setWorking(false); } }
+  if (loading) return <div className="admin-content"><div className="loading-page"><div className="loading-spinner"/><span>Loading customer profile…</span></div></div>;
+  if (!customer) return <div className="admin-content"><div className="error-state"><b>Customer unavailable</b><span>{error || 'Customer not found'}</span><Link href="/customers" className="btn btn-outline">Back to customers</Link></div></div>;
+  const name = customer.name || customer.email.split('@')[0];
+  return <><div className="admin-topbar"><div className="back-title"><Link href="/customers" aria-label="Back to customers">←</Link><div><h3>{name}</h3><span className="topbar-subtitle">{customer.publicId || customer.id}</span></div></div><button disabled={working} className={`btn btn-xs ${customer.isBlocked ? 'btn-primary' : 'btn-danger-ghost'}`} onClick={toggle}>{working ? 'Saving…' : customer.isBlocked ? 'Restore account' : 'Suspend account'}</button></div><div className="admin-content">
+    {error && <div className="notice notice-error">{error}</div>}
+    <div className="panel"><div className="profile-hero"><div className="p-logo customer-avatar">{name.slice(0,2).toUpperCase()}</div><div style={{flex:1}}><div className="p-name">{name}</div><div className="p-meta">{customer.email} · Joined {new Date(customer.createdAt).toLocaleDateString()}</div></div><span className={`badge ${customer.isBlocked ? 'b-suspended' : 'b-active'}`}>{customer.isBlocked ? 'SUSPENDED' : 'ACTIVE'}</span></div><div className="profile-facts"><div><span>Phone</span><b>{customer.phone || 'Not provided'}</b></div><div><span>Country</span><b>{customer.countryCode || 'Unknown'}</b></div><div><span>Active sessions</span><b>{customer.refreshTokens.length}</b></div><div><span>Last profile update</span><b>{new Date(customer.updatedAt || customer.createdAt).toLocaleDateString()}</b></div></div></div>
+    <div className="two-col"><div className="panel"><div className="panel-head"><h4>Loyalty usage</h4><span className="panel-note">{customer.customerCards.length} cards</span></div>{customer.customerCards.length ? <div className="compact-list">{customer.customerCards.map(card => <div key={card.id}><div><b>{card.card.title}</b><span>{card.card.business.name}</span></div><strong>{card.punchCount} punches</strong></div>)}</div> : <div className="inline-empty">No loyalty cards</div>}</div><div className="panel"><div className="panel-head"><h4>Support history</h4><span className="panel-note">{customer.supportTickets.length} recent</span></div>{customer.supportTickets.length ? <div className="compact-list">{customer.supportTickets.map(ticket => <div key={ticket.id}><div><b>{ticket.subject}</b><span>{new Date(ticket.createdAt).toLocaleDateString()}</span></div><span className={`badge ${ticket.status === 'RESOLVED' ? 'b-resolved' : 'b-open'}`}>{title(ticket.status)}</span></div>)}</div> : <div className="inline-empty">No support tickets</div>}</div></div>
+    <div className="panel"><div className="panel-head"><div><span className="section-kicker">Unified timeline</span><h4>Customer activity</h4></div></div>{customer.activityLogs.length ? <div className="activity-list">{customer.activityLogs.map(event => <div className="activity-item" key={event.id}><div className="activity-mark"/><div><b>{title(event.action)}</b><span>{JSON.stringify(event.metadata)}</span></div><time>{new Date(event.createdAt).toLocaleString()}</time></div>)}</div> : <div className="inline-empty">No recorded activity</div>}</div>
+  </div></>;
 }

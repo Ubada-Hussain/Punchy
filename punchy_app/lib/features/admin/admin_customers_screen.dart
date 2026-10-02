@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_skeleton.dart';
 import '../../core/widgets/punchy_empty_state.dart';
 
 class AdminCustomersScreen extends StatefulWidget {
@@ -48,7 +50,11 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
     }
   }
 
-  Future<void> _toggleBlock(String userId, String email, bool currentlyBlocked) async {
+  Future<void> _toggleBlock(
+    String userId,
+    String email,
+    bool currentlyBlocked,
+  ) async {
     try {
       await _api.post('/admin/customers/$userId/toggle-block', {});
       await _fetchCustomers();
@@ -57,10 +63,17 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
           SnackBar(
             backgroundColor: AppColors.ink,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             content: Text(
-              currentlyBlocked ? 'Customer account restored & unblocked! ✅' : 'Customer account suspended! 🛡️',
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+              currentlyBlocked
+                  ? 'Customer account restored & unblocked! ✅'
+                  : 'Customer account suspended! 🛡️',
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         );
@@ -92,7 +105,11 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Center(
-                        child: Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: AppColors.ink),
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                   ),
@@ -122,11 +139,21 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
                 child: TextField(
                   controller: _searchController,
                   onSubmitted: (_) => _fetchCustomers(),
-                  style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 13.5),
+                  style: GoogleFonts.plusJakartaSans(
+                    color: AppColors.ink,
+                    fontSize: 13.5,
+                  ),
                   decoration: InputDecoration(
                     hintText: 'Search customer email...',
-                    hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.inkFaint, fontSize: 13),
-                    prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.inkSoft),
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      color: AppColors.inkFaint,
+                      fontSize: 13,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: AppColors.inkSoft,
+                    ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 11),
                   ),
@@ -136,102 +163,122 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
 
             // Customer Accounts List
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.teal))
+              child: _isLoading && _customers.isEmpty
+                  ? const PunchySkeleton(rows: 4)
                   : _customers.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: PunchyEmptyState(
-                              icon: Icons.people_outline_rounded,
-                              heading: 'No customers found',
-                              subtext: 'Try searching with a different email address.',
-                            ),
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
-                          itemCount: _customers.length,
-                          separatorBuilder: (_, index) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final c = _customers[index];
-                            final isBlocked = c['isBlocked'] == true;
-                            final email = c['email'] ?? 'customer@email.com';
-                            final initial = email.isNotEmpty ? email[0].toUpperCase() : 'U';
-                            final cardsCount = c['_count']?['customerCards'] ?? 0;
-
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: AppColors.line),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: isBlocked ? AppColors.coral.withValues(alpha: 0.15) : AppColors.surfaceAlt,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        initial,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
-                                          color: isBlocked ? AppColors.coralDark : AppColors.tealDark,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          email,
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 13.5,
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.ink,
-                                          ),
-                                        ),
-                                        Text(
-                                          '$cardsCount active loyalty cards',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 11.5,
-                                            color: AppColors.inkSoft,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  // Block / Unblock Button
-                                  OutlinedButton(
-                                    onPressed: () => _toggleBlock(c['id'], email, isBlocked),
-                                    style: OutlinedButton.styleFrom(
-                                      side: BorderSide(color: isBlocked ? AppColors.teal : AppColors.coral),
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    ),
-                                    child: Text(
-                                      isBlocked ? 'Restore' : 'Suspend',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: isBlocked ? AppColors.tealDark : AppColors.coralDark,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: PunchyEmptyState(
+                          icon: Icons.people_outline_rounded,
+                          heading: 'No customers found',
+                          subtext:
+                              'Try searching with a different email address.',
                         ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+                      itemCount: _customers.length,
+                      separatorBuilder: (_, index) =>
+                          const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final c = _customers[index];
+                        final isBlocked = c['isBlocked'] == true;
+                        final email = c['email'] ?? 'customer@email.com';
+                        final initial = email.isNotEmpty
+                            ? email[0].toUpperCase()
+                            : 'U';
+                        final cardsCount = c['_count']?['customerCards'] ?? 0;
+
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.line),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isBlocked
+                                      ? AppColors.coral.withValues(alpha: 0.15)
+                                      : AppColors.surfaceAlt,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    initial,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: isBlocked
+                                          ? AppColors.coralDark
+                                          : AppColors.tealDark,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      email,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.ink,
+                                      ),
+                                    ),
+                                    Text(
+                                      '$cardsCount active loyalty cards',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11.5,
+                                        color: AppColors.inkSoft,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Block / Unblock Button
+                              OutlinedButton(
+                                onPressed: () =>
+                                    _toggleBlock(c['id'], email, isBlocked),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: isBlocked
+                                        ? AppColors.teal
+                                        : AppColors.coral,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: Text(
+                                  isBlocked ? 'Restore' : 'Suspend',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: isBlocked
+                                        ? AppColors.tealDark
+                                        : AppColors.coralDark,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

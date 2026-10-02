@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
+
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_skeleton.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -55,7 +57,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final stats = _statsData?['stats'] ?? {'totalBusinesses': 0, 'totalCustomers': 0, 'totalPunches': 0, 'totalRedemptions': 0};
+    final stats =
+        _statsData?['stats'] ??
+        {
+          'totalBusinesses': 0,
+          'totalCustomers': 0,
+          'totalPunches': 0,
+          'totalRedemptions': 0,
+        };
     final recent = (_statsData?['recentActivity'] as List?) ?? [];
 
     return Scaffold(
@@ -82,7 +91,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             borderRadius: BorderRadius.circular(11),
                           ),
                           child: const Center(
-                            child: Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: AppColors.ink),
+                            child: Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 14,
+                              color: AppColors.ink,
+                            ),
                           ),
                         ),
                       ),
@@ -111,7 +124,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.coral.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(999),
@@ -132,25 +148,56 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
             // Scrollable Content
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.teal))
+              child: _isLoading && _statsData == null
+                  ? const PunchySkeleton(rows: 4)
                   : ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 8,
+                      ),
                       children: [
                         // Platform Stat Grid
                         Row(
                           children: [
-                            Expanded(child: _buildAdminStatCard('Businesses', '${stats['totalBusinesses']}', Icons.storefront_rounded, AppColors.tealDark)),
+                            Expanded(
+                              child: _buildAdminStatCard(
+                                'Businesses',
+                                '${stats['totalBusinesses']}',
+                                Icons.storefront_rounded,
+                                AppColors.tealDark,
+                              ),
+                            ),
                             const SizedBox(width: 10),
-                            Expanded(child: _buildAdminStatCard('Customers', '${stats['totalCustomers']}', Icons.people_outline_rounded, AppColors.coralDark)),
+                            Expanded(
+                              child: _buildAdminStatCard(
+                                'Customers',
+                                '${stats['totalCustomers']}',
+                                Icons.people_outline_rounded,
+                                AppColors.coralDark,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            Expanded(child: _buildAdminStatCard('Total Punches', '${stats['totalPunches']}', Icons.qr_code_2_rounded, AppColors.purpleDark)),
+                            Expanded(
+                              child: _buildAdminStatCard(
+                                'Total Punches',
+                                '${stats['totalPunches']}',
+                                Icons.qr_code_2_rounded,
+                                AppColors.purpleDark,
+                              ),
+                            ),
                             const SizedBox(width: 10),
-                            Expanded(child: _buildAdminStatCard('Redeemed', '${stats['totalRedemptions']}', Icons.card_giftcard_rounded, AppColors.goldDark)),
+                            Expanded(
+                              child: _buildAdminStatCard(
+                                'Redeemed',
+                                '${stats['totalRedemptions']}',
+                                Icons.card_giftcard_rounded,
+                                AppColors.goldDark,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 20),
@@ -167,7 +214,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Platform Growth',
@@ -212,7 +260,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                         dotData: const FlDotData(show: false),
                                         belowBarData: BarAreaData(
                                           show: true,
-                                          color: AppColors.teal.withValues(alpha: 0.15),
+                                          color: AppColors.teal.withValues(
+                                            alpha: 0.15,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -238,7 +288,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         _buildNavTile(
                           icon: Icons.storefront_rounded,
                           title: 'Business Management',
-                          subtitle: 'Approve, suspend, and inspect business profiles',
+                          subtitle:
+                              'Approve, suspend, and inspect business profiles',
                           onTap: () => context.push('/admin/businesses'),
                         ),
                         const SizedBox(height: 8),
@@ -254,7 +305,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         _buildNavTile(
                           icon: Icons.campaign_rounded,
                           title: 'Platform Announcements',
-                          subtitle: 'Broadcast alerts to businesses and customers',
+                          subtitle:
+                              'Broadcast alerts to businesses and customers',
                           onTap: () => context.push('/admin/notifications'),
                         ),
                         const SizedBox(height: 20),
@@ -280,7 +332,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               return Column(
                                 children: [
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
                                     child: Row(
                                       children: [
                                         Container(
@@ -288,22 +343,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                           height: 32,
                                           decoration: BoxDecoration(
                                             color: AppColors.surfaceAlt,
-                                            borderRadius: BorderRadius.circular(9),
+                                            borderRadius: BorderRadius.circular(
+                                              9,
+                                            ),
                                           ),
-                                          child: const Icon(Icons.bolt_rounded, size: 16, color: AppColors.tealDark),
+                                          child: const Icon(
+                                            Icons.bolt_rounded,
+                                            size: 16,
+                                            color: AppColors.tealDark,
+                                          ),
                                         ),
                                         const SizedBox(width: 10),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 a['userEmail'] ?? 'User action',
-                                                style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.ink),
+                                                style:
+                                                    GoogleFonts.plusJakartaSans(
+                                                      fontSize: 12.5,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: AppColors.ink,
+                                                    ),
                                               ),
                                               Text(
-                                                (a['action'] ?? '').toString().replaceAll('_', ' '),
-                                                style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.inkSoft),
+                                                (a['action'] ?? '')
+                                                    .toString()
+                                                    .replaceAll('_', ' '),
+                                                style:
+                                                    GoogleFonts.plusJakartaSans(
+                                                      fontSize: 11,
+                                                      color: AppColors.inkSoft,
+                                                    ),
                                               ),
                                             ],
                                           ),
@@ -311,7 +385,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                       ],
                                     ),
                                   ),
-                                  const Divider(height: 1, color: AppColors.line),
+                                  const Divider(
+                                    height: 1,
+                                    color: AppColors.line,
+                                  ),
                                 ],
                               );
                             }).toList(),
@@ -327,7 +404,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildAdminStatCard(String title, String count, IconData icon, Color color) {
+  Widget _buildAdminStatCard(
+    String title,
+    String count,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -343,7 +425,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             children: [
               Text(
                 title.toUpperCase(),
-                style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.inkSoft, letterSpacing: 0.4),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.inkSoft,
+                  letterSpacing: 0.4,
+                ),
               ),
               Icon(icon, size: 16, color: color),
             ],
@@ -351,14 +438,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           const SizedBox(height: 6),
           Text(
             count,
-            style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.ink),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNavTile({required IconData icon, required String title, required String subtitle, required VoidCallback onTap}) {
+  Widget _buildNavTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -390,16 +486,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     children: [
                       Text(
                         title,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.ink),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink,
+                        ),
                       ),
                       Text(
                         subtitle,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.inkSoft),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          color: AppColors.inkSoft,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: AppColors.inkFaint, size: 18),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.inkFaint,
+                  size: 18,
+                ),
               ],
             ),
           ),

@@ -10,6 +10,8 @@ import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { sendNotification } from '../lib/notifications';
 import { notifyPunchEarned, notifyProgressMilestone } from '../lib/automatedNotifications';
+import { unreadNotificationCount } from '../lib/notificationInbox';
+import { ensureUserPublicId } from '../lib/userPublicId';
 import { currencyForCountry, geocodeAddress, isSupportedCountry, normalizeBusinessPhone } from '../lib/international';
 
 const router = Router();
@@ -148,15 +150,7 @@ router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Reque
       prisma.redemption.count({ where: { customerCardId: { in: customerCardIds }, redeemedAt: { gte: sevenDaysAgo } } }),
       prisma.redemption.count({ where: { customerCardId: { in: customerCardIds }, redeemedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } } }),
 
-      prisma.notification.count({
-        where: {
-          OR: [
-            { targetType: 'ALL' },
-            { targetType: 'BUSINESSES' },
-            { targetType: 'USER', targetId: req.user!.userId },
-          ],
-        },
-      }),
+      unreadNotificationCount(req.user!.userId, req.user!.role),
     ]);
 
     const customersTrend = calculateTrend(customersLast7, customersPrev7);
@@ -266,6 +260,7 @@ router.get('/dashboard', requireAuth, requireRole('BUSINESS'), async (req: Reque
         address,
       },
       hasUnreadNotifications: unreadNotificationsCount > 0,
+      unreadNotificationsCount,
       stats: {
         totalCustomers,
         customersChangePct: customersTrend.label,
@@ -298,9 +293,10 @@ router.get('/profile', requireAuth, requireRole('BUSINESS'), async (req: Request
   try {
     let business = await prisma.businessProfile.findUnique({
       where: { userId: req.user!.userId },
-      include: {
-        loyaltyCards: true,
-        user: { select: { email: true, name: true, phone: true, createdAt: true } },
+      select: {
+        id: true, name: true, category: true, logo: true, status: true,
+        loyaltyCards: { select: { id: true } },
+        user: { select: { publicId: true, createdAt: true } },
       },
     });
 
@@ -319,9 +315,10 @@ router.get('/profile', requireAuth, requireRole('BUSINESS'), async (req: Request
           countryCode,
           currencyCode: currencyForCountry(countryCode),
         },
-        include: {
-          loyaltyCards: true,
-          user: { select: { email: true, name: true, phone: true, createdAt: true } },
+        select: {
+          id: true, name: true, category: true, logo: true, status: true,
+          loyaltyCards: { select: { id: true } },
+          user: { select: { publicId: true, createdAt: true } },
         },
       });
     }
@@ -330,9 +327,14 @@ router.get('/profile', requireAuth, requireRole('BUSINESS'), async (req: Request
     const totalCustomers = await prisma.customerCard.count({
       where: { cardId: { in: cardIds } },
     });
+    const publicId = await ensureUserPublicId(
+      req.user!.userId,
+      business.user.publicId,
+    );
 
     res.json({
       business,
+      publicId,
       activeCardsCount: business.loyaltyCards.length,
       totalCustomers,
       memberSince: business.user.createdAt,
@@ -767,9 +769,13 @@ router.get('/customers', requireAuth, requireRole('BUSINESS'), async (req: Reque
   const customerCards = await prisma.customerCard.findMany({
     where: { card: { businessId: business.id } },
     include: {
-      customer: { select: { id: true, email: true, phone: true, createdAt: true } },
-      card: { select: { id: true, title: true, punchesRequired: true, rewardDescription: true, validUntil: true } },
-      punchTransactions: { orderBy: { timestamp: 'desc' }, take: 1 },
+      customer: { select: { id: true, email: true } },
+      card: { select: { title: true, punchesRequired: true, validUntil: true } },
+      punchTransactions: {
+        select: { timestamp: true },
+        orderBy: { timestamp: 'desc' },
+        take: 1,
+      },
     },
     orderBy: { updatedAt: 'desc' },
   });
@@ -841,11 +847,23 @@ router.post('/redeem-confirm', requireAuth, requireRole('BUSINESS', 'STAFF'), as
     }),
   ]);
 
-  // Send push notification trigger to customer
+  // Persist the same message shown in the device tray so it is also present
+  // in the customer's in-app inbox and unread badge.
+  const rewardNotification = await prisma.notification.create({
+    data: {
+      targetType: 'USER',
+      targetId: customerCard.customerId,
+      title: 'Reward Redeemed! 🎉',
+      body: `Your reward for ${customerCard.card.title} has been confirmed. Thank you!`,
+      createdBy: req.user!.userId,
+      sentAt: new Date(),
+    },
+  });
   await sendNotification({
     userId: customerCard.customerId,
-    title: 'Reward Redeemed! 🎉',
-    body: `Your reward for ${customerCard.card.title} has been confirmed. Thank you!`,
+    title: rewardNotification.title,
+    body: rewardNotification.body,
+    data: { notificationId: rewardNotification.id },
   });
 
   res.json({ message: 'Redemption verified and card reset successfully!' });
@@ -984,7 +1002,18 @@ router.post('/punch', requireAuth, requireRole('BUSINESS', 'STAFF'), async (req:
         prisma.customerCard.update({ where: { id: customerCard.id }, data: { punchCount: 0, isCompleted: false } }),
         prisma.activityLog.create({ data: { userId: customer.id, action: 'REWARD_REDEEMED_BY_STAFF', metadata: { businessId: business.id, cardId: targetCard.id, cardTitle: targetCard.title, verifiedBy: req.user!.userId, rewardDescription: targetCard.rewardDescription } } }),
       ]);
-      await sendNotification({ userId: customer.id, title: 'Reward redeemed! 🎉', body: 'Your reward was redeemed successfully and your card has been reset. Start collecting punches again!' });
+      const rewardNotification = await prisma.notification.create({ data: {
+        targetType: 'USER', targetId: customer.id,
+        title: 'Reward redeemed! 🎉',
+        body: 'Your reward was redeemed successfully and your card has been reset. Start collecting punches again!',
+        createdBy: req.user!.userId, sentAt: new Date(),
+      } });
+      await sendNotification({
+        userId: customer.id,
+        title: rewardNotification.title,
+        body: rewardNotification.body,
+        data: { notificationId: rewardNotification.id },
+      });
       res.json({ success: true, rewardEarned: true, rewardDescription: targetCard.rewardDescription, customerEmail: customer.email, cardTitle: targetCard.title, punchCount: 0, punchesRequired: targetCard.punchesRequired, isCompleted: false, message: '🎉 Reward earned! Give them their reward — free. Card has been reset.' });
       return;
     }

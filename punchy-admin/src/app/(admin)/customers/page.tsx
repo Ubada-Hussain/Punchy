@@ -1,149 +1,51 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
 import { api, type User } from '@/lib/api';
 
-function statusBadge(isBlocked: boolean) {
-  if (isBlocked) return <span className="badge b-suspended">SUSPENDED</span>;
-  return <span className="badge b-active">ACTIVE</span>;
-}
+type CustomerResponse = { customers: User[]; total: number; page: number; limit: number; totalPages: number };
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<User[]>([]);
-  const [total, setTotal] = useState(0);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<CustomerResponse | null>(null);
+  const [search, setSearch] = useState(''); const [status, setStatus] = useState('ALL'); const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [working, setWorking] = useState('');
+  const load = useCallback(() => {
+    setLoading(true); setError('');
+    const params = new URLSearchParams({ page: String(page), limit: '25' }); if (search.trim()) params.set('search', search.trim()); if (status !== 'ALL') params.set('status', status);
+    api.get<CustomerResponse>(`/admin/customers?${params}`).then(setData).catch(err => setError(err instanceof Error ? err.message : 'Unable to load customers')).finally(() => setLoading(false));
+  }, [page, search, status]);
+  useEffect(() => { const timer = window.setTimeout(load, 250); return () => window.clearTimeout(timer); }, [load]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ limit: '50' });
-      if (search) params.set('search', search);
-      const data = await api.get<User[] | { customers: User[]; total: number }>(`/admin/customers?${params}`);
-      if (Array.isArray(data)) { setCustomers(data); setTotal(data.length); }
-      else { setCustomers(data.customers); setTotal(data.total); }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, [search]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => { void load(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, [load]);
-
-  async function toggleSuspend(user: User) {
-    if (!user.isBlocked && !confirm(`Suspend ${user.email}?`)) return;
-    await api.post(`/admin/customers/${user.id}/toggle-block`, {});
-    load();
+  async function toggle(customer: User) {
+    const verb = customer.isBlocked ? 'restore' : 'suspend';
+    if (!confirm(`${verb[0].toUpperCase()}${verb.slice(1)} ${customer.name || customer.email}?`)) return;
+    setWorking(customer.id); setError('');
+    try { await api.post(`/admin/customers/${customer.id}/toggle-block`, {}); await load(); }
+    catch (err) { setError(err instanceof Error ? err.message : `Unable to ${verb} customer`); }
+    finally { setWorking(''); }
   }
 
-  async function permanentlyDelete(customer: User) {
-    if (!confirm(`Permanently delete ${customer.email}? This cannot be undone.`)) return;
+  async function remove(customer: User) {
+    if (working) return;
+    if (!confirm(`Permanently delete ${customer.name || customer.email}? This cannot be undone.`)) return;
     const confirmationKey = prompt('Enter the permanent deletion key to continue:');
     if (!confirmationKey) return;
+    setWorking(customer.id); setError('');
     try {
       await api.delete(`/admin/customers/${customer.id}`, { confirmationKey });
-      void load();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Unable to delete this customer.');
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete customer');
+    } finally {
+      setWorking('');
     }
   }
 
-  const gradients = ['var(--grad-purple)', 'var(--grad-coral)', 'var(--grad-teal)', 'var(--grad-gold)'];
-
-  return (
-    <>
-      <div className="admin-topbar">
-        <h3>Customers</h3>
-        <div className="top-actions">
-          <button className="top-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" style={{ stroke:'currentColor', fill:'none', strokeWidth:1.8, strokeLinecap:'round', strokeLinejoin:'round' }}>
-              <path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div className="admin-content">
-        <div className="filter-bar">
-          <div className="search-in">
-            <svg width="15" height="15" viewBox="0 0 24 24" style={{ stroke:'var(--ink-faint)', fill:'none', strokeWidth:1.8, strokeLinecap:'round' }}>
-              <circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.5-4.5"/>
-            </svg>
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search customers by name or email…"
-            />
-          </div>
-        </div>
-
-        <div className="panel" style={{ padding:0 }}>
-          {loading ? (
-            <div className="loading-page"><div className="loading-spinner"/></div>
-          ) : customers.length === 0 ? (
-            <div className="empty-state">
-              <span className="empty-state-icon">👥</span>
-              No customers found
-            </div>
-          ) : (
-            <table className="atable">
-              <thead>
-                <tr>
-                  <th>Customer</th>
-                  <th>Public ID</th>
-                  <th>Email</th>
-                  <th>Joined</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.map((c, i) => (
-                  <tr key={c.id}>
-                    <td>
-                      <div className="row-biz">
-                        <div className="row-logo" style={{ background: gradients[i % gradients.length], color:'#fff' }}>
-                          {c.email.substring(0, 2).toUpperCase()}
-                        </div>
-                        <div className="row-name">{c.email.split('@')[0]}</div>
-                      </div>
-                    </td>
-                    <td>{c.publicId ?? '—'}</td>
-                    <td className="row-sub">{c.email}</td>
-                    <td>
-                      {new Date(c.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
-                    </td>
-                    <td style={{ color:'var(--ink-soft)', fontSize:12 }}>
-                      {c.role === 'BUSINESS' ? 'Business Owner' : 'Customer'}
-                    </td>
-                    <td>{statusBadge(c.isBlocked)}</td>
-                    <td>
-                      <div style={{ display:'flex', gap:6 }}>
-                        <button
-                          className={`btn btn-xs ${c.isBlocked ? 'btn-primary' : 'btn-danger-ghost'}`}
-                          onClick={() => toggleSuspend(c)}
-                        >
-                          {c.isBlocked ? 'Unban' : 'Suspend'}
-                        </button>
-                        <button className="btn btn-danger-ghost btn-xs" onClick={() => permanentlyDelete(c)}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {!loading && (
-          <p style={{ fontSize:12, color:'var(--ink-faint)', fontWeight:600 }}>
-            Showing {customers.length} of {total} customers
-          </p>
-        )}
-      </div>
-    </>
-  );
+  return <><div className="admin-topbar"><div><h3>Customers</h3><span className="topbar-subtitle">Search, review and manage customer accounts</span></div></div><div className="admin-content">
+    <div className="filter-bar"><div className="search-in"><input value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="Name, email, phone or customer ID…" /></div><div className="chip-set">{['ALL','ACTIVE','SUSPENDED'].map(item => <button key={item} className={`fchip ${status === item ? 'on' : ''}`} onClick={() => { setStatus(item); setPage(1); }}>{item === 'ALL' ? 'All accounts' : item[0] + item.slice(1).toLowerCase()}</button>)}</div></div>
+    {error && <div className="notice notice-error">{error}</div>}
+    <div className="panel" style={{padding:0}}>{loading ? <div className="loading-page"><div className="loading-spinner"/></div> : !data?.customers.length ? <div className="empty-state"><span className="empty-state-icon">◎</span>No customers match these filters</div> : <table className="atable"><thead><tr><th>Customer</th><th>Customer ID</th><th>Contact</th><th>Country</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead><tbody>{data.customers.map(customer => <tr key={customer.id}><td><div className="row-biz"><div className="row-logo customer-avatar">{(customer.name || customer.email).slice(0,2).toUpperCase()}</div><div><Link className="row-name row-link" href={`/customers/${customer.id}`}>{customer.name || 'Unnamed customer'}</Link><div className="row-sub">{customer.email}</div></div></div></td><td>{customer.publicId || '—'}</td><td>{customer.phone || <span className="row-sub">No phone</span>}</td><td>{customer.countryCode || '—'}</td><td>{new Date(customer.createdAt).toLocaleDateString()}</td><td><span className={`badge ${customer.isBlocked ? 'b-suspended' : 'b-active'}`}>{customer.isBlocked ? 'SUSPENDED' : 'ACTIVE'}</span></td><td><div className="table-actions"><Link href={`/customers/${customer.id}`} className="btn btn-outline btn-xs">View</Link><button disabled={working === customer.id} className={`btn btn-xs ${customer.isBlocked ? 'btn-primary' : 'btn-danger-ghost'}`} onClick={() => toggle(customer)}>{working === customer.id ? 'Saving…' : customer.isBlocked ? 'Restore' : 'Suspend'}</button><button disabled={working === customer.id} className="btn btn-danger-ghost btn-xs" onClick={() => remove(customer)}>Delete</button></div></td></tr>)}</tbody></table>}</div>
+    {data && <div className="pagination"><span>Showing {data.customers.length} of {data.total.toLocaleString()} customers</span><div><button className="btn btn-outline btn-xs" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>Previous</button><b>Page {data.page} of {Math.max(1, data.totalPages)}</b><button className="btn btn-outline btn-xs" disabled={page >= data.totalPages} onClick={() => setPage(value => value + 1)}>Next</button></div></div>}
+  </div></>;
 }

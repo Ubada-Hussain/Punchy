@@ -7,6 +7,8 @@ import 'package:country_picker/country_picker.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/validation/password_policy.dart';
+import '../../core/widgets/password_requirements_checklist.dart';
+import '../../core/widgets/punchy_async_button.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -28,8 +30,10 @@ class _SignupScreenState extends State<SignupScreen> {
   String _countryName = 'Pakistan';
   String _countryFlag = '🇵🇰';
   String _dialCode = '+92';
+  bool _passwordVisible = false;
+  bool _confirmPasswordVisible = false;
 
-  void _handleSignup() async {
+  Future<bool?> _handleSignup() async {
     if (_formKey.currentState!.validate()) {
       if (!_acceptedTerms) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -37,7 +41,7 @@ class _SignupScreenState extends State<SignupScreen> {
             content: Text('Please accept the Terms & Conditions to continue.'),
           ),
         );
-        return;
+        return null;
       }
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final role = _roleIndex == 1 ? 'BUSINESS' : 'CUSTOMER';
@@ -53,52 +57,14 @@ class _SignupScreenState extends State<SignupScreen> {
         countryCode: _countryCode,
       );
 
-      if (success && mounted) {
-        context.go('/verify-signup');
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppColors.ink,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            content: Text(
-              auth.errorMessage ??
-                  'Registration failed. Please check your credentials.',
-              style: GoogleFonts.plusJakartaSans(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        );
-      }
+      return success;
     }
+    return null;
   }
-
-  Widget _passwordRules() => Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: AppColors.surfaceAlt,
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
-        Text('Password must include:'),
-        SizedBox(height: 4),
-        Text('• At least 8 characters'),
-        Text('• One uppercase letter'),
-        Text('• One lowercase letter'),
-        Text('• One number'),
-      ],
-    ),
-  );
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = context.watch<AuthProvider>().isLoading;
+    final authError = context.watch<AuthProvider>().errorMessage;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -328,18 +294,34 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: true,
+                    obscureText: !_passwordVisible,
                     style: GoogleFonts.plusJakartaSans(
                       color: AppColors.ink,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Create a password',
                       prefixIcon: Icon(
                         Icons.lock_outline_rounded,
                         color: AppColors.inkFaint,
                         size: 18,
+                      ),
+                      suffixIcon: IconButton(
+                        tooltip: _passwordVisible
+                            ? 'Hide password'
+                            : 'Show password',
+                        onPressed: () => setState(
+                          () => _passwordVisible = !_passwordVisible,
+                        ),
+                        icon: Icon(
+                          _passwordVisible
+                              ? Icons.visibility_off_rounded
+                              : Icons.visibility_rounded,
+                          semanticLabel: _passwordVisible
+                              ? 'Hide password'
+                              : 'Show password',
+                        ),
                       ),
                     ),
                     validator: (val) {
@@ -352,7 +334,9 @@ class _SignupScreenState extends State<SignupScreen> {
                     },
                   ),
                   const SizedBox(height: 8),
-                  _passwordRules(),
+                  PasswordRequirementsChecklist(
+                    controller: _passwordController,
+                  ),
                   const SizedBox(height: 16),
 
                   // Confirm Password
@@ -367,18 +351,35 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _confirmPasswordController,
-                    obscureText: true,
+                    obscureText: !_confirmPasswordVisible,
                     style: GoogleFonts.plusJakartaSans(
                       color: AppColors.ink,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Confirm your password',
                       prefixIcon: Icon(
                         Icons.lock_outline_rounded,
                         color: AppColors.inkFaint,
                         size: 18,
+                      ),
+                      suffixIcon: IconButton(
+                        tooltip: _confirmPasswordVisible
+                            ? 'Hide confirm password'
+                            : 'Show confirm password',
+                        onPressed: () => setState(
+                          () => _confirmPasswordVisible =
+                              !_confirmPasswordVisible,
+                        ),
+                        icon: Icon(
+                          _confirmPasswordVisible
+                              ? Icons.visibility_off_rounded
+                              : Icons.visibility_rounded,
+                          semanticLabel: _confirmPasswordVisible
+                              ? 'Hide confirm password'
+                              : 'Show confirm password',
+                        ),
                       ),
                     ),
                     validator: (val) => val == null || val.isEmpty
@@ -502,40 +503,31 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 8),
 
                   // Submit Button
-                  Container(
+                  SizedBox(
                     height: 50,
-                    decoration: BoxDecoration(
-                      color: _roleIndex == 1 ? AppColors.coral : AppColors.teal,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color:
-                              (_roleIndex == 1
-                                      ? AppColors.coral
-                                      : AppColors.teal)
-                                  .withValues(alpha: 0.45),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
+                    child: PunchyAsyncButton(
+                      label: _roleIndex == 1
+                          ? 'Start Business Account'
+                          : 'Create Account',
+                      processingLabel: 'Creating Account…',
+                      onPressed: _handleSignup,
+                      onSuccess: () => context.go('/verify-signup'),
+                      errorMessage: authError ?? 'Registration failed. Please check your details and try again.',
+                      backgroundColor: _roleIndex == 1
+                          ? AppColors.coral
+                          : AppColors.teal,
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: isLoading ? null : _handleSignup,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Center(
-                          child: Text(
-                            _roleIndex == 1
-                                ? 'Start Business Account'
-                                : 'Create Account',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
+                        textStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
                         ),
+                        shadowColor:
+                            (_roleIndex == 1 ? AppColors.coral : AppColors.teal)
+                                .withValues(alpha: 0.45),
                       ),
                     ),
                   ),

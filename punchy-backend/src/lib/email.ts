@@ -1,16 +1,132 @@
 import https from 'https';
 import nodemailer from 'nodemailer';
 
+export type OtpEmailType = 'PASSWORD_RESET' | 'SIGNUP_VERIFICATION' | 'DELETE_ACCOUNT';
+
 export interface SendOtpEmailOptions {
   to: string;
   otp: string;
-  type?: 'PASSWORD_RESET' | 'SIGNUP_VERIFICATION' | 'DELETE_ACCOUNT';
+  type?: OtpEmailType;
 }
 
-/**
- * Sends a branded OTP verification/reset email using Brevo (REST API or SMTP).
- */
+export interface OtpEmailContent {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+const OTP_EXPIRATION_MINUTES = 10;
+const TRANSACTIONAL_HEADERS = {
+  'Auto-Submitted': 'auto-generated',
+  'X-Auto-Response-Suppress': 'All',
+};
+
+const copyByType: Record<OtpEmailType, { subject: string; title: string; description: string }> = {
+  SIGNUP_VERIFICATION: {
+    subject: 'Your Punchy verification code',
+    title: 'Verify your Punchy account',
+    description: 'Use this verification code to finish creating your Punchy account.',
+  },
+  DELETE_ACCOUNT: {
+    subject: 'Confirm your Punchy account deletion',
+    title: 'Confirm your Punchy account deletion',
+    description: 'Use this verification code to confirm your Punchy account deletion request.',
+  },
+  PASSWORD_RESET: {
+    subject: 'Your Punchy password reset code',
+    title: 'Reset your Punchy password',
+    description: 'Use this verification code to reset your Punchy password.',
+  },
+};
+
+export function buildOtpEmail(
+  otp: string,
+  type: OtpEmailType = 'PASSWORD_RESET',
+): OtpEmailContent {
+  const copy = copyByType[type];
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${copy.subject}</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f9f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#142420;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f9f6;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background:#ffffff;border:1px solid #e2ebe5;border-radius:12px;">
+          <tr>
+            <td style="padding:28px 28px 8px;font-size:22px;font-weight:800;color:#087f6e;">Punchy</td>
+          </tr>
+          <tr>
+            <td style="padding:12px 28px 0;">
+              <h1 style="margin:0;font-size:20px;line-height:1.35;color:#142420;">${copy.title}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:12px 28px 0;font-size:15px;line-height:1.6;color:#53635d;">${copy.description}</td>
+          </tr>
+          <tr>
+            <td style="padding:24px 28px;">
+              <div style="background:#f5f9f6;border:1px solid #cfe3da;border-radius:10px;padding:18px;text-align:center;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:32px;line-height:1;letter-spacing:7px;font-weight:700;color:#087f6e;">${otp}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 28px 28px;font-size:13px;line-height:1.6;color:#687a73;">
+              This code expires in ${OTP_EXPIRATION_MINUTES} minutes. If you did not request it, you can safely ignore this email. Never share this code with anyone.
+            </td>
+          </tr>
+          <tr>
+            <td style="border-top:1px solid #e2ebe5;padding:18px 28px;font-size:12px;line-height:1.5;color:#84958e;">
+              This is an automated transactional email from Punchy.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    'Punchy',
+    '',
+    copy.title,
+    copy.description,
+    '',
+    `Verification code: ${otp}`,
+    '',
+    `This code expires in ${OTP_EXPIRATION_MINUTES} minutes.`,
+    'If you did not request it, you can safely ignore this email.',
+    'Never share this code with anyone.',
+  ].join('\n');
+
+  return { subject: copy.subject, html, text };
+}
+
+/** Sends one of Punchy's transactional OTP messages through the configured provider. */
 export async function sendOtpEmail({ to, otp, type = 'PASSWORD_RESET' }: SendOtpEmailOptions): Promise<void> {
+  const { subject, html, text } = buildOtpEmail(otp, type);
+  const replyTo = process.env.EMAIL_REPLY_TO || process.env.SUPPORT_EMAIL || 'support.punchy@gmail.com';
+  const resendApiKey = process.env.RESEND_API_KEY || '';
+
+  if (resendApiKey) {
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+    const fromName = process.env.RESEND_FROM_NAME || 'Punchy Loyalty';
+    await sendViaResend({
+      apiKey: resendApiKey,
+      from: `${fromName} <${fromEmail}>`,
+      replyTo,
+      to,
+      subject,
+      html,
+      text,
+    });
+    console.log(`[Resend] ${type} email accepted by provider`);
+    return;
+  }
+
   const apiKey = process.env.BREVO_API_KEY || '';
   const senderEmail = process.env.BREVO_SENDER_EMAIL || 'ubadahussain23@gmail.com';
   const senderName = process.env.BREVO_SENDER_NAME || 'Punchy Loyalty';
@@ -18,160 +134,78 @@ export async function sendOtpEmail({ to, otp, type = 'PASSWORD_RESET' }: SendOtp
   const smtpHost = process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
   const smtpPort = parseInt(process.env.BREVO_SMTP_PORT || '587', 10);
 
-  const subject = type === 'PASSWORD_RESET'
-    ? `🔐 ${otp} is your Punchy password reset code`
-    : type === 'DELETE_ACCOUNT'
-      ? `⚠️ ${otp} is your Punchy account deletion code`
-      : `✨ ${otp} is your Punchy verification code`;
-
-  const titleText = type === 'PASSWORD_RESET' ? 'Reset Your Password' : type === 'DELETE_ACCOUNT' ? 'Confirm Account Deletion' : 'Verify Your Email';
-  const descText = type === 'PASSWORD_RESET'
-    ? 'We received a request to reset the password for your Punchy account. Enter the 6-digit code below to proceed:'
-    : type === 'DELETE_ACCOUNT'
-      ? 'Enter the 6-digit code below to confirm permanent deletion of your Punchy account and associated data:'
-      : 'Welcome to Punchy! Please use the 6-digit code below to verify your email address:';
-
-  const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${subject}</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #F5F9F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F5F9F6; padding: 40px 15px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" style="max-width: 480px; background-color: #FFFFFF; border-radius: 20px; border: 1.5px solid #E2EBE5; box-shadow: 0 10px 25px rgba(0,0,0,0.04); overflow: hidden; padding: 32px 28px;">
-          
-          <!-- Logo & Brand Header -->
-          <tr>
-            <td align="center" style="padding-bottom: 20px;">
-              <div style="display: inline-block; background: linear-gradient(135deg, #0EA893 0%, #087F6E 100%); width: 50px; height: 50px; border-radius: 14px; line-height: 50px; text-align: center; color: #ffffff; font-size: 24px; font-weight: bold;">
-                ☕
-              </div>
-              <h2 style="margin: 12px 0 0 0; color: #142420; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">Punchy</h2>
-            </td>
-          </tr>
-
-          <!-- Title -->
-          <tr>
-            <td align="center" style="padding-bottom: 12px;">
-              <h3 style="margin: 0; color: #142420; font-size: 18px; font-weight: 700;">${titleText}</h3>
-            </td>
-          </tr>
-
-          <!-- Description -->
-          <tr>
-            <td align="center" style="padding-bottom: 24px;">
-              <p style="margin: 0; color: #5C6E67; font-size: 14px; line-height: 1.5;">${descText}</p>
-            </td>
-          </tr>
-
-          <!-- OTP Code Box -->
-          <tr>
-            <td align="center" style="padding-bottom: 24px;">
-              <div style="display: inline-block; background-color: #F5F9F6; border: 2px dashed #0EA893; border-radius: 14px; padding: 14px 32px; letter-spacing: 8px; font-size: 32px; font-weight: 800; color: #0EA893; font-family: monospace;">
-                ${otp}
-              </div>
-            </td>
-          </tr>
-
-          <!-- Expiry Notice -->
-          <tr>
-            <td align="center" style="padding-bottom: 28px;">
-              <p style="margin: 0; color: #8C9E97; font-size: 12.5px;">
-                ⏱️ This code will expire in <strong>10 minutes</strong>.
-              </p>
-              <p style="margin: 6px 0 0 0; color: #8C9E97; font-size: 12px;">
-                If you did not request this, you can safely ignore this email.
-              </p>
-            </td>
-          </tr>
-
-          <!-- Divider -->
-          <tr>
-            <td style="border-top: 1px solid #E2EBE5; padding-top: 20px;" align="center">
-              <p style="margin: 0; color: #A0B2AB; font-size: 11.5px;">
-                © ${new Date().getFullYear()} Punchy Loyalty Platform. All rights reserved.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `.trim();
-
-  const textContent = `Your Punchy verification code is: ${otp}\n\nThis code will expire in 10 minutes.\nIf you did not request this, please ignore this email.`;
-
-  const resendApiKey = process.env.RESEND_API_KEY || '';
-  if (resendApiKey) {
-    const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-    const fromName = process.env.RESEND_FROM_NAME || 'Punchy Loyalty';
-    await sendViaResend({ apiKey: resendApiKey, from: `${fromName} <${fromEmail}>`, to, subject, html: htmlContent, text: textContent });
-    console.log(`✅ [Resend] Email sent successfully to ${to}`);
-    return;
-  }
-
   if (!apiKey) {
-    // Never print OTPs. A missing provider is a deployment/configuration error.
     console.error('Email provider is not configured; OTP delivery was not attempted.');
     if (process.env.NODE_ENV === 'production') throw new Error('Email provider is not configured');
     return;
   }
 
-  // 1. If key is REST API Key (starts with xkeysib-), use Brevo REST API
   if (apiKey.startsWith('xkeysib-')) {
-    await sendViaBrevoRestApi({ apiKey, senderEmail, senderName, to, subject, htmlContent, textContent });
+    await sendViaBrevoRestApi({ apiKey, senderEmail, senderName, replyTo, to, subject, html, text });
+    console.log(`[Brevo REST] ${type} email accepted by provider`);
     return;
   }
 
-  // 2. If key is SMTP Key (starts with xsmtpsib-), use Nodemailer SMTP Relay
   try {
     const transporter = nodemailer.createTransport({
       host: smtpHost,
       port: smtpPort,
       secure: smtpPort === 465,
-      auth: {
-        user: smtpUser,
-        pass: apiKey,
-      },
+      auth: { user: smtpUser, pass: apiKey },
     });
 
     await transporter.sendMail({
       from: `"${senderName}" <${senderEmail}>`,
+      replyTo,
       to,
       subject,
-      text: textContent,
-      html: htmlContent,
+      text,
+      html,
+      headers: TRANSACTIONAL_HEADERS,
     });
-    console.log(`✅ [Brevo SMTP] Email sent successfully to ${to}`);
-  } catch (smtpError: any) {
-    console.error('❌ [Brevo SMTP Error]:', smtpError?.message || smtpError);
-
-    // Fallback attempt: Try REST API in case Brevo accepts this key via REST
+    console.log(`[Brevo SMTP] ${type} email accepted by provider`);
+  } catch (smtpError: unknown) {
+    const smtpMessage = smtpError instanceof Error ? smtpError.message : 'Unknown SMTP error';
+    console.error('[Brevo SMTP Error]:', smtpMessage);
     try {
-      await sendViaBrevoRestApi({ apiKey, senderEmail, senderName, to, subject, htmlContent, textContent });
-      console.log(`✅ [Brevo REST Fallback] Email sent successfully to ${to}`);
-    } catch (restError: any) {
-      console.error('❌ [Brevo REST Error]:', restError?.message || restError);
-      // Re-throw or let dev proceed with logged OTP
-      throw new Error(`Failed to send email via Brevo: ${smtpError?.message || restError?.message}`);
+      await sendViaBrevoRestApi({ apiKey, senderEmail, senderName, replyTo, to, subject, html, text });
+      console.log(`[Brevo REST fallback] ${type} email accepted by provider`);
+    } catch (restError: unknown) {
+      const restMessage = restError instanceof Error ? restError.message : 'Unknown REST error';
+      console.error('[Brevo REST Error]:', restMessage);
+      throw new Error(`Failed to send email via Brevo: ${smtpMessage}`);
     }
   }
 }
 
-async function sendViaResend(opts: { apiKey: string; from: string; to: string; subject: string; html: string; text: string }): Promise<void> {
-  const payload = JSON.stringify({ from: opts.from, to: [opts.to], subject: opts.subject, html: opts.html, text: opts.text });
+async function sendViaResend(opts: {
+  apiKey: string;
+  from: string;
+  replyTo: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<void> {
+  const payload = JSON.stringify({
+    from: opts.from,
+    reply_to: opts.replyTo,
+    to: [opts.to],
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
+    headers: TRANSACTIONAL_HEADERS,
+  });
   return new Promise<void>((resolve, reject) => {
     const req = https.request({
-      hostname: 'api.resend.com', path: '/emails', method: 'POST',
-      headers: { Authorization: `Bearer ${opts.apiKey}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+      hostname: 'api.resend.com',
+      path: '/emails',
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${opts.apiKey}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
     }, (res) => {
       let body = '';
       res.on('data', (chunk) => (body += chunk));
@@ -189,48 +223,41 @@ async function sendViaBrevoRestApi(opts: {
   apiKey: string;
   senderEmail: string;
   senderName: string;
+  replyTo: string;
   to: string;
   subject: string;
-  htmlContent: string;
-  textContent: string;
+  html: string;
+  text: string;
 }): Promise<void> {
   const payload = JSON.stringify({
-    sender: {
-      name: opts.senderName,
-      email: opts.senderEmail,
-    },
+    sender: { name: opts.senderName, email: opts.senderEmail },
+    replyTo: { email: opts.replyTo, name: 'Punchy Support' },
     to: [{ email: opts.to }],
     subject: opts.subject,
-    htmlContent: opts.htmlContent,
-    textContent: opts.textContent,
+    htmlContent: opts.html,
+    textContent: opts.text,
+    headers: TRANSACTIONAL_HEADERS,
   });
 
   return new Promise<void>((resolve, reject) => {
-    const req = https.request(
-      {
-        hostname: 'api.brevo.com',
-        path: '/v3/smtp/email',
-        method: 'POST',
-        headers: {
-          accept: 'application/json',
-          'api-key': opts.apiKey,
-          'content-type': 'application/json',
-          'content-length': Buffer.byteLength(payload),
-        },
+    const req = https.request({
+      hostname: 'api.brevo.com',
+      path: '/v3/smtp/email',
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'api-key': opts.apiKey,
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(payload),
       },
-      (res) => {
-        let body = '';
-        res.on('data', (chunk) => (body += chunk));
-        res.on('end', () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            resolve();
-          } else {
-            reject(new Error(`Brevo REST API error (${res.statusCode}): ${body}`));
-          }
-        });
-      }
-    );
-
+    }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => (body += chunk));
+      res.on('end', () => {
+        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) resolve();
+        else reject(new Error(`Brevo REST API error (${res.statusCode}): ${body}`));
+      });
+    });
     req.on('error', reject);
     req.write(payload);
     req.end();

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/delete_account_flow_dialog.dart';
 import '../../core/widgets/punchy_confirmation_dialog.dart';
 import '../../core/services/notification_service.dart';
 import '../system_states/support_sheet.dart';
@@ -23,6 +24,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<AuthProvider>().fetchProfile();
+    });
     NotificationService().isPushEnabled().then((enabled) {
       if (mounted) setState(() => _pushNotifications = enabled);
     });
@@ -38,6 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ? user['name'].toString().trim()
         : (email.contains('@') ? email.split('@')[0] : 'User');
     final role = user?['role'] ?? 'CUSTOMER';
+    final publicId = user?['publicId']?.toString().trim() ?? '';
 
     String initials = 'P';
     if (name.trim().isNotEmpty) {
@@ -168,7 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           Text(
-                            'ID: ${user?['publicId'] ?? '—'}',
+                            'ID: ${publicId.isEmpty ? 'Loading…' : publicId}',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -400,6 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         title: 'Log out?',
                         description: 'Are you sure you want to log out?',
                         confirmLabel: 'Log out',
+                        processingLabel: 'Logging out…',
                         destructive: false,
                         onConfirm: authProvider.logout,
                       );
@@ -467,42 +473,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (confirm != true || !mounted) return;
     final auth = context.read<AuthProvider>();
-    if (!await auth.requestDeleteAccountOtp() || !mounted) return;
-    final otpController = TextEditingController();
-    final otp = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Enter email code'),
-        content: TextField(
-          controller: otpController,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          decoration: const InputDecoration(labelText: '6-digit OTP'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, otpController.text.trim()),
-            child: const Text('Confirm deletion'),
-          ),
-        ],
-      ),
-    );
-    otpController.dispose();
-    if (otp == null || otp.isEmpty || !mounted) return;
-    final ok = await auth.deleteAccount(otp);
-    if (mounted) {
-      if (ok) {
-        context.go('/login');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not delete profile.')),
-        );
-      }
-    }
+    final deleted = await DeleteAccountFlowDialog.show(context, auth);
+    if (deleted && mounted) context.go('/login');
   }
 
   Widget _buildSettingsRow(String title, IconData icon, {VoidCallback? onTap}) {

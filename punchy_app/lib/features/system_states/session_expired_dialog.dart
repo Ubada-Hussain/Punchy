@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_async_button.dart';
 
 class SessionExpiredDialog extends StatelessWidget {
   const SessionExpiredDialog({super.key});
@@ -13,10 +15,8 @@ class SessionExpiredDialog extends StatelessWidget {
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const PopScope(
-        canPop: false,
-        child: SessionExpiredDialog(),
-      ),
+      builder: (_) =>
+          const PopScope(canPop: false, child: SessionExpiredDialog()),
     );
   }
 
@@ -79,39 +79,32 @@ class SessionExpiredDialog extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Primary "Log In" Button
-            Container(
+            SizedBox(
               height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.teal,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.teal.withValues(alpha: 0.4),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
+              child: PunchyAsyncButton(
+                label: 'Log In',
+                processingLabel: 'Logging out…',
+                onPressed: () async {
+                  await Provider.of<AuthProvider>(
+                    context,
+                    listen: false,
+                  ).logout();
+                  return true;
+                },
+                onSuccess: () {
+                  Navigator.of(context, rootNavigator: true).pop();
+                  context.go('/login');
+                },
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    final auth = Provider.of<AuthProvider>(context, listen: false);
-                    auth.logout();
-                    Navigator.of(context, rootNavigator: true).pop();
-                    context.go('/login');
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Center(
-                    child: Text(
-                      'Log In',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
+                  textStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
+                  shadowColor: AppColors.teal.withValues(alpha: 0.4),
                 ),
               ),
             ),

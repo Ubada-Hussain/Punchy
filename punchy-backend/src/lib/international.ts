@@ -62,9 +62,26 @@ export async function geocodeAddress(address: string): Promise<{ point: GeoPoint
   } catch { return null; }
 }
 
+type ReverseGeocodeResult = { city?: string; countryCode?: string; countryName?: string } | null;
+const reverseGeocodeCache = new Map<string, { value: NonNullable<ReverseGeocodeResult>; expiresAt: number }>();
+const reverseGeocodePending = new Map<string, Promise<ReverseGeocodeResult>>();
+const REVERSE_GEOCODE_TTL_MS = 15 * 60_000;
+const REVERSE_GEOCODE_CACHE_LIMIT = 512;
+
 /** Resolve a customer's current GPS point into the city and country used by Explore. */
-export async function reverseGeocodeLocation(latitude: number, longitude: number): Promise<{ city?: string; countryCode?: string; countryName?: string } | null> {
+export async function reverseGeocodeLocation(latitude: number, longitude: number): Promise<ReverseGeocodeResult> {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  // City/country resolution is stable at this precision. Reuse recent results
+  // across Explore visits and coalesce simultaneous identical point lookups.
+  const cacheKey = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+  const now = Date.now();
+  const cached = reverseGeocodeCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.value;
+  if (cached) reverseGeocodeCache.delete(cacheKey);
+  const inFlight = reverseGeocodePending.get(cacheKey);
+  if (inFlight) return inFlight;
+
+  const lookup = (async (): Promise<ReverseGeocodeResult> => {
   try {
     const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${latitude}&lon=${longitude}`, {
       headers: { 'User-Agent': 'Punchy/1.0 (customer-location-discovery)' },
@@ -72,12 +89,26 @@ export async function reverseGeocodeLocation(latitude: number, longitude: number
     if (!response.ok) return null;
     const match = await response.json() as { address?: { country_code?: string; country?: string; city?: string; town?: string; village?: string; municipality?: string; county?: string } };
     const address = match.address;
-    return {
+    const result = {
       city: address?.city || address?.town || address?.village || address?.municipality || address?.county,
       countryCode: address?.country_code?.toUpperCase(),
       countryName: address?.country,
     };
+    if (result.city || result.countryCode) {
+      if (reverseGeocodeCache.size >= REVERSE_GEOCODE_CACHE_LIMIT) {
+        reverseGeocodeCache.delete(reverseGeocodeCache.keys().next().value!);
+      }
+      reverseGeocodeCache.set(cacheKey, { value: result, expiresAt: Date.now() + REVERSE_GEOCODE_TTL_MS });
+    }
+    return result;
   } catch { return null; }
+  })();
+  reverseGeocodePending.set(cacheKey, lookup);
+  try {
+    return await lookup;
+  } finally {
+    reverseGeocodePending.delete(cacheKey);
+  }
 }
 export async function ensureBusinessLocationIndex(prisma: { $runCommandRaw: (command: object) => Promise<unknown> }): Promise<void> {
   await prisma.$runCommandRaw({

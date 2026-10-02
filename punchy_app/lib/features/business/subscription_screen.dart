@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_skeleton.dart';
 
 typedef _JsonMap = Map<String, dynamic>;
 
@@ -31,13 +32,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Future<void> _load() async {
     try {
       final data = await _api.get('/subscriptions/business/current');
-      if (mounted)
+      if (mounted) {
         setState(() {
           _data = Map<String, dynamic>.from(data);
           _loadError = null;
         });
+      }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _data = {};
           _loadError = error is ApiException
@@ -46,6 +48,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ? error.message
               : 'Unable to load subscription details.';
         });
+      }
     }
   }
 
@@ -136,7 +139,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         backgroundColor: AppColors.bg,
       ),
       body: _data == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const PunchySkeleton(rows: 3)
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
@@ -638,9 +641,10 @@ class _PaymentFlowState extends State<_PaymentFlow> {
   Future<void> _copy(String label, String? value) async {
     if (value == null || value.trim().isEmpty) return;
     await Clipboard.setData(ClipboardData(text: value));
-    if (mounted)
+    if (mounted) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('$label copied.')));
+    }
   }
 
   Future<void> _submit() async {
@@ -872,8 +876,9 @@ class _PaymentFlowState extends State<_PaymentFlow> {
                   enabled: !_sending,
                   textInputAction: TextInputAction.done,
                   onChanged: (_) {
-                    if (_transactionError != null)
+                    if (_transactionError != null) {
                       setState(() => _transactionError = null);
+                    }
                   },
                   decoration: InputDecoration(
                     labelText: 'Transaction ID',

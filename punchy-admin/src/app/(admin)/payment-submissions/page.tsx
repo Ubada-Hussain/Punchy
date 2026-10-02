@@ -32,9 +32,11 @@ export default function PaymentSubmissionsPage() {
     if (!selected || working) return;
     const label = action === 'APPROVE' ? 'approve and activate this subscription' : 'reject this payment';
     if (!window.confirm(`Are you sure you want to ${label}?`)) return;
+    const adminNote = action === 'REJECT' ? window.prompt('Enter the rejection reason. This will be recorded in the payment history:')?.trim() : '';
+    if (action === 'REJECT' && !adminNote) { setMessage('A rejection reason is required.'); return; }
     setWorking(true); setMessage('');
     try {
-      await api.post(`/subscriptions/payments/${selected.id}/decision`, { action });
+      await api.post(`/subscriptions/payments/${selected.id}/decision`, { action, adminNote });
       setMessage(action === 'APPROVE' ? 'Payment approved and subscription activated.' : 'Payment rejected. The business can submit again.');
       setSelected(null); await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to review this payment.'); }

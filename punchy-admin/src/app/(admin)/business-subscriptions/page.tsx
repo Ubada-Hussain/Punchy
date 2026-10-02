@@ -3,11 +3,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 
-type Subscription = { id: string; status: string; plan: string; price: number; currency: string; startDate: string; endDate: string; trialStart?: string; trialEnd?: string };
+type Subscription = { id: string; status: string; plan: string; price: number; currency: string; startDate: string; endDate: string; trialStart?: string; trialEnd?: string; freeMonths?: number | null };
 type Business = { id: string; name: string; countryCode?: string; user: { publicId?: string }; subscriptions: Subscription[] };
 type Pricing = { countryCode: string; currencyCode: string; monthlyPrice: number; yearlyPrice: number; isActive: boolean };
 
 const date = (value?: string) => value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const freeDuration = (subscription?: Subscription) => {
+  if (!subscription || subscription.plan !== 'TRIAL') return '';
+  if (subscription.freeMonths) return String(subscription.freeMonths);
+  if (!subscription.trialStart || !subscription.trialEnd) return '';
+  const start = new Date(subscription.trialStart);
+  const end = new Date(subscription.trialEnd);
+  return String((end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth());
+};
 
 export default function BusinessSubscriptionsPage() {
   const [query, setQuery] = useState('');
@@ -16,6 +24,9 @@ export default function BusinessSubscriptionsPage() {
   const [selected, setSelected] = useState<Business | null>(null);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
+  const [savingFree, setSavingFree] = useState(false);
+  const [freeStatus, setFreeStatus] = useState<'ACTIVE' | 'INACTIVE'>('INACTIVE');
+  const [freeMonths, setFreeMonths] = useState('');
   const [message, setMessage] = useState('');
 
   async function load(search = '') {
@@ -61,6 +72,26 @@ export default function BusinessSubscriptionsPage() {
     }
   }
 
+  async function saveFree() {
+    if (!selected || savingFree) return;
+    const months = Number(freeMonths);
+    if (!Number.isInteger(months) || months < 1 || months > 120) {
+      setMessage('Choose a free subscription duration from 1 to 120 months.');
+      return;
+    }
+    setSavingFree(true);
+    setMessage('');
+    try {
+      await api.put(`/subscriptions/businesses/${selected.id}/free-subscription`, { status: freeStatus, months });
+      setMessage('Free subscription updated successfully.');
+      await load(query);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to update free subscription.');
+    } finally {
+      setSavingFree(false);
+    }
+  }
+
   return (
     <>
       <div className="admin-topbar"><h3>Business Subscriptions</h3></div>
@@ -83,10 +114,10 @@ export default function BusinessSubscriptionsPage() {
                 return <tr key={business.id}>
                   <td><div className="row-name">{business.name}</div><div className="row-sub">{business.countryCode ?? 'No country'}</div></td>
                   <td style={{ fontWeight: 700 }}>{business.user?.publicId ?? business.id}</td>
-                  <td>{subscription?.plan ?? 'TRIAL'}</td><td>{subscription?.plan === 'YEARLY' ? '1 Year' : subscription?.plan === 'MONTHLY' ? '1 Month' : '2 Months'}</td>
+                  <td>{subscription?.plan ?? 'TRIAL'}</td><td>{subscription?.plan === 'YEARLY' ? '1 Year' : subscription?.plan === 'MONTHLY' ? '1 Month' : freeDuration(subscription) ? `${freeDuration(subscription)} ${freeDuration(subscription) === '1' ? 'Month' : 'Months'}` : '—'}</td>
                   <td>{subscription?.price ?? 0}</td><td>{subscription?.currency ?? '—'}</td><td>{date(subscription?.startDate)}</td><td>{date(subscription?.endDate)}</td>
-                  <td><span className={`badge ${subscription?.status === 'ACTIVE' ? 'b-active' : subscription?.status === 'TRIALING' ? 'b-pending' : 'b-suspended'}`}>{subscription?.status ?? 'TRIALING'}</span></td>
-                  <td><button className="btn btn-outline btn-xs" onClick={() => { setSelected(business); setMessage(''); }}>Manage</button></td>
+                  <td><span className={`badge ${subscription?.status === 'ACTIVE' || subscription?.status === 'TRIALING' ? 'b-active' : 'b-suspended'}`}>{subscription?.plan === 'TRIAL' && subscription.status === 'TRIALING' ? 'ACTIVE' : subscription?.status ?? 'INACTIVE'}</span></td>
+                  <td><button className="btn btn-outline btn-xs" onClick={() => { setSelected(business); setFreeStatus(subscription?.status === 'TRIALING' ? 'ACTIVE' : 'INACTIVE'); setFreeMonths(freeDuration(subscription)); setMessage(''); }}>Manage</button></td>
                 </tr>;
               })}</tbody>
             </table>
@@ -100,7 +131,15 @@ export default function BusinessSubscriptionsPage() {
             <div className="row-sub">Business ID: {selected.user?.publicId ?? selected.id}</div>
           </div>
           {current && <div style={{ padding: 12, background: 'var(--bg)', borderRadius: 10, fontSize: 12.5, lineHeight: 1.7, marginBottom: 16 }}>
-            Current: <b>{current.plan}</b> · {current.currency} {current.price} · {date(current.startDate)} – {date(current.endDate)} · <b>{current.status}</b>
+            Current: <b>{current.plan}</b> · {current.currency} {current.price} · {date(current.startDate)} – {date(current.endDate)} · <b>{current.plan === 'TRIAL' && current.status === 'TRIALING' ? 'ACTIVE' : current.status}</b>
+          </div>}
+          {(!current || current.plan === 'TRIAL') && <div style={{ marginBottom: 18 }}>
+            <div className="panel-title">Free subscription</div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end', marginTop: 10 }}>
+              <label style={{ fontSize: 12.5 }}>Status<br /><select value={freeStatus} disabled={savingFree} onChange={event => setFreeStatus(event.target.value as 'ACTIVE' | 'INACTIVE')}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label>
+              <label style={{ fontSize: 12.5 }}>Free months<br /><input type="number" min="1" max="120" step="1" placeholder="Select months" value={freeMonths} disabled={savingFree} onChange={event => setFreeMonths(event.target.value)} /></label>
+              <button className="btn btn-primary" disabled={savingFree || !freeMonths} onClick={() => void saveFree()}>{savingFree ? 'Saving…' : 'Save free subscription'}</button>
+            </div>
           </div>}
           {!countryPricing ? <p style={{ color: 'var(--coral-dark)', fontSize: 12.5 }}>Set active subscription pricing for {selected.countryCode ?? 'this business country'} before assigning a plan.</p> : (
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

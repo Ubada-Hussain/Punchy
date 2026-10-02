@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import Image from 'next/image';
+import GlobalSearch from './GlobalSearch';
 
 const Icons = {
   grid: (
@@ -74,18 +75,34 @@ const Icons = {
 };
 
 const NAV = [
-  { href: '/dashboard',     label: 'Dashboard',     icon: 'grid'     },
-  { href: '/businesses',    label: 'Businesses',     icon: 'store'    },
-  { href: '/customers',     label: 'Customers',      icon: 'users'    },
-  { href: '/analytics',     label: 'Analytics',      icon: 'chart'    },
-  { href: '/subscription-pricing', label: 'Subscription Pricing', icon: 'settings' },
-  { href: '/payment-methods', label: 'Payment Methods', icon: 'settings' },
-  { href: '/payment-submissions', label: 'Payment Submissions', icon: 'ticket' },
-  { href: '/business-subscriptions', label: 'Business Subscriptions', icon: 'store' },
-  { href: '/nfc-qr',        label: 'NFC & QR',       icon: 'nfc'      },
-  { href: '/notifications', label: 'Notifications',  icon: 'bell'     },
-  { href: '/support',       label: 'Support',        icon: 'ticket'   },
-  { href: '/settings',      label: 'Settings',       icon: 'settings' },
+  { section: 'Overview', items: [
+    { href: '/dashboard', label: 'Dashboard', icon: 'grid' },
+  ] },
+  { section: 'Customers', items: [
+    { href: '/customers', label: 'Customers', icon: 'users' },
+    { href: '/businesses', label: 'Businesses', icon: 'store' },
+  ] },
+  { section: 'Revenue', items: [
+    { href: '/business-subscriptions', label: 'Subscriptions', icon: 'store' },
+    { href: '/subscription-pricing', label: 'Plans & pricing', icon: 'settings' },
+    { href: '/payment-submissions', label: 'Payments', icon: 'ticket' },
+    { href: '/payment-methods', label: 'Payment methods', icon: 'settings' },
+  ] },
+  { section: 'Experience', items: [
+    { href: '/support', label: 'Support', icon: 'ticket' },
+    { href: '/notifications', label: 'Communication', icon: 'bell' },
+  ] },
+  { section: 'Intelligence', items: [
+    { href: '/analytics', label: 'Analytics', icon: 'chart' },
+    { href: '/reports', label: 'Reports', icon: 'chart' },
+  ] },
+  { section: 'Control', items: [
+    { href: '/operations', label: 'Operations', icon: 'nfc' },
+    { href: '/security', label: 'Security', icon: 'users' },
+    { href: '/audit-log', label: 'Audit log', icon: 'ticket' },
+    { href: '/nfc-qr', label: 'NFC & QR', icon: 'nfc' },
+    { href: '/settings', label: 'Settings', icon: 'settings' },
+  ] },
 ] as const;
 
 export default function Sidebar() {
@@ -108,21 +125,22 @@ export default function Sidebar() {
         <b>Punchy Admin</b>
       </div>
 
+      <GlobalSearch />
+
       {/* Navigation */}
       <nav className="side-nav">
-        {NAV.map(item => {
-          const active = pathname === item.href || pathname.startsWith(item.href + '/');
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`side-item${active ? ' active' : ''}`}
-            >
-              {Icons[item.icon as keyof typeof Icons]}
-              {item.label}
-            </Link>
-          );
-        })}
+        {NAV.map(group => (
+          <div className="side-group" key={group.section}>
+            <div className="side-group-label">{group.section}</div>
+            {group.items.map(item => {
+              const active = pathname === item.href || pathname.startsWith(item.href + '/');
+              return <Link key={item.href} href={item.href} className={`side-item${active ? ' active' : ''}`}>
+                {Icons[item.icon as keyof typeof Icons]}
+                {item.label}
+              </Link>;
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Footer */}

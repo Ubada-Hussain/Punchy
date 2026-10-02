@@ -12,6 +12,7 @@ class PunchyConfirmationDialog extends StatefulWidget {
     required this.confirmLabel,
     required this.onConfirm,
     this.destructive = true,
+    this.processingLabel = 'Processing…',
   });
 
   final String title;
@@ -19,6 +20,7 @@ class PunchyConfirmationDialog extends StatefulWidget {
   final String confirmLabel;
   final Future<void> Function() onConfirm;
   final bool destructive;
+  final String processingLabel;
 
   static Future<bool> show(
     BuildContext context, {
@@ -27,6 +29,7 @@ class PunchyConfirmationDialog extends StatefulWidget {
     required String confirmLabel,
     required Future<void> Function() onConfirm,
     bool destructive = true,
+    String processingLabel = 'Processing…',
   }) async {
     return await showDialog<bool>(
           context: context,
@@ -37,6 +40,7 @@ class PunchyConfirmationDialog extends StatefulWidget {
             confirmLabel: confirmLabel,
             onConfirm: onConfirm,
             destructive: destructive,
+            processingLabel: processingLabel,
           ),
         ) ??
         false;
@@ -136,13 +140,25 @@ class _PunchyConfirmationDialogState extends State<PunchyConfirmationDialog> {
               ),
             ),
             child: _isProcessing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.processingLabel,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   )
                 : Text(
                     widget.confirmLabel,

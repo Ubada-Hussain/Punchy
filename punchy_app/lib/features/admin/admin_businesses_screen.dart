@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_skeleton.dart';
 import '../../core/widgets/punchy_empty_state.dart';
 
 class AdminBusinessesScreen extends StatefulWidget {
@@ -29,7 +31,9 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
   Future<void> _fetchBusinesses() async {
     setState(() => _isLoading = true);
     try {
-      final statusParam = _selectedFilter == 'ALL' ? '' : '&status=$_selectedFilter';
+      final statusParam = _selectedFilter == 'ALL'
+          ? ''
+          : '&status=$_selectedFilter';
       final query = '?search=${_searchController.text.trim()}$statusParam';
       final res = await _api.get('/admin/businesses$query');
       if (res is List && mounted) {
@@ -52,17 +56,24 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
 
   Future<void> _updateStatus(String businessId, String status) async {
     try {
-      await _api.put('/admin/businesses/$businessId/status', {'status': status});
+      await _api.put('/admin/businesses/$businessId/status', {
+        'status': status,
+      });
       await _fetchBusinesses();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppColors.ink,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             content: Text(
               'Business status updated to $status! ✨',
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.w600),
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         );
@@ -94,7 +105,11 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Center(
-                        child: Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: AppColors.ink),
+                        child: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                   ),
@@ -124,11 +139,21 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
                 child: TextField(
                   controller: _searchController,
                   onSubmitted: (_) => _fetchBusinesses(),
-                  style: GoogleFonts.plusJakartaSans(color: AppColors.ink, fontSize: 13.5),
+                  style: GoogleFonts.plusJakartaSans(
+                    color: AppColors.ink,
+                    fontSize: 13.5,
+                  ),
                   decoration: InputDecoration(
                     hintText: 'Search business name or category...',
-                    hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.inkFaint, fontSize: 13),
-                    prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.inkSoft),
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      color: AppColors.inkFaint,
+                      fontSize: 13,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: AppColors.inkSoft,
+                    ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 11),
                   ),
@@ -141,7 +166,10 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
               height: 46,
               child: ListView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 6,
+                ),
                 children: [
                   _buildFilterChip('ALL', 'All'),
                   const SizedBox(width: 8),
@@ -154,142 +182,178 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
 
             // Business List
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.teal))
+              child: _isLoading && _businesses.isEmpty
+                  ? const PunchySkeleton(rows: 4)
                   : _businesses.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: PunchyEmptyState(
-                              icon: Icons.storefront_outlined,
-                              heading: 'No businesses found',
-                              subtext: 'No businesses matched the selected filter criteria.',
-                            ),
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: PunchyEmptyState(
+                          icon: Icons.storefront_outlined,
+                          heading: 'No businesses found',
+                          subtext: 'No businesses matched the selected filter criteria.',
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+                      itemCount: _businesses.length,
+                      separatorBuilder: (_, index) =>
+                          const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final b = _businesses[index];
+                        final status = (b['status'] ?? 'APPROVED')
+                            .toString()
+                            .toUpperCase();
+                        final isSuspended = status == 'SUSPENDED';
+
+                        Color badgeBg = AppColors.teal.withValues(alpha: 0.15);
+                        Color badgeText = AppColors.tealDark;
+                        if (isSuspended) {
+                          badgeBg = AppColors.coral.withValues(alpha: 0.15);
+                          badgeText = AppColors.coralDark;
+                        }
+
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.line),
                           ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
-                          itemCount: _businesses.length,
-                          separatorBuilder: (_, index) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final b = _businesses[index];
-                            final status = (b['status'] ?? 'APPROVED').toString().toUpperCase();
-                            final isSuspended = status == 'SUSPENDED';
-
-                            Color badgeBg = AppColors.teal.withValues(alpha: 0.15);
-                            Color badgeText = AppColors.tealDark;
-                            if (isSuspended) {
-                              badgeBg = AppColors.coral.withValues(alpha: 0.15);
-                              badgeText = AppColors.coralDark;
-                            }
-
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: AppColors.line),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
                                 children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 38,
-                                        height: 38,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.surfaceAlt,
-                                          borderRadius: BorderRadius.circular(11),
-                                        ),
-                                        child: const Center(
-                                          child: Icon(Icons.storefront_rounded, size: 20, color: AppColors.tealDark),
-                                        ),
+                                  Container(
+                                    width: 38,
+                                    height: 38,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surfaceAlt,
+                                      borderRadius: BorderRadius.circular(11),
+                                    ),
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.storefront_rounded,
+                                        size: 20,
+                                        color: AppColors.tealDark,
                                       ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              b['name'] ?? 'Business Name',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 13.5,
-                                                fontWeight: FontWeight.w800,
-                                                color: AppColors.ink,
-                                              ),
-                                            ),
-                                            Text(
-                                              '${b['category'] ?? ''} • ${b['user']?['email'] ?? ''}',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 11.5,
-                                                color: AppColors.inkSoft,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: badgeBg,
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
-                                        child: Text(
-                                          status,
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w800,
-                                            color: badgeText,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
-                                  const SizedBox(height: 12),
-
-                                  // Action Buttons Row
-                                  Row(
-                                    children: [
-                                      if (isSuspended)
-                                        Expanded(
-                                          child: SizedBox(
-                                            height: 36,
-                                            child: ElevatedButton(
-                                              onPressed: () => _updateStatus(b['id'], 'APPROVED'),
-                                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                                              child: Text('Unban', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
-                                            ),
-                                          ),
-                                        )
-                                      else
-                                        Expanded(
-                                          child: SizedBox(
-                                            height: 36,
-                                            child: OutlinedButton(
-                                              onPressed: () => _updateStatus(b['id'], 'SUSPENDED'),
-                                              style: OutlinedButton.styleFrom(
-                                                side: const BorderSide(color: AppColors.line),
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                              ),
-                                              child: Text(
-                                                'Suspend',
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: AppColors.coralDark,
-                                                ),
-                                              ),
-                                            ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          b['name'] ?? 'Business Name',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.ink,
                                           ),
                                         ),
-                                    ],
+                                        Text(
+                                          '${b['category'] ?? ''} • ${b['user']?['email'] ?? ''}',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 11.5,
+                                            color: AppColors.inkSoft,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: badgeBg,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      status,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: badgeText,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                            );
-                          },
-                        ),
+                              const SizedBox(height: 12),
+
+                              // Action Buttons Row
+                              Row(
+                                children: [
+                                  if (isSuspended)
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 36,
+                                        child: ElevatedButton(
+                                          onPressed: () => _updateStatus(
+                                            b['id'],
+                                            'APPROVED',
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: AppColors.teal,
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Unban',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 36,
+                                        child: OutlinedButton(
+                                          onPressed: () => _updateStatus(
+                                            b['id'],
+                                            'SUSPENDED',
+                                          ),
+                                          style: OutlinedButton.styleFrom(
+                                            side: const BorderSide(
+                                              color: AppColors.line,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Suspend',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.coralDark,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -309,7 +373,9 @@ class _AdminBusinessesScreenState extends State<AdminBusinessesScreen> {
         decoration: BoxDecoration(
           color: isSelected ? AppColors.teal : AppColors.surface,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: isSelected ? AppColors.teal : AppColors.line),
+          border: Border.all(
+            color: isSelected ? AppColors.teal : AppColors.line,
+          ),
         ),
         child: Center(
           child: Text(

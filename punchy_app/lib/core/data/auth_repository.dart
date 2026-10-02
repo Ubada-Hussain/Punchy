@@ -81,6 +81,9 @@ class AuthRepository {
   Future<void> deleteAccount(String otp) =>
       _client.deleteWithBody('/auth/account', {'otp': otp});
 
+  Future<void> logout(String? refreshToken) =>
+      _client.post('/auth/logout', {'refreshToken': refreshToken});
+
   static Map<String, dynamic> _asMap(dynamic value) =>
       value is Map<String, dynamic>
       ? value

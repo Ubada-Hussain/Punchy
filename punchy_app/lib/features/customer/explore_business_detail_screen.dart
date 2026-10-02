@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_async_button.dart';
 
 class ExploreBusinessDetailScreen extends StatelessWidget {
   const ExploreBusinessDetailScreen({
@@ -43,21 +44,13 @@ class ExploreBusinessDetailScreen extends StatelessWidget {
       }[_currency] ??
       _currency;
 
-  Future<void> _join(BuildContext context) async {
-    if (card == null) return;
+  Future<bool> _join() async {
+    if (card == null) return false;
     try {
       await ApiClient().post('/customer/cards/join', {'cardId': card!['id']});
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Card added to your wallet.')),
-        );
-      }
+      return true;
     } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not add this card.')),
-        );
-      }
+      return false;
     }
   }
 
@@ -155,14 +148,20 @@ class ExploreBusinessDetailScreen extends StatelessWidget {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: ElevatedButton(
-            onPressed: card == null ? null : () => _join(context),
+          child: PunchyAsyncButton(
+            label: 'Join loyalty card',
+            processingLabel: 'Joining…',
+            enabled: card != null,
+            onPressed: _join,
+            errorMessage: 'Could not add this card. Please try again.',
+            onSuccess: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Card added to your wallet.')),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.teal,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 15),
             ),
-            child: const Text('Join loyalty card'),
           ),
         ),
       ),

@@ -8,6 +8,7 @@ import 'dart:io';
 
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/punchy_skeleton.dart';
 
 class BusinessSetupScreen extends StatefulWidget {
   const BusinessSetupScreen({super.key});
@@ -305,9 +306,7 @@ class _BusinessSetupScreenState extends State<BusinessSetupScreen> {
             // Form Content
             Expanded(
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: AppColors.teal),
-                    )
+                  ? const PunchySkeleton(rows: 4)
                   : Form(
                       key: _formKey,
                       child: ListView(

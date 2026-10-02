@@ -39,10 +39,11 @@ class _SupportSheetState extends State<SupportSheet> {
   Future<void> _loadSupportContact() async {
     try {
       final result = await ApiClient().get('/subscriptions/support-contact');
-      if (mounted)
+      if (mounted) {
         setState(
           () => _supportEmail = (result as Map)['supportEmail']?.toString(),
         );
+      }
     } catch (_) {
       if (mounted) setState(() => _supportEmail = null);
     }
