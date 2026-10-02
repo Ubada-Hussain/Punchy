@@ -8,8 +8,8 @@ import '../../core/providers/auth_provider.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/notification_count_badge.dart';
-import '../../core/widgets/punchy_skeleton.dart';
 import 'card_detail_screen.dart';
+import 'widgets/loyalty_card_deck.dart';
 
 class CustomerDashboardScreen extends StatefulWidget {
   const CustomerDashboardScreen({super.key});
@@ -24,7 +24,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen>
   final ApiClient _api = ApiClient();
   bool _isLoading = true;
   List<dynamic> _cards = [];
-  int _activeNavIndex = 0;
+  String? _loadError;
   int _unreadNotificationsCount = 0;
 
   @override
@@ -68,6 +68,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen>
   }
 
   Future<void> _loadCards() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final res = await _api.get('/customer/cards');
@@ -76,6 +77,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen>
           setState(() {
             _cards = res;
             _isLoading = false;
+            _loadError = null;
           });
         }
         return;
@@ -84,33 +86,9 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen>
 
     if (mounted) {
       setState(() {
-        _cards = [];
         _isLoading = false;
+        _loadError = "Couldn't load your cards";
       });
-    }
-  }
-
-  String _formatDate(dynamic dateVal) {
-    if (dateVal == null) return 'No expiry';
-    try {
-      final dt = DateTime.parse(dateVal.toString());
-      const months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
-    } catch (_) {
-      return dateVal.toString();
     }
   }
 
@@ -227,586 +205,483 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen>
     }
   }
 
+  Future<void> _openCard(Map<String, dynamic> card) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => CardDetailScreen(cardData: card)));
+    if (mounted) await _loadCards();
+  }
+
+  Future<void> _cardOptions(Map<String, dynamic> card) async {
+    final remove = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: deckCream,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  LoyaltyDeckData(card).name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: deckInk,
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.remove_circle_outline_rounded,
+                  color: AppColors.coralDark,
+                ),
+                title: const Text('Remove card'),
+                subtitle: const Text('You will be asked to confirm'),
+                onTap: () => Navigator.pop(context, true),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (remove == true && mounted) await _confirmRemoveCard(card);
+  }
+
+  Future<void> _explore() async {
+    await context.push('/explore');
+    if (mounted) await _loadCards();
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final userName =
-        auth.user?['name'] ?? (auth.user?['email']?.split('@')[0] ?? 'there');
-
+        (auth.user?['name'] ?? auth.user?['email']?.split('@')[0] ?? 'there')
+            .toString();
+    final cards = _cards
+        .whereType<Map>()
+        .map((card) => Map<String, dynamic>.from(card))
+        .toList();
     return Scaffold(
-      backgroundColor: AppColors.bg,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _loadCards,
-                color: AppColors.teal,
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
-                  children: [
-                    // Top Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Hi $userName 👋',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.ink,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              "Let's collect some punches",
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                color: AppColors.inkSoft,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        // Bell notification icon
-                        GestureDetector(
-                          onTap: _openNotifications,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface,
-                                  border: Border.all(color: AppColors.line),
-                                  borderRadius: BorderRadius.circular(11),
-                                ),
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.notifications_none_rounded,
-                                    color: AppColors.ink,
-                                    size: 18,
-                                  ),
-                                ),
-                              ),
-                              if (_unreadNotificationsCount > 0)
-                                Positioned(
-                                  top: -7,
-                                  right: -7,
-                                  child: NotificationCountBadge(
-                                    count: _unreadNotificationsCount,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Search Bar -> Navigates to Explore
-                    GestureDetector(
-                      onTap: () =>
-                          context.push('/explore').then((_) => _loadCards()),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 11,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          border: Border.all(color: AppColors.line, width: 1.5),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.search_rounded,
-                              color: AppColors.inkFaint,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 9),
-                            Text(
-                              'Find a business or card...',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                color: AppColors.inkFaint,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Your Cards Title + See All
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Your cards',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.ink,
-                          ),
-                        ),
-                        Text(
-                          'See all',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.tealDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Wallet Cards List
-                    if (_isLoading && _cards.isEmpty)
-                      const PunchySkeleton(rows: 2)
-                    else if (_cards.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 32,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.line),
-                        ),
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceAlt,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Icon(
-                                Icons.credit_card_off_rounded,
-                                color: AppColors.tealDark,
-                                size: 26,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Your wallet is empty',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.ink,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Explore businesses in your city or country to join loyalty cards and start collecting punches!',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                color: AppColors.inkSoft,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () => context
-                                  .push('/explore')
-                                  .then((_) => _loadCards()),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.teal,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 11,
-                                ),
-                              ),
-                              child: Text(
-                                'Explore Businesses',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Column(
-                        children: _cards
-                            .map(
-                              (c) => Padding(
-                                padding: const EdgeInsets.only(bottom: 14),
-                                child: _buildWalletCard(c),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Bottom Navigation Bar
-            _buildBottomNav(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWalletCard(Map<String, dynamic> cardData) {
-    final cardInfo = cardData['card'] ?? {};
-    final biz = cardInfo['business'] ?? {};
-    final bizName = biz['name'] ?? cardInfo['title'] ?? 'Business';
-    final bizCat = biz['category'] ?? 'Loyalty Program';
-    final bizLogo = (biz['logo'] != null && biz['logo'].toString().isNotEmpty)
-        ? biz['logo'].toString()
-        : (cardInfo['visualStyle']?['icon'] ?? '🎟️');
-    final punchCount = cardData['punchCount'] as int? ?? 0;
-    final punchesRequired = cardInfo['punchesRequired'] as int? ?? 10;
-    final isCompleted =
-        cardData['isCompleted'] == true || punchCount >= punchesRequired;
-    final expiry = DateTime.tryParse((cardInfo['validUntil'] ?? '').toString());
-    final isExpired =
-        cardData['isExpired'] == true ||
-        (expiry != null && expiry.isBefore(DateTime.now()));
-
-    final themeStr = (cardInfo['visualStyle']?['theme'] ?? 'teal')
-        .toString()
-        .toLowerCase();
-    final gradient = themeStr == 'coral'
-        ? AppColors.gradCoral
-        : themeStr == 'purple'
-        ? AppColors.gradPurple
-        : themeStr == 'gold'
-        ? AppColors.gradGold
-        : AppColors.gradTeal;
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => CardDetailScreen(cardData: cardData),
+      backgroundColor: deckCream,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(.05, -.95),
+            radius: 1.05,
+            colors: [Color(0xFFD5EEE7), deckCream],
+            stops: [0, .85],
           ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: gradient.colors.last.withValues(alpha: 0.35),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
         ),
-        child: Column(
-          children: [
-            // Top Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      bizName,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      bizCat,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.85),
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: 'Remove card',
-                      onPressed: () => _confirmRemoveCard(cardData),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints.tightFor(
-                        width: 32,
-                        height: 32,
-                      ),
-                      icon: Container(
-                        width: 32,
-                        height: 32,
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.delete_outline_rounded,
-                            size: 17,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.22),
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: Center(
-                        child: bizLogo.startsWith('http')
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(9),
-                                child: Image.network(
-                                  bizLogo,
-                                  width: 32,
-                                  height: 32,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => const Text(
-                                    '🏪',
-                                    style: TextStyle(fontSize: 15),
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cardHeight = (constraints.maxWidth * 1.18).clamp(
+                      440.0,
+                      570.0,
+                    );
+                    return RefreshIndicator(
+                      onRefresh: () => Future.wait([
+                        _loadCards(),
+                        _loadUnreadNotifications(),
+                      ]),
+                      color: deckTeal,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(top: 22, bottom: 28),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Hi $userName',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 27,
+                                          height: 1.15,
+                                          letterSpacing: -.8,
+                                          fontWeight: FontWeight.w800,
+                                          color: deckInk,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _isLoading && cards.isEmpty
+                                            ? 'Your deck'
+                                            : 'Your deck · ${cards.length} ${cards.length == 1 ? 'card' : 'cards'}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: const Color(0xFF596663),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              )
-                            : Text(
-                                bizLogo,
-                                style: const TextStyle(fontSize: 15),
+                                const SizedBox(width: 12),
+                                _headerButton(
+                                  Icons.search_rounded,
+                                  'Search businesses',
+                                  _explore,
+                                ),
+                                const SizedBox(width: 10),
+                                _headerButton(
+                                  Icons.notifications_none_rounded,
+                                  'Open alerts',
+                                  _openNotifications,
+                                  badge: _unreadNotificationsCount,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 34),
+                          if (_isLoading && cards.isEmpty)
+                            LoadingDeckState(height: cardHeight)
+                          else if (_loadError != null && cards.isEmpty)
+                            _statePanel(
+                              Icons.cloud_off_rounded,
+                              "Couldn't load your cards",
+                              'Please check your connection and try again.',
+                              'Try again',
+                              _loadCards,
+                            )
+                          else if (cards.isEmpty)
+                            _statePanel(
+                              Icons.credit_card_rounded,
+                              'Your deck is empty',
+                              'Discover businesses and join a loyalty card to start collecting punches.',
+                              'Explore rewards',
+                              _explore,
+                            )
+                          else ...[
+                            if (_loadError != null)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                ),
+                                child: TextButton.icon(
+                                  onPressed: _loadCards,
+                                  icon: const Icon(Icons.refresh_rounded),
+                                  label: const Text(
+                                    'Could not refresh · try again',
+                                  ),
+                                ),
                               ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-
-            // Bottom Row (Dots + Validity + Badge)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Small indicator dots
-                Wrap(
-                  spacing: 4,
-                  children: List.generate(punchesRequired, (i) {
-                    final isOn = i < punchCount;
-                    return Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isOn
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.4),
+                            LoyaltyCardDeck(
+                              cards: cards,
+                              cardHeight: cardHeight,
+                              onOpen: _openCard,
+                              onLongPress: _cardOptions,
+                            ),
+                          ],
+                        ],
                       ),
                     );
-                  }),
+                  },
                 ),
-                Row(
-                  children: [
-                    if (cardInfo['validUntil'] != null) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: BoxDecoration(
-                          color: isExpired
-                              ? AppColors.coral.withValues(alpha: 0.9)
-                              : Colors.black.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (isExpired) ...[
-                              const Icon(
-                                Icons.timer_off_rounded,
-                                size: 11,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 4),
-                            ],
-                            Text(
-                              isExpired
-                                  ? 'EXPIRED'
-                                  : '⏳ ${_formatDate(cardInfo['validUntil'])}',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.22),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        isCompleted
-                            ? '$punchCount/$punchesRequired 🎉'
-                            : '$punchCount/$punchesRequired',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
+              ),
+              _bottomNav(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 14),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.line)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(0, Icons.home_rounded, 'Home'),
-          _buildNavItem(
-            1,
-            Icons.explore_rounded,
-            'Explore',
-            onTap: () => context.push('/explore').then((_) => _loadCards()),
-          ),
-          // Center Coral Barcode / Loyalty Pass Button
-          GestureDetector(
-            onTap: () => context.push('/barcode'),
-            child: Container(
-              width: 46,
-              height: 46,
-              margin: const EdgeInsets.only(top: 0),
-              decoration: BoxDecoration(
-                gradient: AppColors.gradCoral,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.surface, width: 3),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.coral.withValues(alpha: 0.6),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.qr_code_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-          ),
-          _buildNavItem(
-            2,
-            Icons.notifications_none_rounded,
-            'Alerts',
-            badgeCount: _unreadNotificationsCount,
-            onTap: _openNotifications,
-          ),
-          _buildNavItem(
-            3,
-            Icons.person_outline_rounded,
-            'Profile',
-            onTap: () => context.push('/profile').then((_) => _loadCards()),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem(
-    int index,
+  Widget _headerButton(
     IconData icon,
-    String label, {
-    VoidCallback? onTap,
-    int badgeCount = 0,
-  }) {
-    final isActive = _activeNavIndex == index;
-    return GestureDetector(
-      onTap: () {
-        setState(() => _activeNavIndex = index);
-        if (onTap != null) onTap();
-      },
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Icon(
-                icon,
-                size: 21,
-                color: isActive ? AppColors.teal : AppColors.inkFaint,
-              ),
-              if (badgeCount > 0)
-                Positioned(
-                  top: -9,
-                  right: -12,
-                  child: NotificationCountBadge(count: badgeCount),
-                ),
-            ],
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: isActive ? AppColors.teal : AppColors.inkFaint,
+    String label,
+    VoidCallback onTap, {
+    int badge = 0,
+  }) => Stack(
+    clipBehavior: Clip.none,
+    children: [
+      Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: deckInk.withValues(alpha: .06),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: IconButton(
+          tooltip: label,
+          onPressed: onTap,
+          icon: Icon(icon, color: deckInk, size: 23),
+        ),
       ),
-    );
-  }
+      if (badge > 0)
+        Positioned(
+          top: -5,
+          right: -5,
+          child: NotificationCountBadge(count: badge),
+        ),
+    ],
+  );
+
+  Widget _statePanel(
+    IconData icon,
+    String title,
+    String body,
+    String action,
+    VoidCallback onTap,
+  ) => Padding(
+    padding: const EdgeInsets.fromLTRB(28, 60, 28, 60),
+    child: Column(
+      children: [
+        Container(
+          width: 90,
+          height: 90,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE5EFE8),
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Icon(icon, size: 40, color: deckTeal),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 23,
+            fontWeight: FontWeight.w800,
+            color: deckInk,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          body,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            height: 1.6,
+            color: const Color(0xFF596663),
+          ),
+        ),
+        const SizedBox(height: 24),
+        FilledButton(
+          onPressed: onTap,
+          style: FilledButton.styleFrom(
+            backgroundColor: deckTeal,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+          ),
+          child: Text(action),
+        ),
+      ],
+    ),
+  );
+
+  Widget _bottomNav() => Container(
+    decoration: const BoxDecoration(
+      color: Colors.white,
+      border: Border(top: BorderSide(color: Color(0xFFEAE3D8))),
+    ),
+    child: SafeArea(
+      top: false,
+      child: SizedBox(
+        height: 78,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _navItem(Icons.credit_card_outlined, 'Cards', () {}, active: true),
+            _navItem(Icons.explore_outlined, 'Explore', _explore),
+            Transform.translate(
+              offset: const Offset(0, -14),
+              child: Container(
+                width: 66,
+                height: 66,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: deckCream, width: 5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.coral.withValues(alpha: .25),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: IconButton.filled(
+                  tooltip: 'Open your QR scanner pass',
+                  onPressed: () => context.push('/barcode'),
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF5654F),
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 28),
+                ),
+              ),
+            ),
+            _navItem(
+              Icons.notifications_none_rounded,
+              'Alerts',
+              _openNotifications,
+              badge: _unreadNotificationsCount,
+            ),
+            _navItem(Icons.person_outline_rounded, 'Profile', () async {
+              await context.push('/profile');
+              if (mounted) await _loadCards();
+            }),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _navItem(
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    bool active = false,
+    int badge = 0,
+  }) => Semantics(
+    selected: active,
+    button: true,
+    label: label,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        width: 58,
+        height: 64,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  size: 25,
+                  color: active ? deckTeal : const Color(0xFF677370),
+                ),
+                if (badge > 0)
+                  Positioned(
+                    top: -7,
+                    right: -10,
+                    child: NotificationCountBadge(count: badge),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: active ? deckTeal : const Color(0xFF677370),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class LoadingDeckState extends StatelessWidget {
+  final double height;
+  const LoadingDeckState({super.key, required this.height});
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Container(
+      width: MediaQuery.sizeOf(context).width * .77,
+      height: height,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0EEE7),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _block(54, 54, radius: 18),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _block(double.infinity, 17),
+                      const SizedBox(height: 10),
+                      _block(80, 12),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            _block(130, 64),
+            const SizedBox(height: 12),
+            _block(145, 14),
+            const Spacer(),
+            Row(
+              children: List.generate(
+                5,
+                (_) => Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(3),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: _block(
+                        double.infinity,
+                        double.infinity,
+                        radius: 40,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            _block(double.infinity, 14),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(child: _block(double.infinity, 32, radius: 20)),
+                const SizedBox(width: 16),
+                _block(44, 44, radius: 30),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _block(double width, double height, {double radius = 8}) => Container(
+    width: width,
+    height: height,
+    decoration: BoxDecoration(
+      color: const Color(0xFFDBE3DC),
+      borderRadius: BorderRadius.circular(radius),
+    ),
+  );
 }
