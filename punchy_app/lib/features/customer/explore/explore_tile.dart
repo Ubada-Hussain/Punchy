@@ -2,12 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/loyalty/card_palette.dart';
+import '../../../core/loyalty/loyalty_card_surface.dart';
+
 import 'explore_clipper.dart';
 import 'explore_style.dart';
 
 // Leave room above the next tile's 24px overlap for both caption lines.
 const exploreTileHeight = 192.0;
 const exploreTileStep = exploreTileHeight - 24;
+
+double exploreTileHeightFor(BuildContext context) =>
+    exploreTileHeight *
+    (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(1, 3);
 
 class ExploreTile extends StatelessWidget {
   const ExploreTile({
@@ -32,7 +39,16 @@ class ExploreTile extends StatelessWidget {
         color: color,
         child: InkWell(
           onTap: onTap,
-          child: ExploreTileContent(business: business, added: added),
+          child: LoyaltyCardSurface(
+            palette: CardPalette.fromColor(color),
+            radius: 0,
+            shadow: false,
+            child: ExploreTileContent(
+              business: business,
+              added: added,
+              palette: CardPalette.fromColor(color),
+            ),
+          ),
         ),
       ),
     ),
@@ -44,9 +60,11 @@ class ExploreTileContent extends StatelessWidget {
     super.key,
     required this.business,
     required this.added,
+    required this.palette,
   });
   final Map<String, dynamic> business;
   final bool added;
+  final CardPalette palette;
   @override
   Widget build(BuildContext context) {
     final card = exploreCard(business);
@@ -55,7 +73,11 @@ class ExploreTileContent extends StatelessWidget {
     final initials = Center(
       child: Text(
         exploreInitials(business),
-        style: exploreDisplay(14, color: Colors.white, weight: FontWeight.w800),
+        style: exploreDisplay(
+          14,
+          color: palette.tokenCheck,
+          weight: FontWeight.w800,
+        ),
       ),
     );
     return Padding(
@@ -68,7 +90,7 @@ class ExploreTileContent extends StatelessWidget {
                 child: Container(
                   width: 34,
                   height: 34,
-                  color: exploreInk,
+                  color: palette.tokenFill,
                   child: logo.isEmpty
                       ? initials
                       : Image.network(
@@ -84,7 +106,10 @@ class ExploreTileContent extends StatelessWidget {
                   exploreCategory(business).toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: exploreBody(12).copyWith(letterSpacing: .4),
+                  style: exploreBody(
+                    12,
+                    color: palette.text,
+                  ).copyWith(letterSpacing: .4),
                 ),
               ),
               if (added)
@@ -95,12 +120,12 @@ class ExploreTileContent extends StatelessWidget {
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: exploreInk,
+                    color: palette.tokenFill,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     'ADDED',
-                    style: exploreBody(11, color: Colors.white),
+                    style: exploreBody(11, color: palette.tokenCheck),
                   ),
                 ),
             ],
@@ -110,17 +135,27 @@ class ExploreTileContent extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      explorePunchText(card),
-                      style: exploreDisplay(52, height: .85),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.bottomStart,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          explorePunchText(card),
+                          style: exploreDisplay(
+                            52,
+                            height: .85,
+                            color: palette.text,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        _caption('PUNCHES'),
+                      ],
                     ),
-                    const SizedBox(height: 3),
-                    _caption('PUNCHES'),
-                  ],
+                  ),
                 ),
                 const SizedBox(width: 20),
                 Expanded(
@@ -130,10 +165,14 @@ class ExploreTileContent extends StatelessWidget {
                     children: [
                       Text(
                         exploreName(business).toUpperCase(),
-                        textAlign: TextAlign.right,
+                        textAlign: TextAlign.end,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: exploreDisplay(26, height: .95),
+                        style: exploreDisplay(
+                          26,
+                          height: .95,
+                          color: palette.text,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -144,7 +183,7 @@ class ExploreTileContent extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: exploreBody(
                           11,
-                          color: exploreInk.withValues(alpha: .7),
+                          color: palette.secondaryText,
                         ).copyWith(letterSpacing: .5),
                       ),
                     ],
@@ -162,7 +201,7 @@ class ExploreTileContent extends StatelessWidget {
     text,
     style: exploreBody(
       11,
-      color: exploreInk.withValues(alpha: .7),
+      color: palette.secondaryText,
     ).copyWith(letterSpacing: .5),
   );
 }

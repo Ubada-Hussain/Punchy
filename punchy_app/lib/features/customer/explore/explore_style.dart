@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../../../core/loyalty/card_color.dart';
+
 import 'package:google_fonts/google_fonts.dart';
 
 const exploreInk = Color(0xFF14201F);
@@ -69,3 +72,10 @@ bool matchesExploreSearch(Map business, String query) =>
     '${exploreName(business)} ${exploreCategory(business)}'
         .toLowerCase()
         .contains(query.trim().toLowerCase());
+
+Color exploreCardColor(Map<String, dynamic> business, int index) {
+  final card = exploreCard(business);
+  return card == null
+      ? exploreTints[index % exploreTints.length]
+      : CardColor.fromCard(card);
+}

@@ -1,6 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import '../../../core/loyalty/card_palette.dart';
+import '../../../core/loyalty/card_color.dart';
+import '../../../core/loyalty/loyalty_card_surface.dart';
+import '../../../core/loyalty/loyalty_punch_token.dart';
+
 import 'package:google_fonts/google_fonts.dart';
 
 const deckCream = Color(0xFFFAF6EF);
@@ -39,20 +45,8 @@ class LoyaltyDeckData {
         .toUpperCase();
   }
 
-  Color get color {
-    final theme = card['visualStyle'] is Map
-        ? card['visualStyle']['theme']
-        : null;
-    if (theme == 'coral') return const Color(0xFFF5654F);
-    if (theme == 'teal') return deckTeal;
-    if (theme == 'gold') return const Color(0xFF88702D);
-    final id = (business['id'] ?? card['id'] ?? name).toString();
-    final hash = id.codeUnits.fold<int>(
-      0,
-      (value, unit) => (value * 31 + unit) & 0x7fffffff,
-    );
-    return const [Color(0xFFF5654F), deckTeal, deckInk][hash % 3];
-  }
+  Color get color => CardColor.fromCard(card);
+  CardPalette get palette => CardPalette.fromColor(color);
 }
 
 class LoyaltyCardDeck extends StatefulWidget {
@@ -258,6 +252,7 @@ class LoyaltyDeckCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = data.palette;
     return Semantics(
       button: true,
       label:
@@ -265,41 +260,23 @@ class LoyaltyDeckCard extends StatelessWidget {
       child: GestureDetector(
         onTap: onOpen,
         onLongPress: onLongPress,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color.lerp(data.color, Colors.white, .13)!,
-                Color.lerp(data.color, Colors.black, .06)!,
-              ],
-            ),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: .32),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: data.color.withValues(alpha: .24),
-                blurRadius: 28,
-                offset: const Offset(0, 22),
-              ),
-            ],
-          ),
+        child: LoyaltyCardSurface(
+          palette: palette,
+          radius: 30,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(29),
             child: Stack(
               children: [
-                const Positioned(
+                Positioned(
                   top: -66,
                   right: -80,
                   child: IgnorePointer(
                     child: SizedBox(
                       width: 240,
                       height: 240,
-                      child: CustomPaint(painter: _RingPainter()),
+                      child: CustomPaint(
+                        painter: _RingPainter(palette.emptyToken),
+                      ),
                     ),
                   ),
                 ),
@@ -309,187 +286,196 @@ class LoyaltyDeckCard extends StatelessWidget {
                     builder: (context, constraints) {
                       final compact = constraints.maxHeight < 420;
                       final logoSize = compact ? 48.0 : 64.0;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                      return SingleChildScrollView(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: logoSize,
-                                height: logoSize,
-                                decoration: BoxDecoration(
-                                  color: deckCream,
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: .08,
-                                      ),
-                                      blurRadius: 14,
-                                      offset: const Offset(0, 7),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: data.logo.isEmpty
-                                      ? _initials()
-                                      : Image.network(
-                                          data.logo,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, _, _) =>
-                                              _initials(),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: logoSize,
+                                    height: logoSize,
+                                    decoration: BoxDecoration(
+                                      color: palette.tokenFill,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: .08,
+                                          ),
+                                          blurRadius: 14,
+                                          offset: const Offset(0, 7),
                                         ),
-                                ),
+                                      ],
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: data.logo.isEmpty
+                                          ? _initials()
+                                          : Image.network(
+                                              data.logo,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) =>
+                                                  _initials(),
+                                            ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          data.name,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: compact ? 20 : 23,
+                                            fontWeight: FontWeight.w800,
+                                            color: palette.text,
+                                            height: 1.1,
+                                          ),
+                                        ),
+                                        if (data.category.isNotEmpty) ...[
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            data.category,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 12,
+                                              color: palette.secondaryText,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              SizedBox(height: compact ? 16 : 28),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: AlignmentDirectional.centerStart,
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.baseline,
+                                  textBaseline: TextBaseline.alphabetic,
                                   children: [
                                     Text(
-                                      data.name,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                                      '${data.punches}',
                                       style: GoogleFonts.plusJakartaSans(
-                                        fontSize: compact ? 20 : 23,
+                                        fontSize: compact ? 60 : 74,
+                                        height: 1,
+                                        letterSpacing: -3,
                                         fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                        height: 1.1,
+                                        color: palette.text,
                                       ),
                                     ),
-                                    if (data.category.isNotEmpty) ...[
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        data.category,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 12,
-                                          color: Colors.white.withValues(
-                                            alpha: .92,
-                                          ),
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                    Text(
+                                      ' / ${data.required > 0 ? data.required : '—'}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.w800,
+                                        color: palette.secondaryText,
                                       ),
-                                    ],
+                                    ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
-                          const Spacer(flex: 2),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text(
-                                  '${data.punches}',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: compact ? 60 : 74,
-                                    height: 1,
-                                    letterSpacing: -3,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                  ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'punches collected',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: compact ? 12 : 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: palette.text,
                                 ),
-                                Text(
-                                  ' / ${data.required > 0 ? data.required : '—'}',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white.withValues(alpha: .83),
-                                  ),
+                              ),
+                              SizedBox(height: compact ? 16 : 28),
+                              if (data.required > 0)
+                                PunchTokenRow(
+                                  palette: palette,
+                                  required: data.required,
+                                  collected: data.punches,
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'punches collected',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: compact ? 12 : 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const Spacer(flex: 2),
-                          if (data.required > 0)
-                            PunchTokenRow(
-                              required: data.required,
-                              collected: data.punches,
-                            ),
-                          const SizedBox(height: 12),
-                          Text(
-                            data.completed
-                                ? 'Reward unlocked!'
-                                : data.expired
-                                ? 'Card expired'
-                                : data.required == 0
-                                ? 'Collect punches toward your reward'
-                                : '${math.max(0, data.required - data.punches)} more to unlock your reward',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: compact ? 11.5 : 13,
-                              height: 1.3,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              if (data.expiry != null)
-                                Expanded(
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(
-                                        alpha: .22,
+                              const SizedBox(height: 12),
+                              Text(
+                                data.completed
+                                    ? 'Reward unlocked!'
+                                    : data.expired
+                                    ? 'Card expired'
+                                    : data.required == 0
+                                    ? 'Collect punches toward your reward'
+                                    : '${math.max(0, data.required - data.punches)} more to unlock your reward',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: compact ? 11.5 : 13,
+                                  height: 1.3,
+                                  fontWeight: FontWeight.w800,
+                                  color: palette.text,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  if (data.expiry != null)
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: palette.overlay,
+                                          borderRadius: BorderRadius.circular(
+                                            24,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${data.expired ? 'Expired' : 'Expires'} ${_date(data.expiry!)}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 10.5,
+                                            color: palette.text,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                                       ),
-                                      borderRadius: BorderRadius.circular(24),
-                                    ),
-                                    child: Text(
-                                      '${data.expired ? 'Expired' : 'Expires'} ${_date(data.expiry!)}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 10.5,
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700,
+                                    )
+                                  else
+                                    const Spacer(),
+                                  const SizedBox(width: 12),
+                                  SizedBox(
+                                    width: 44,
+                                    height: 44,
+                                    child: IconButton.filled(
+                                      tooltip: 'Open ${data.name}',
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: palette.tokenFill,
+                                        foregroundColor: palette.tokenCheck,
+                                      ),
+                                      onPressed: onOpen,
+                                      icon: const Icon(
+                                        Icons.chevron_right_rounded,
+                                        size: 27,
                                       ),
                                     ),
                                   ),
-                                )
-                              else
-                                const Spacer(),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 44,
-                                height: 44,
-                                child: IconButton.filled(
-                                  tooltip: 'Open ${data.name}',
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: deckCream,
-                                    foregroundColor: deckInk,
-                                  ),
-                                  onPressed: onOpen,
-                                  icon: const Icon(
-                                    Icons.chevron_right_rounded,
-                                    size: 27,
-                                  ),
-                                ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
+                        ),
                       );
                     },
                   ),
@@ -517,10 +503,12 @@ class LoyaltyDeckCard extends StatelessWidget {
 }
 
 class PunchTokenRow extends StatelessWidget {
+  final CardPalette palette;
   final int required;
   final int collected;
   const PunchTokenRow({
     super.key,
+    required this.palette,
     required this.required,
     required this.collected,
   });
@@ -531,7 +519,7 @@ class PunchTokenRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: .22),
+        color: palette.overlay,
         borderRadius: BorderRadius.circular(34),
       ),
       child: LayoutBuilder(
@@ -553,6 +541,7 @@ class PunchTokenRow extends StatelessWidget {
             children: List.generate(
               required,
               (index) => PunchToken(
+                palette: palette,
                 size: diameter,
                 filled: index < collected,
                 reward: index == required - 1,
@@ -566,61 +555,23 @@ class PunchTokenRow extends StatelessWidget {
 }
 
 class PunchToken extends StatelessWidget {
-  final double size;
-  final bool filled;
-  final bool reward;
   const PunchToken({
     super.key,
+    required this.palette,
     required this.size,
     required this.filled,
     required this.reward,
   });
-
+  final CardPalette palette;
+  final double size;
+  final bool filled, reward;
   @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: filled
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFDE85), Color(0xFFE0AB43)],
-              )
-            : null,
-        boxShadow: filled
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF795417).withValues(alpha: .35),
-                  offset: const Offset(0, 3),
-                  blurRadius: 2,
-                ),
-              ]
-            : null,
-      ),
-      child: filled
-          ? Icon(
-              Icons.check_rounded,
-              color: const Color(0xFF81570E),
-              size: size * .49,
-            )
-          : CustomPaint(
-              painter: _DashPainter(
-                color: reward ? deckGold : Colors.white.withValues(alpha: .42),
-              ),
-              child: reward
-                  ? Icon(
-                      Icons.card_giftcard_rounded,
-                      color: deckGold,
-                      size: size * .44,
-                    )
-                  : null,
-            ),
-    );
-  }
+  Widget build(BuildContext context) => LoyaltyPunchToken(
+    palette: palette,
+    size: size,
+    filled: filled,
+    reward: reward,
+  );
 }
 
 class DeckPager extends StatelessWidget {
@@ -654,31 +605,13 @@ class DeckPager extends StatelessWidget {
   }
 }
 
-class _DashPainter extends CustomPainter {
-  final Color color;
-  const _DashPainter({required this.color});
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8;
-    final rect = Rect.fromLTWH(1.5, 1.5, size.width - 3, size.height - 3);
-    for (var i = 0; i < 12; i++) {
-      canvas.drawArc(rect, i * math.pi / 6, math.pi / 9, false, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashPainter oldDelegate) => color != oldDelegate.color;
-}
-
 class _RingPainter extends CustomPainter {
-  const _RingPainter();
+  const _RingPainter(this.color);
+  final Color color;
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: .12)
+      ..color = color.withValues(alpha: .12)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     canvas.drawCircle(size.center(Offset.zero), 115, paint);
@@ -686,5 +619,5 @@ class _RingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_RingPainter oldDelegate) => false;
+  bool shouldRepaint(_RingPainter oldDelegate) => oldDelegate.color != color;
 }

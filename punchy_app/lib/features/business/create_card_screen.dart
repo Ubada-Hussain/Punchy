@@ -1,28 +1,41 @@
 import 'package:flutter/material.dart';
+
+import '../../core/loyalty/card_palette.dart';
+import '../../core/loyalty/loyalty_card_surface.dart';
+import '../../core/loyalty/loyalty_punch_token.dart';
+
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/loyalty/card_color.dart';
+import 'color_picker/card_color_swatches.dart';
 
 class CreateCardScreen extends StatefulWidget {
   final String? cardId;
   final Map<String, dynamic>? initialData;
+  final ApiClient? apiClient;
 
-  const CreateCardScreen({super.key, this.cardId, this.initialData});
+  const CreateCardScreen({
+    super.key,
+    this.cardId,
+    this.initialData,
+    this.apiClient,
+  });
 
   @override
   State<CreateCardScreen> createState() => _CreateCardScreenState();
 }
 
 class _CreateCardScreenState extends State<CreateCardScreen> {
-  final ApiClient _api = ApiClient();
+  late final ApiClient _api = widget.apiClient ?? ApiClient();
   final _nameController = TextEditingController();
   final _rewardController = TextEditingController();
   final _priceController = TextEditingController(text: '350');
 
   int _punchesRequired = 10;
-  int _selectedColorIndex = 0; // 0=Coral, 1=Teal, 2=Purple, 3=Gold
+  Color _selectedColor = CardColor.parse(CardColor.presets['coral']);
   String _selectedCurrency = 'PKR';
   final List<String> _currencies = ['PKR', 'USD', 'AED', 'EUR', 'GBP'];
 
@@ -48,31 +61,6 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
       }[_selectedCurrency] ??
       _selectedCurrency;
 
-  final List<LinearGradient> _gradients = [
-    const LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Color(0xFFFF8368), Color(0xFFE84D38)],
-    ),
-    const LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Color(0xFF14B8A6), Color(0xFF0D6B60)],
-    ),
-    const LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Color(0xFF8B7FF5), Color(0xFF5E4FD6)],
-    ),
-    const LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [Color(0xFFFFC658), Color(0xFFF2994A)],
-    ),
-  ];
-
-  final List<String> _colorNames = ['coral', 'teal', 'purple', 'gold'];
-
   @override
   void initState() {
     super.initState();
@@ -82,9 +70,7 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
       _rewardController.text = data['rewardDescription'] ?? '1 Free Coffee';
       _punchesRequired = data['punchesRequired'] as int? ?? 10;
 
-      final theme = data['visualStyle']?['theme']?.toString() ?? 'coral';
-      final idx = _colorNames.indexOf(theme);
-      if (idx != -1) _selectedColorIndex = idx;
+      _selectedColor = CardColor.fromCard(data);
 
       if (data['validUntil'] != null) {
         try {
@@ -225,7 +211,6 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
       return;
     }
     setState(() => _isSaving = true);
-    final theme = _colorNames[_selectedColorIndex];
     final priceVal = double.tryParse(_priceController.text.trim()) ?? 350.0;
 
     final body = {
@@ -239,7 +224,16 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
       'validUntil': _validUntil.toIso8601String(),
       'pricePerPunch': priceVal,
       'currency': _selectedCurrency,
-      'visualStyle': {'theme': theme, 'icon': '☕'},
+      'visualStyle': {
+        if (widget.initialData?['visualStyle'] is Map)
+          ...Map<String, dynamic>.from(
+            widget.initialData!['visualStyle'] as Map,
+          ),
+        'primaryColor': CardColor.format(_selectedColor),
+        'icon': widget.initialData?['visualStyle'] is Map
+            ? (widget.initialData!['visualStyle']['icon'] ?? '☕')
+            : '☕',
+      },
       if (widget.cardId == null) ...{'enableQR': _useQR, 'enableNFC': _useNFC},
     };
 
@@ -394,7 +388,7 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentGradient = _gradients[_selectedColorIndex];
+    final palette = CardPalette.fromColor(_selectedColor);
     final isEditing = widget.cardId != null;
 
     return Scaffold(
@@ -492,7 +486,7 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                 ),
                 children: [
                   // Live Preview Card (Image 1)
-                  _buildLivePreviewCard(currentGradient),
+                  _buildLivePreviewCard(palette),
                   const SizedBox(height: 18),
 
                   // 1. Card Name
@@ -737,33 +731,13 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                   // 5. Card color theme
                   _buildFieldLabel('Card color theme'),
                   const SizedBox(height: 8),
-                  Row(
-                    children: List.generate(_gradients.length, (index) {
-                      final isSelected = _selectedColorIndex == index;
-                      return GestureDetector(
-                        onTap: () =>
-                            setState(() => _selectedColorIndex = index),
-                        child: Container(
-                          width: 38,
-                          height: 38,
-                          margin: const EdgeInsets.only(right: 12),
-                          decoration: BoxDecoration(
-                            gradient: _gradients[index],
-                            borderRadius: BorderRadius.circular(11),
-                            border: isSelected
-                                ? Border.all(color: AppColors.ink, width: 2.8)
-                                : null,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }),
+                  CardColorSwatches(
+                    color: _selectedColor,
+                    cardTitle: _nameController.text.trim().isEmpty
+                        ? 'Coffee Lovers Card'
+                        : _nameController.text.trim(),
+                    onChanged: (color) =>
+                        setState(() => _selectedColor = color),
                   ),
                   const SizedBox(height: 16),
 
@@ -1010,98 +984,52 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
     );
   }
 
-  Widget _buildLivePreviewCard(LinearGradient gradient) {
+  Widget _buildLivePreviewCard(CardPalette palette) {
     final title = _nameController.text.trim().isEmpty
         ? 'Coffee Lovers Card'
         : _nameController.text.trim();
-    final stampsCount = _punchesRequired.clamp(1, 20);
-
-    return Container(
+    final count = _punchesRequired.clamp(1, 10);
+    return LoyaltyCardSurface(
+      key: const Key('business_card_live_preview'),
+      palette: palette,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: gradient.colors.last.withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Row: Coffee Logo + Card Title + Validity Pill
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.28),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.coffee_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        'Live preview',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.85),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              // Validity Badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.25),
-                  ),
+                  color: palette.overlay,
+                  shape: BoxShape.circle,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Icon(
+                  Icons.coffee_rounded,
+                  color: palette.text,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.hourglass_top_rounded,
-                      color: Colors.white,
-                      size: 11,
-                    ),
-                    const SizedBox(width: 4),
                     Text(
-                      'Valid till ${_formatDate(_validUntil)}',
+                      title,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: palette.text,
+                      ),
+                    ),
+                    Text(
+                      'Live preview',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: palette.secondaryText,
                       ),
                     ),
                   ],
@@ -1109,85 +1037,37 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // Perforated Tear Line
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFFF9FAF9),
-                ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: palette.overlay,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Valid till ${_formatDate(_validUntil)}',
+              style: TextStyle(
+                fontSize: 11,
+                color: palette.text,
+                fontWeight: FontWeight.w700,
               ),
-              Expanded(
-                child: Container(
-                  height: 1.2,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  color: Colors.white.withValues(alpha: 0.4),
-                ),
-              ),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFFF9FAF9),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 12),
-
-          // Stamps Row (1 to 10)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final double totalWidth = constraints.maxWidth;
-              final int count = stampsCount > 10 ? 10 : stampsCount;
-              final double stampSize =
-                  ((totalWidth - ((count - 1) * 6)) / count).clamp(22.0, 30.0);
-
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(count, (i) {
-                  final isFirst = i == 0;
-                  return Container(
-                    width: stampSize,
-                    height: stampSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isFirst
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.12),
-                      border: isFirst
-                          ? null
-                          : Border.all(
-                              color: Colors.white.withValues(alpha: 0.65),
-                              width: 1.2,
-                            ),
-                    ),
-                    child: Center(
-                      child: isFirst
-                          ? Icon(
-                              Icons.check_rounded,
-                              color: gradient.colors.last,
-                              size: stampSize * 0.55,
-                            )
-                          : Text(
-                              '${i + 1}',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: stampSize * 0.38,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white.withValues(alpha: 0.9),
-                              ),
-                            ),
-                    ),
-                  );
-                }),
-              );
-            },
+          Divider(height: 1, color: palette.emptyToken),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: List.generate(
+              count,
+              (i) => LoyaltyPunchToken(
+                palette: palette,
+                size: 28,
+                filled: i == 0,
+                number: i + 1,
+              ),
+            ),
           ),
         ],
       ),

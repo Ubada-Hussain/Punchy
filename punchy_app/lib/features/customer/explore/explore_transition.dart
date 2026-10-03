@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/loyalty/card_palette.dart';
+import '../../../core/loyalty/loyalty_card_surface.dart';
+
 import 'explore_clipper.dart';
 import 'explore_style.dart';
 import 'explore_tile.dart';
@@ -48,8 +51,10 @@ class ExploreDetailRoute extends PageRouteBuilder<void> {
                          clipper: ExploreNotchClipper(
                            depth: reducedMotion ? 0 : 24 * (1 - t),
                          ),
-                         child: ColoredBox(
-                           color: color,
+                         child: LoyaltyCardSurface(
+                           palette: CardPalette.fromColor(color),
+                           radius: 0,
+                           shadow: false,
                            child: Stack(
                              children: [
                                if (!reducedMotion && t < 1)
@@ -60,10 +65,11 @@ class ExploreDetailRoute extends PageRouteBuilder<void> {
                                        alignment: Alignment.topLeft,
                                        minWidth: size.width,
                                        maxWidth: size.width,
-                                       minHeight: exploreTileHeight,
-                                       maxHeight: exploreTileHeight,
+                                       minHeight: sourceRect().height,
+                                       maxHeight: sourceRect().height,
                                        child: ExploreTileContent(
                                          business: business,
+                                         palette: CardPalette.fromColor(color),
                                          added: added(),
                                        ),
                                      ),

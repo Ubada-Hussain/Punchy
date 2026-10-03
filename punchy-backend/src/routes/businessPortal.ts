@@ -13,6 +13,7 @@ import { notifyPunchEarned, notifyProgressMilestone } from '../lib/automatedNoti
 import { unreadNotificationCount } from '../lib/notificationInbox';
 import { ensureUserPublicId } from '../lib/userPublicId';
 import { currencyForCountry, geocodeAddress, isSupportedCountry, normalizeBusinessPhone } from '../lib/international';
+import { CardVisualStyleSchema } from '../lib/cardVisualStyle';
 
 const router = Router();
 const logoUpload = multer({
@@ -39,7 +40,7 @@ const CardSchema = z.object({
   title: z.string().min(2),
   punchesRequired: z.number().min(2).max(20).default(10),
   rewardDescription: z.string().min(2),
-  visualStyle: z.record(z.string(), z.any()).default({}),
+  visualStyle: CardVisualStyleSchema.default({}),
   validUntil: z.string().nullable().optional(),
   pricePerPunch: z.number().min(0).optional().default(0),
   currency: z.string().min(1).max(10).optional(),

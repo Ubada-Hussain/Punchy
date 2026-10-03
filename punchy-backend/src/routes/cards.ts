@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
+import { CardHexColorSchema, CardVisualStyleSchema } from '../lib/cardVisualStyle';
 
 const router = Router();
 
@@ -13,8 +14,8 @@ const CardSchema = z.object({
   pricePerPunch: z.number().min(0).optional().default(0),
   currency: z.string().min(1).max(10).optional().default('PKR'),
   isActive: z.boolean().optional(),
-  visualStyle: z.object({
-    primaryColor: z.string().default('#FF6B35'),
+  visualStyle: CardVisualStyleSchema.extend({
+    primaryColor: CardHexColorSchema.default('#FF6B35'),
     bgColor: z.string().default('#1a1a2e'),
     iconType: z.string().default('star'),
   }).optional(),

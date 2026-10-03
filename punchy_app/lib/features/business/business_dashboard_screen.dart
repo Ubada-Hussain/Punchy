@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+
+import '../../core/loyalty/card_palette.dart';
+import '../../core/loyalty/loyalty_card_surface.dart';
+
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -759,7 +763,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
   }
 
   /// Active Loyalty Card Summary Block matching Reference Image 2:
-  /// Dark Teal rounded card with coffee badge, Active badge, punch summary,
+  /// Business-colored card with coffee badge, Active badge, punch summary,
   /// price per punch on right, reward info on right, valid till, customer count, Edit and Delete buttons.
   Widget _buildActiveCardBlock(dynamic activeCard, List<dynamic> allCards) {
     if (activeCard == null) {
@@ -823,6 +827,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
       );
     }
 
+    final palette = CardPalette.fromCard(activeCard);
     final cardTitle = activeCard['title'] ?? 'Coffee Lovers Card';
     final punchesReq = activeCard['punchesRequired'] ?? 10;
     final rewardDesc = activeCard['rewardDescription'] ?? 'Free Coffee';
@@ -840,23 +845,9 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
     final isExpired = expiry != null && expiry.isBefore(DateTime.now());
     final custCount = activeCard['_count']?['customerCards'] ?? 0;
 
-    return Container(
+    return LoyaltyCardSurface(
+      palette: palette,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0B574D), Color(0xFF063A33)],
-        ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF063A33).withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -873,13 +864,13 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
+                        color: palette.overlay,
                         borderRadius: BorderRadius.circular(13),
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Icon(
                           Icons.coffee_rounded,
-                          color: Colors.white,
+                          color: palette.text,
                           size: 22,
                         ),
                       ),
@@ -897,7 +888,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 14.5,
                                     fontWeight: FontWeight.w800,
-                                    color: Colors.white,
+                                    color: palette.text,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -909,18 +900,10 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color:
-                                      (isExpired
-                                              ? AppColors.coral
-                                              : const Color(0xFF10A37F))
-                                          .withValues(alpha: 0.28),
+                                  color: palette.overlay,
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color:
-                                        (isExpired
-                                                ? AppColors.coral
-                                                : const Color(0xFF10A37F))
-                                            .withValues(alpha: 0.5),
+                                    color: palette.border,
                                     width: 0.8,
                                   ),
                                 ),
@@ -929,9 +912,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.w700,
-                                    color: isExpired
-                                        ? AppColors.coral
-                                        : const Color(0xFF6EE7B7),
+                                    color: palette.text,
                                   ),
                                 ),
                               ),
@@ -943,7 +924,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.85),
+                              color: palette.secondaryText,
                             ),
                           ),
                         ],
@@ -953,76 +934,85 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
                 ),
               ),
 
-              // Right column: Price tag & Reward tag
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+              // Bound long reward labels and scaled text to their summary area.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width * .32,
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.topEnd,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.sell_rounded,
-                        color: Color(0xFF5EEAD4),
-                        size: 13,
-                      ),
-                      const SizedBox(width: 5),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            '$currency $priceStr',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
+                          Icon(
+                            Icons.sell_rounded,
+                            color: palette.text,
+                            size: 13,
                           ),
-                          Text(
-                            'per punch',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.7),
-                            ),
+                          const SizedBox(width: 5),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '$currency $priceStr',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: palette.text,
+                                ),
+                              ),
+                              Text(
+                                'per punch',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w500,
+                                  color: palette.secondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.card_giftcard_rounded,
+                            color: palette.text,
+                            size: 13,
+                          ),
+                          const SizedBox(width: 5),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                rewardDesc,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: palette.text,
+                                ),
+                              ),
+                              Text(
+                                'after $punchesReq punches',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w500,
+                                  color: palette.secondaryText,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.card_giftcard_rounded,
-                        color: Color(0xFF5EEAD4),
-                        size: 13,
-                      ),
-                      const SizedBox(width: 5),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            rewardDesc,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            'after $punchesReq punches',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.7),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ],
           ),
@@ -1041,8 +1031,8 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: _selectedCardIndex == i
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.3),
+                          ? palette.text
+                          : palette.emptyToken,
                     ),
                   ),
                 );
@@ -1051,19 +1041,25 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
           ],
 
           const SizedBox(height: 14),
-          const Divider(height: 1, color: Colors.white24),
+          Divider(height: 1, color: palette.border),
           const SizedBox(height: 12),
 
-          // Bottom Row: Valid till, Customers count, Edit and Delete action buttons
-          Row(
+          // Keep the existing row; stack its sections at large text sizes.
+          Flex(
+            direction: MediaQuery.textScalerOf(context).scale(10) > 15
+                ? Axis.vertical
+                : Axis.horizontal,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
+              Flexible(
+                flex: MediaQuery.textScalerOf(context).scale(10) > 15 ? 0 : 1,
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.calendar_today_rounded,
                       size: 11,
-                      color: Colors.white70,
+                      color: palette.secondaryText,
                     ),
                     const SizedBox(width: 3),
                     Flexible(
@@ -1072,18 +1068,18 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.9),
+                          color: palette.secondaryText,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 5),
-                    Container(width: 1, height: 10, color: Colors.white30),
+                    Container(width: 1, height: 10, color: palette.border),
                     const SizedBox(width: 5),
-                    const Icon(
+                    Icon(
                       Icons.people_outline_rounded,
                       size: 12,
-                      color: Colors.white70,
+                      color: palette.secondaryText,
                     ),
                     const SizedBox(width: 3),
                     Text(
@@ -1091,7 +1087,7 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.9),
+                        color: palette.secondaryText,
                       ),
                     ),
                   ],
@@ -1119,26 +1115,22 @@ class _BusinessDashboardScreenState extends State<BusinessDashboardScreen>
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.7),
+                      color: palette.secondaryText,
                       width: 1.2,
                     ),
-                    color: Colors.white.withValues(alpha: 0.08),
+                    color: palette.overlay,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.edit_rounded,
-                        color: Colors.white,
-                        size: 11,
-                      ),
+                      Icon(Icons.edit_rounded, color: palette.text, size: 11),
                       const SizedBox(width: 3),
                       Text(
                         'Edit',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                          color: palette.text,
                         ),
                       ),
                     ],

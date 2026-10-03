@@ -318,7 +318,7 @@ class _ExploreScreenState extends State<ExploreScreen>
           : fallback;
     }
 
-    final color = exploreTints[index % exploreTints.length];
+    final color = exploreCardColor(business, index);
     await Navigator.of(context).push(
       ExploreDetailRoute(
         sourceRect: rect,
@@ -497,16 +497,17 @@ class _ExploreScreenState extends State<ExploreScreen>
                 else
                   SizedBox(
                     height:
-                        exploreTileStep * (visible.length - 1) +
-                        exploreTileHeight,
+                        (exploreTileHeightFor(context) - 24) *
+                            (visible.length - 1) +
+                        exploreTileHeightFor(context),
                     child: Stack(
                       children: [
                         for (var i = 0; i < visible.length; i++)
                           Positioned(
-                            top: i * exploreTileStep,
+                            top: i * (exploreTileHeightFor(context) - 24),
                             left: 0,
                             right: 0,
-                            height: exploreTileHeight,
+                            height: exploreTileHeightFor(context),
                             child: ExploreTileEntry(
                               key: ValueKey(
                                 '$_entryRevision|${visible[i]['id']}',
@@ -519,7 +520,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                                 ),
                                 child: ExploreTile(
                                   business: visible[i],
-                                  color: exploreTints[i % exploreTints.length],
+                                  color: exploreCardColor(visible[i], i),
                                   added: _wallet.containsKey(
                                     exploreCard(visible[i])?['id']?.toString(),
                                   ),
