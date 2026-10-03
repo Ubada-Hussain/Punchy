@@ -489,10 +489,21 @@ class _SignupScreenState extends State<SignupScreen> {
                               ),
                             ),
                             Text(
-                              ' and Privacy Policy',
+                              ' and ',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
                                 color: AppColors.inkSoft,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => context.push('/privacy'),
+                              child: Text(
+                                'Privacy Policy',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: AppColors.tealDark,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ],

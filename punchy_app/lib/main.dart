@@ -101,6 +101,9 @@ class _PunchyAppState extends State<PunchyApp> {
         final role = user?['role'] ?? 'CUSTOMER';
         final isSuspended = authProvider.isSuspended;
 
+        // The splash owns the handoff after auth readiness AND its intro/fade.
+        if (loc == '/splash') return null;
+
         if (authProvider.isMaintenance && loc != '/maintenance') {
           return '/maintenance';
         }
@@ -140,6 +143,7 @@ class _PunchyAppState extends State<PunchyApp> {
             loc == '/verify-signup' ||
             loc == '/forgot-password' ||
             loc == '/terms' ||
+            loc == '/privacy' ||
             loc.startsWith('/system-states') ||
             loc == '/offline' ||
             loc == '/server-error' ||

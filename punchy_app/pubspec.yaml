@@ -82,6 +82,7 @@ flutter:
     - assets/punchy_app_icon.png
     - assets/punchy_app_icon_512.png
     - assets/punchy_splash_mark.png
+    - assets/intro_fonts/
 
 flutter_launcher_icons:
   android: true
